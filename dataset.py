@@ -8,6 +8,8 @@ from torch.utils.data import IterableDataset
 
 DATA_DIR = "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/"
 
+RANDOM_SKIP_RANGE = 10
+
 def get_fa_file(label, part):
 	label = label.lower()
 	part = part.upper()
@@ -36,12 +38,18 @@ class FaExampleIterator:
 		self.seqio_iter = SeqIO.parse(self.fa_file, "fasta")
 		self.label = label.lower()
 		self.part = part.upper()
-		self.example_num = 0
+		self.example_num = -1
 
 	def __next__(self):
 		seq = None
-		while ((seq is None) or ('N' in seq.upper())):
+		skip = np.random.randint(RANDOM_SKIP_RANGE)
+		while ((seq is None) or ('N' in seq.upper()) or (skip > 0)):
+			# skip a random number of sequences
+			# (if not, then sequences are presented in a deterministic order)
+			# also skip sequences with 'N' base
 			seq = next(self.seqio_iter)
+			self.example_num += 1
+			skip -= 1
 		seq_str = bytes(seq.seq).decode('utf-8')
 		seq_arr = np.zeros((len(seq_str), len(self.base_mapping)))
 		for i, base in enumerate(seq_str.upper()):
@@ -55,7 +63,7 @@ class FaExampleIterator:
 			"fa_file": self.fa_file,
 			"example_num": self.example_num
 		}
-		self.example_num += 1
+		#TODO is there a way to pass all the metadata and only take the tensors later?
 		return res["seq_arr"], res["label"]
 
 	def __iter__(self):
