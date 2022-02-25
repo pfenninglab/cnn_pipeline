@@ -39,7 +39,10 @@ class FaExampleIterator:
 		self.example_num = 0
 
 	def __next__(self):
-		seq_str = bytes(next(self.seqio_iter).seq).decode('utf-8')
+		seq = None
+		while ((seq is None) or ('N' in seq.upper())):
+			seq = next(self.seqio_iter)
+		seq_str = bytes(seq.seq).decode('utf-8')
 		seq_arr = np.zeros((len(seq_str), len(self.base_mapping)))
 		for i, base in enumerate(seq_str.upper()):
 			seq_arr[i] = self.base_mapping[base]

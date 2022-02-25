@@ -47,7 +47,9 @@ class LitMNIST(LightningModule):
 
 
 model = LitMNIST()
+if torch.cuda.is_available():
+    model.cuda()
 print(summary(model, (500, 4)))
-trainer = Trainer()
+trainer = Trainer(gpus=1)
 data_loader = DataLoader(dataset.FaDataset('train'), batch_size=32)
 trainer.fit(model, data_loader)

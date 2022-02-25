@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# all paths must be absolute
+
+#SBATCH -p pfen3
+#SBATCH --gres gpu:1
+#SBATCH -n 1
+#SBATCH -o /home/%u/outputs/out.txt
+#SBATCH -e /home/%u/outputs/err.txt
+
+module load cuda-10.2
+
+# activate conda env
+source activate pt1_7
+
+python /home/$(whoami)/repos/mouse_sst/train.py > /home/$(whoami)/outputs/result.txt
