@@ -2,7 +2,7 @@ import os.path
 
 from Bio import SeqIO
 import numpy as np
-from torch.utils.data import IterableDataset, DataLoader
+from torch.utils.data import IterableDataset
 
 
 
@@ -53,7 +53,7 @@ class FaExampleIterator:
 			"example_num": self.example_num
 		}
 		self.example_num += 1
-		return res
+		return res["seq_arr"], res["label"]
 
 	def __iter__(self):
 		return self
@@ -113,8 +113,3 @@ def roundrobin(*iterables):
             # Remove the iterator we just exhausted from the cycle.
             num_active -= 1
             nexts = cycle(islice(nexts, num_active))
-
-loader = DataLoader(FaDataset(part='val'), batch_size=10)
-import itertools
-for thing in itertools.islice(loader, 408*2 + 2):
-	print(thing)
