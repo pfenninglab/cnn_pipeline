@@ -50,6 +50,9 @@ model = LitMNIST()
 if torch.cuda.is_available():
     model.cuda()
 print(summary(model, (500, 4)))
-trainer = Trainer(gpus=1)
+strategy = None
+if torch.cuda.device_count() > 1:
+    strategy = 'ddp'
+trainer = Trainer(gpus=torch.cuda.device_count(), strategy=strategy)
 data_loader = DataLoader(dataset.FaDataset('train'), batch_size=32)
 trainer.fit(model, data_loader)
