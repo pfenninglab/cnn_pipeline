@@ -21,7 +21,9 @@ ARCH_PARAMS = {
     "dropout_rates": [0.3, 0.2, 0.1],
     "batch_size_train": 128,
     "batch_size_val": 128,
-    "base_lr": 1e-5
+    "base_lr": 1e-5,
+    "l2_reg_weight": 1e-4,
+    "num_epochs": 30
 }
 
 
@@ -29,13 +31,21 @@ class CNN(LightningModule):
     def __init__(self):
         super().__init__()
 
+        # transposed input
+        # TODO this doesn't have to be hardcoded if we couple the dataset to the LightningModule
+        expected_input_shape = (4, 500)
+
         self.conv1 = nn.Conv1d(4, ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_width'])
         self.conv2 = nn.Conv1d(ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_width'])
 
-        self.maxpool1 = nn.MaxPool1d(ARCH_PARAMS['max_pool_size'], stride=ARCH_PARAMS['max_pool_stride'])
+        self.maxpool1 = nn.MaxPool1d(
+            ARCH_PARAMS['max_pool_size'], stride=ARCH_PARAMS['max_pool_stride'])
 
         self.flatten1 = nn.Flatten()
-        self.linear1 = nn.Linear(ARCH_PARAMS['conv_filters'] * 18, ARCH_PARAMS['dense_filters'])
+
+        dim = get_shape_from_layers(
+            [self.conv1, self.conv2, self.maxpool1, self.flatten1], expected_input_shape)
+        self.linear1 = nn.Linear(dim[0], ARCH_PARAMS['dense_filters'])
         self.linear2 = nn.Linear(ARCH_PARAMS['dense_filters'], 2)
 
         self.dropout_conv1 = nn.Dropout(p=ARCH_PARAMS['dropout_rates'][0])
@@ -45,7 +55,8 @@ class CNN(LightningModule):
         self.metrics = torchmetrics.MetricCollection(
             [torchmetrics.Accuracy(),
             torchmetrics.Precision(average=None, num_classes=2),
-            torchmetrics.Recall(average=None, num_classes=2)])
+            torchmetrics.Recall(average=None, num_classes=2),
+            torchmetrics.AUROC(average=None, num_classes=2)])
 
     def forward(self, x):
         x = x.transpose(1, 2).float()
@@ -76,7 +87,20 @@ class CNN(LightningModule):
         self.log_dict(metrics, on_epoch=True)
 
     def configure_optimizers(self):
-        return Adam(self.parameters(), lr=ARCH_PARAMS['base_lr'])
+        return Adam(
+            self.parameters(),
+            lr=ARCH_PARAMS['base_lr'],
+            weight_decay=ARCH_PARAMS['l2_reg_weight'])
+
+def get_shape_from_layers(layers, image_dim: tuple):
+    shape = (1,) + image_dim
+    for layer in layers:
+        shape = get_output_shape(layer, shape)
+    return shape[1:]
+
+def get_output_shape(model, image_dim):
+    """from https://stackoverflow.com/a/62197038"""
+    return model(torch.rand(*(image_dim))).data.shape
 
 
 if __name__ == '__main__':
@@ -100,7 +124,7 @@ if __name__ == '__main__':
         gpus=torch.cuda.device_count(),
         strategy=strategy,
         precision=16,
-        max_epochs=100)
+        max_epochs=ARCH_PARAMS['num_epochs'])
 
     train_dataloader = DataLoader(dataset.FaDataset(part='train', random_skip_range=8),
         batch_size=ARCH_PARAMS['batch_size_train'])
