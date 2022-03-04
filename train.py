@@ -13,7 +13,15 @@ import dataset
 
 SHOW_MODEL_SUMMARY = True
 ARCH_PARAMS = {
-    "conv_filters": 300
+    "conv_filters": 300,
+    "conv_width": 7,
+    "dense_filters": 300,
+    "max_pool_size": 26,
+    "max_pool_stride": 26,
+    "dropout_rates": [0.3, 0.2, 0.1],
+    "batch_size_train": 128,
+    "batch_size_val": 128,
+    "base_lr": 1e-5
 }
 
 
@@ -21,11 +29,18 @@ class CNN(LightningModule):
     def __init__(self):
         super().__init__()
 
-        self.layer_1 = nn.Conv1d(4, ARCH_PARAMS['conv_filters'], 3)
-        self.layer_2 = nn.Conv1d(ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_filters'], 3)
-        self.layer_3 = nn.Conv1d(ARCH_PARAMS['conv_filters'], 2, 3)
-        self.layer_4 = nn.Flatten()
-        self.layer_5 = nn.Linear(2 * 494, 2)
+        self.conv1 = nn.Conv1d(4, ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_width'])
+        self.conv2 = nn.Conv1d(ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_width'])
+
+        self.maxpool1 = nn.MaxPool1d(ARCH_PARAMS['max_pool_size'], stride=ARCH_PARAMS['max_pool_stride'])
+
+        self.flatten1 = nn.Flatten()
+        self.linear1 = nn.Linear(ARCH_PARAMS['conv_filters'] * 18, ARCH_PARAMS['dense_filters'])
+        self.linear2 = nn.Linear(ARCH_PARAMS['dense_filters'], 2)
+
+        self.dropout_conv1 = nn.Dropout(p=ARCH_PARAMS['dropout_rates'][0])
+        self.dropout_conv2 = nn.Dropout(p=ARCH_PARAMS['dropout_rates'][1])
+        self.dropout_linear1 = nn.Dropout(p=ARCH_PARAMS['dropout_rates'][2])
 
         self.metrics = torchmetrics.MetricCollection(
             [torchmetrics.Accuracy(),
@@ -34,15 +49,12 @@ class CNN(LightningModule):
 
     def forward(self, x):
         x = x.transpose(1, 2).float()
-        x = self.layer_1(x)
-        x = F.relu(x)
-        x = self.layer_2(x)
-        x = F.relu(x)
-        x = self.layer_3(x)
-        x = F.relu(x)
-
-        x = self.layer_4(x)
-        x = self.layer_5(x)
+        x = self.dropout_conv1(F.relu(self.conv1(x)))
+        x = self.dropout_conv2(F.relu(self.conv2(x)))
+        x = self.maxpool1(x)
+        x = self.flatten1(x)
+        x = self.dropout_linear1(F.relu(self.linear1(x)))
+        x = self.linear2(x)
 
         x = F.log_softmax(x, dim=1)
         return x
@@ -64,7 +76,7 @@ class CNN(LightningModule):
         self.log_dict(metrics, on_epoch=True)
 
     def configure_optimizers(self):
-        return Adam(self.parameters(), lr=1e-5)
+        return Adam(self.parameters(), lr=ARCH_PARAMS['base_lr'])
 
 
 if __name__ == '__main__':
@@ -90,7 +102,9 @@ if __name__ == '__main__':
         precision=16,
         max_epochs=100)
 
-    train_dataloader = DataLoader(dataset.FaDataset(part='train'), batch_size=512)
-    val_dataloader = DataLoader(dataset.SinglePassDataset(part='val'), batch_size=512)
+    train_dataloader = DataLoader(dataset.FaDataset(part='train', random_skip_range=8),
+        batch_size=ARCH_PARAMS['batch_size_train'])
+    val_dataloader = DataLoader(dataset.SinglePassDataset(part='val'),
+        batch_size=ARCH_PARAMS['batch_size_val'])
 
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)

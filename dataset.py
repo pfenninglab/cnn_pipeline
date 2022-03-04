@@ -45,7 +45,9 @@ class FaExampleIterator(IterableDataset):
 
 	def __next__(self):
 		seq = None
-		skip = np.random.randint(self.random_skip_range)
+		skip = 0
+		if self.random_skip_range > 1:
+			skip = np.random.randint(self.random_skip_range)
 		while ((seq is None) or self._is_malformed(seq) or (skip > 0)):
 			seq = next(self.seqio_iter)
 			self.example_num += 1
@@ -83,9 +85,9 @@ class FaDataset(IterableDataset):
 	Args:
 	    part (str): in ['train', 'val', 'test']
 	"""
-	def __init__(self, part=None):
+	def __init__(self, part=None, random_skip_range:int=None):
 		it_args = [
-			(FaExampleIterator, {'label': label, 'part': part})
+			(FaExampleIterator, {'label': label, 'part': part, 'random_skip_range': random_skip_range})
 			for label in ['pos', 'neg']
 		]
 		self.epoch_len = max(len(it(**kwargs)) for it, kwargs in it_args) * len(it_args)
