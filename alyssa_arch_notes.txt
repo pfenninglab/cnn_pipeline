@@ -1,0 +1,46 @@
+
+
+CONV_FILTERS=300
+CONV_WIDTH=7
+L1CONV_STRIDE=(4,1)
+CONV_STRIDE=(1,1)
+MAX_POOL_SIZE=26
+MAX_POOL_STRIDE=26
+DENSE_FILTERS=300
+l2_reg=1e-04
+BATCH_SIZE=128
+EPOCHS=30
+BASE_LR=1e-5
+MAX_LR=0.03
+BASE_M=0.90
+MAX_M=0.99
+NUM_CYCLES=2.5
+TRAIN_FASTA_POS="mouse_SST_pos_TRAIN.fa"
+TRAIN_FASTA_NEG="mouse_SST_neg_TRAIN.fa"
+VAL_FASTA_POS="mouse_SST_pos_VAL.fa"
+VAL_FASTA_NEG="mouse_SST_neg_VAL.fa"
+
+
+modelSSTa = Sequential()
+
+modelSSTa.add(Conv2D(filters = CONV_FILTERS, kernel_size = (CONV_WIDTH,4), activation = 'relu', kernel_regularizer = l2(l=l2_reg), strides=L1CONV_STRIDE, padding = "valid", use_bias = "true", kernel_initializer = "he_normal", input_shape = (500, 4, 1)))
+
+modelSSTa.add(Dropout(rate = 0.3))
+
+modelSSTa.add(Conv2D(filters = CONV_FILTERS, kernel_size = (CONV_WIDTH,1), activation = 'relu', kernel_regularizer = l2(l=l2_reg), strides=CONV_STRIDE, padding = "valid", use_bias = "true", kernel_initializer = "he_normal"))
+
+modelSSTa.add(Dropout(rate = 0.2))
+
+modelSSTa.add(MaxPooling2D(pool_size=(MAX_POOL_SIZE,1), strides=MAX_POOL_STRIDE, padding = "valid"))
+
+modelSSTa.add(Flatten())
+
+modelSSTa.add(Dense(units = DENSE_FILTERS, activation = 'linear', kernel_regularizer = l2(l=l2_reg), kernel_initializer = "he_normal", use_bias = "true"))
+
+modelSSTa.add(Activation(activation = 'relu'))
+
+modelSSTa.add(Dropout(rate = 0.1))
+
+modelSSTa.add(Dense(units = 1, kernel_initializer = "glorot_normal", use_bias = "true", activation = 'linear', kernel_regularizer = l2(l=l2_reg)))
+
+modelSSTa.add(Activation(activation = 'sigmoid'))

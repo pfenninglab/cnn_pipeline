@@ -8,9 +8,6 @@ from torch.utils.data import IterableDataset, ChainDataset
 
 DATA_DIR = "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/"
 
-#TODO revert to 10, make a class instantiation argument
-RANDOM_SKIP_RANGE = 1
-
 def get_fa_file(label, part):
 	label = label.lower()
 	part = part.upper()
@@ -34,21 +31,22 @@ class FaExampleIterator(IterableDataset):
 		'pos': 1
 	}
 
-	def __init__(self, label, part):
+	def __init__(self, label, part, random_skip_range:int=None):
 		self.fa_file = get_fa_file(label, part)
 		self.seqio_iter = SeqIO.parse(self.fa_file, "fasta")
 		self.label = label.lower()
 		self.part = part.upper()
 		self.example_num = -1
-		self.len = sum(1 for _ in SeqIO.parse(self.fa_file, "fasta"))
+		self.len = sum(1 for seq in SeqIO.parse(self.fa_file, "fasta") if not self._is_malformed(seq))
+		# if random_skip_range is passed, then
+		#     skip [0, ..., random_skip_range - 1]-many sequences on each iteration
+		# otherwise, don't skip sequences
+		self.random_skip_range = random_skip_range or 1
 
 	def __next__(self):
 		seq = None
-		skip = np.random.randint(RANDOM_SKIP_RANGE)
-		while ((seq is None) or ('N' in seq.upper()) or (skip > 0)):
-			# skip a random number of sequences
-			# (if not, then sequences are presented in a deterministic order)
-			# also skip sequences with 'N' base
+		skip = np.random.randint(self.random_skip_range)
+		while ((seq is None) or self._is_malformed(seq) or (skip > 0)):
 			seq = next(self.seqio_iter)
 			self.example_num += 1
 			skip -= 1
@@ -74,9 +72,13 @@ class FaExampleIterator(IterableDataset):
 	def __len__(self):
 		return self.len
 
+	def _is_malformed(self, seq: SeqIO.SeqRecord):
+		return 'N' in seq.upper()
+
 class FaDataset(IterableDataset):
-	"""Iterable dataset that yields sequences and 1-hot encodings.
-	Examples alternate between positive and negative.
+	"""Iterable dataset of sequences (1-hot tensor) and labels (int).
+	Examples alternate between positive and negative with equal frequency.
+	Useful for training.
 
 	Args:
 	    part (str): in ['train', 'val', 'test']
@@ -94,38 +96,6 @@ class FaDataset(IterableDataset):
 
 	def __len__(self):
 		return self.epoch_len
-
-class LoopingIterable:
-	def __init__(self, it_class, **kwargs):
-		self.it_class = it_class
-		self.kwargs = kwargs
-		self.it = self.it_class(**self.kwargs)
-
-	def __next__(self):
-		try:
-			return next(self.it)
-		except StopIteration:
-			self.it = self.it_class(**self.kwargs)
-			return next(self.it)
-
-	def __iter__(self):
-		return self
-
-from itertools import cycle, islice
-# from https://docs.python.org/3/library/itertools.html#recipes
-def roundrobin(*iterables):
-    "roundrobin('ABC', 'D', 'EF') --> A D E B F C"
-    # Recipe credited to George Sakkis
-    num_active = len(iterables)
-    nexts = cycle(iter(it).__next__ for it in iterables)
-    while num_active:
-        try:
-            for next in nexts:
-                yield next()
-        except StopIteration:
-            # Remove the iterator we just exhausted from the cycle.
-            num_active -= 1
-            nexts = cycle(islice(nexts, num_active))
 
 def roundrobin_batcher(it_args, endless=True):
 	"""Yield elements from each iterator until they have all been exhausted.
@@ -182,6 +152,31 @@ def roundrobin_test():
 	res = [c for c in roundrobin_batcher(it_args, endless=False)]
 	assert(res == ['A', 'X', 'B', 'Y', 'C', 'Z', 'D', 'X', 'E', 'Y'])
 
-def get_singlepass_dataset(part):
-	"""Returns an IterableDataset where each example is given exactly once."""
-	return ChainDataset([FaExampleIterator(label, part) for label in ['pos', 'neg']])
+	from itertools import islice
+	res = [c for c in islice(roundrobin_batcher(it_args, endless=True), 12)]
+	assert(res == ['A', 'X', 'B', 'Y', 'C', 'Z', 'D', 'X', 'E', 'Y', 'A', 'Z'])
+
+import itertools
+class SinglePassDataset(IterableDataset):
+	"""Iterable dataset where each example appears exactly once in each epoch.
+	Useful for validation.
+
+	Args:
+		part (str): in ['train', 'val', 'test']
+	"""
+	def __init__(self, part):
+		self.part = part
+		self._refresh_dataset()
+		self.len = len(self.dataset)
+
+	def __len__(self):
+		return self.len
+
+	def __iter__(self):
+		while True:
+			for x in self.dataset:
+				yield x
+			self._refresh_dataset()
+
+	def _refresh_dataset(self):
+		self.dataset = ChainDataset([FaExampleIterator(label, self.part) for label in ['pos', 'neg']])

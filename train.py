@@ -17,7 +17,7 @@ ARCH_PARAMS = {
 }
 
 
-class LitMNIST(LightningModule):
+class CNN(LightningModule):
     def __init__(self):
         super().__init__()
 
@@ -69,7 +69,7 @@ class LitMNIST(LightningModule):
 
 if __name__ == '__main__':
 
-    model = LitMNIST()
+    model = CNN()
     if torch.cuda.is_available():
         model.cuda()
 
@@ -91,6 +91,6 @@ if __name__ == '__main__':
         max_epochs=100)
 
     train_dataloader = DataLoader(dataset.FaDataset(part='train'), batch_size=512)
-    val_dataloader = DataLoader(dataset.FaDataset(part='val'), batch_size=512)
+    val_dataloader = DataLoader(dataset.SinglePassDataset(part='val'), batch_size=512)
 
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
