@@ -166,10 +166,11 @@ class SinglePassDataset(IterableDataset):
 	Args:
 		part (str): in ['train', 'val', 'test']
 	"""
-	def __init__(self, part):
+	def __init__(self, part, endless=True):
 		self.part = part
 		self._refresh_dataset()
 		self.len = len(self.dataset)
+		self.endless = endless
 
 	def __len__(self):
 		return self.len
@@ -178,7 +179,10 @@ class SinglePassDataset(IterableDataset):
 		while True:
 			for x in self.dataset:
 				yield x
-			self._refresh_dataset()
+			if self.endless:
+				self._refresh_dataset()
+			else:
+				break
 
 	def _refresh_dataset(self):
 		self.dataset = ChainDataset([FaExampleIterator(label, self.part) for label in ['pos', 'neg']])

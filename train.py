@@ -52,11 +52,13 @@ class CNN(LightningModule):
         self.dropout_conv2 = nn.Dropout(p=ARCH_PARAMS['dropout_rates'][1])
         self.dropout_linear1 = nn.Dropout(p=ARCH_PARAMS['dropout_rates'][2])
 
+        # metrics to run during training
         self.metrics = torchmetrics.MetricCollection(
+            [torchmetrics.Accuracy()])
+        # metrics to run after training
+        self.post_train_metrics = torchmetrics.MetricCollection(
             [torchmetrics.Accuracy(),
-            torchmetrics.Precision(average=None, num_classes=2),
-            torchmetrics.Recall(average=None, num_classes=2),
-            torchmetrics.AUROC(average=None, num_classes=2)])
+            torchmetrics.AUROC(num_classes=2)])
 
     def forward(self, x):
         x = x.transpose(1, 2).float()
