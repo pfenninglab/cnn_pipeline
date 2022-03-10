@@ -60,6 +60,10 @@ class CNN(LightningModule):
             'precision': torchmetrics.Precision()})
         self.negative_metrics = torchmetrics.MetricCollection(
             {'npv': torchmetrics.Precision()})
+        self.pr_curve = torchmetrics.PrecisionRecallCurve()
+        self.auprc = torchmetrics.AUC(reorder=True)
+        self.negative_pr_curve = torchmetrics.PrecisionRecallCurve()
+        self.npvsc = torchmetrics.AUC(reorder=True)
 
 
     def forward(self, x):
@@ -93,9 +97,17 @@ class CNN(LightningModule):
         self.metrics.update(y_hat, y)
         self.log_dict(self.metrics, on_epoch=True)
 
+        precision, recall, _ = self.pr_curve(y_hat, y)
+        self.auprc.update(recall, precision)
+        self.log("auprc", self.auprc, on_epoch=True)
+
         # metrics where the negative class is considered positive
         self.negative_metrics.update(1 - y_hat, 1 - y)
         self.log_dict(self.negative_metrics, on_epoch=True)
+
+        precision, recall, _ = self.negative_pr_curve(1 - y_hat, 1 - y)
+        self.npvsc.update(recall, precision)
+        self.log("npvsc", self.npvsc, on_epoch=True)
 
     def configure_optimizers(self):
         return Adam(
@@ -144,5 +156,6 @@ if __name__ == '__main__':
         batch_size=ARCH_PARAMS['batch_size_val'])
 
     trainer.validate(model=model, dataloaders=val_dataloader)
+    raise ValueError()
 
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)

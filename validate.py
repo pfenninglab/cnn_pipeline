@@ -57,6 +57,10 @@ else:
 
 print(model.metrics(y_hat, targets))
 print(model.negative_metrics(1 - y_hat, 1 - targets))
+precision, recall, _ = model.pr_curve(y_hat, targets)
+print(f"auprc: {model.auprc(recall, precision)}")
+precision, recall, _ = model.negative_pr_curve(1 - y_hat, 1 - targets)
+print(f"npvsc: {model.npvsc(recall, precision)}")
 
 
 
