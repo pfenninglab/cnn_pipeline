@@ -97,15 +97,20 @@ class CNN(LightningModule):
         self.metrics.update(y_hat, y)
         self.log_dict(self.metrics, on_epoch=True)
 
-        precision, recall, _ = self.pr_curve(y_hat, y)
-        self.auprc.update(recall, precision)
-        self.log("auprc", self.auprc, on_epoch=True)
+        self.pr_curve.update(y_hat, y)
 
         # metrics where the negative class is considered positive
         self.negative_metrics.update(1 - y_hat, 1 - y)
         self.log_dict(self.negative_metrics, on_epoch=True)
 
-        precision, recall, _ = self.negative_pr_curve(1 - y_hat, 1 - y)
+        self.negative_pr_curve.update(1 - y_hat, 1 - y)
+
+    def validation_epoch_end(self, validation_step_outputs):
+        precision, recall, _ = self.pr_curve.compute()
+        self.auprc.update(recall, precision)
+        self.log("auprc", self.auprc, on_epoch=True)
+
+        precision, recall, _ = self.negative_pr_curve.compute()
         self.npvsc.update(recall, precision)
         self.log("npvsc", self.npvsc, on_epoch=True)
 
@@ -156,6 +161,5 @@ if __name__ == '__main__':
         batch_size=ARCH_PARAMS['batch_size_val'])
 
     trainer.validate(model=model, dataloaders=val_dataloader)
-    raise ValueError()
 
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
