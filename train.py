@@ -11,7 +11,7 @@ import torchmetrics
 import dataset
 
 
-SHOW_MODEL_SUMMARY = True
+SHOW_MODEL_SUMMARY = False
 ARCH_PARAMS = {
     "conv_filters": 300,
     "conv_width": 7,
@@ -52,13 +52,15 @@ class CNN(LightningModule):
         self.dropout_conv2 = nn.Dropout(p=ARCH_PARAMS['dropout_rates'][1])
         self.dropout_linear1 = nn.Dropout(p=ARCH_PARAMS['dropout_rates'][2])
 
-        # metrics to run during training
         self.metrics = torchmetrics.MetricCollection(
-            [torchmetrics.Accuracy()])
-        # metrics to run after training
-        self.post_train_metrics = torchmetrics.MetricCollection(
-            [torchmetrics.Accuracy(),
-            torchmetrics.AUROC(num_classes=2)])
+            {'acc': torchmetrics.Accuracy(),
+            'auroc': torchmetrics.AUROC(),
+            'sensitivity': torchmetrics.Recall(),
+            'specificity': torchmetrics.Specificity(),
+            'precision': torchmetrics.Precision()})
+        self.negative_metrics = torchmetrics.MetricCollection(
+            {'npv': torchmetrics.Precision()})
+
 
     def forward(self, x):
         x = x.transpose(1, 2).float()
@@ -85,8 +87,15 @@ class CNN(LightningModule):
         loss = F.nll_loss(y_hat, y)
         self.log("val_loss", loss, on_epoch=True)
 
-        metrics = self.metrics(y_hat, y)
-        self.log_dict(metrics, on_epoch=True)
+        # y_hat is log-"probabilities", so exp(y_hat) is "probabilities"
+        # column 1 is "probability" of positive class
+        y_hat = y_hat.exp()[:,1]
+        self.metrics.update(y_hat, y)
+        self.log_dict(self.metrics, on_epoch=True)
+
+        # metrics where the negative class is considered positive
+        self.negative_metrics.update(1 - y_hat, 1 - y)
+        self.log_dict(self.negative_metrics, on_epoch=True)
 
     def configure_optimizers(self):
         return Adam(
@@ -107,7 +116,8 @@ def get_output_shape(model, image_dim):
 
 if __name__ == '__main__':
 
-    model = CNN()
+    checkpoint_path = '/home/csestili/repos/mouse_sst/lightning_logs/base_arch/version_2604300/checkpoints/epoch=70-step=209946.ckpt'
+    model = CNN().load_from_checkpoint(checkpoint_path)
     if torch.cuda.is_available():
         model.cuda()
 
@@ -132,5 +142,7 @@ if __name__ == '__main__':
         batch_size=ARCH_PARAMS['batch_size_train'])
     val_dataloader = DataLoader(dataset.SinglePassDataset(part='val'),
         batch_size=ARCH_PARAMS['batch_size_val'])
+
+    trainer.validate(model=model, dataloaders=val_dataloader)
 
     trainer.fit(model, train_dataloaders=train_dataloader, val_dataloaders=val_dataloader)
