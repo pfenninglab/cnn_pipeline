@@ -10,9 +10,10 @@ from torch.utils.data import DataLoader
 import torch
 import torchmetrics
 
-
 from dataset import SinglePassDataset
 from train import CNN
+
+METRIC_ORDER = ['acc', 'auroc', 'auprc', 'precision', 'sensitivity', 'specificity', 'npv', 'npvsc']
 
 checkpoint_paths = [
     '/home/csestili/repos/mouse_sst/lightning_logs/version_2608479/checkpoints/epoch=79-step=137519.ckpt',
@@ -27,8 +28,6 @@ def eval(checkpoint_paths):
             y_hat, targets = get_predictions(model)
             print(f"model {idx}, path {path}")
             print_metrics_model(model, y_hat, targets)
-            print_metrics_torchmetrics(y_hat, targets)
-            print_metrics_sklearn(y_hat, targets)
             print()
             del model, y_hat, targets
             torch.cuda.empty_cache()
@@ -72,13 +71,20 @@ def get_predictions(model, use_cache=False):
     return y_hat, targets
 
 def print_metrics_model(model, y_hat, targets):
-    print("model metrics:")
-    print(model.metrics(y_hat, targets))
-    print(model.negative_metrics(1 - y_hat, 1 - targets))
     precision, recall, _ = model.pr_curve(y_hat, targets)
-    print(f"auprc: {model.auprc(recall, precision)}")
+    auprc = model.auprc(recall, precision)
     precision, recall, _ = model.negative_pr_curve(1 - y_hat, 1 - targets)
-    print(f"npvsc: {model.npvsc(recall, precision)}")
+    npvsc = model.npvsc(recall, precision)
+    metrics = {}
+    metrics.update(model.metrics(y_hat, targets))
+    metrics.update(model.negative_metrics(1 - y_hat, 1 - targets))
+    metrics.update({
+        'auprc': auprc,
+        'npvsc': npvsc})
+    print(metrics)
+    print(','.join(
+        format(metrics[metric].detach().cpu().numpy(), '.4f')
+        for metric in METRIC_ORDER))
 
 def print_metrics_torchmetrics(y_hat, targets):
     auroc_metric = torchmetrics.AUROC()
