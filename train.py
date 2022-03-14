@@ -23,7 +23,7 @@ ARCH_PARAMS = {
     "batch_size_val": 128,
     "base_lr": 1e-5,
     "l2_reg_weight": 1e-4,
-    "num_epochs": 30
+    "num_epochs": 100
 }
 
 
@@ -133,8 +133,7 @@ def get_output_shape(model, image_dim):
 
 if __name__ == '__main__':
 
-    checkpoint_path = '/home/csestili/repos/mouse_sst/lightning_logs/base_arch/version_2604300/checkpoints/epoch=70-step=209946.ckpt'
-    model = CNN().load_from_checkpoint(checkpoint_path)
+    model = CNN()
     if torch.cuda.is_available():
         model.cuda()
 
@@ -155,7 +154,7 @@ if __name__ == '__main__':
         precision=16,
         max_epochs=ARCH_PARAMS['num_epochs'])
 
-    train_dataloader = DataLoader(dataset.FaDataset(part='train', random_skip_range=8),
+    train_dataloader = DataLoader(dataset.FaDatasetSampler(part='train', random_skip_range=8),
         batch_size=ARCH_PARAMS['batch_size_train'])
     val_dataloader = DataLoader(dataset.SinglePassDataset(part='val'),
         batch_size=ARCH_PARAMS['batch_size_val'])

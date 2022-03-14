@@ -77,6 +77,33 @@ class FaExampleIterator(IterableDataset):
 	def _is_malformed(self, seq: SeqIO.SeqRecord):
 		return 'N' in seq.upper()
 
+class FaDatasetSampler(IterableDataset):
+	def __init__(self, part=None, random_skip_range:int=None, epoch_len:int=None):
+		it_args = [
+			(FaExampleIterator, {'label': label, 'part': part, 'random_skip_range': random_skip_range})
+			for label in ['pos', 'neg']
+		]
+		self.it_args = it_args
+		self.iterators = [it_class(**kwargs) for it_class, kwargs in it_args]
+		class_counts = np.array([len(it) for it in self.iterators])
+		self.class_p = class_counts/class_counts.sum()
+		self.epoch_len = epoch_len or class_counts.sum()
+		self.num_classes = len(it_args)
+
+	def __iter__(self):
+		while True:
+			it_idx = np.random.choice(self.num_classes, p=self.class_p)
+			try:
+				val = next(self.iterators[it_idx])
+			except StopIteration:
+				it_class, kwargs = self.it_args[it_idx]
+				self.iterators[it_idx] = it_class(**kwargs)
+				val = next(self.iterators[it_idx])
+			yield val
+
+	def __len__(self):
+		return self.epoch_len
+
 class FaDataset(IterableDataset):
 	"""Iterable dataset of sequences (1-hot tensor) and labels (int).
 	Examples alternate between positive and negative with equal frequency.
