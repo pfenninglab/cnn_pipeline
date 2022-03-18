@@ -1,5 +1,21 @@
 from train import CNN
 from dataset import FaExampleIterator
+import torch
+
+ds = FaExampleIterator(part='train', label='pos')
+for x, _ in ds:
+	break
+
+t_model = CNN()
+example = torch.Tensor(x).unsqueeze(0)
+torch.onnx.export(t_model, example, "../../models/onnx/model_2d.onnx", verbose=True,
+	input_names = ['input'], output_names = ['output'])
+
+
+
+
+from train import CNN
+from dataset import FaExampleIterator
 
 from shap import DeepExplainer
 import torch
@@ -15,19 +31,14 @@ import onnx
 from onnx2keras import onnx_to_keras
 
 print("loading onnx model")
-onnx_model = onnx.load('/home/csestili/models/onnx/model.onnx')
+onnx_model = onnx.load('../../models/onnx/model_2d.onnx')
 k_model = onnx_to_keras(onnx_model, ['input'])
 print("loading onnx model... done")
-print(k_model.summary)
-
-print("loading pytorch model")
-t_model = CNN.load_from_checkpoint('lightning_logs/version_2608479/checkpoints/epoch=79-step=137519.ckpt')
-from torchsummary import summary
-print(summary(t_model, bg_data[0].size))
-print("loading pytorch model... done")
+print(k_model.summary())
 
 
 print("check equal:")
+t_model.eval()
 res_t = t_model(torch.Tensor(bg_data))
 res_k = k_model.predict(bg_data)
 

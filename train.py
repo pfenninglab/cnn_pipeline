@@ -33,13 +33,19 @@ class CNN(LightningModule):
 
         # transposed input
         # TODO this doesn't have to be hardcoded if we couple the dataset to the LightningModule
-        expected_input_shape = (4, 500)
+        expected_input_shape = (4, 500, 1)
 
-        self.conv1 = nn.Conv1d(4, ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_width'])
-        self.conv2 = nn.Conv1d(ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_width'])
+        # self.conv1 = nn.Conv1d(4, ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_width'])
+        # self.conv2 = nn.Conv1d(ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_width'])
 
-        self.maxpool1 = nn.MaxPool1d(
-            ARCH_PARAMS['max_pool_size'], stride=ARCH_PARAMS['max_pool_stride'])
+        self.conv1 = nn.Conv2d(4, ARCH_PARAMS['conv_filters'], (ARCH_PARAMS['conv_width'], 1))
+        self.conv2 = nn.Conv2d(ARCH_PARAMS['conv_filters'], ARCH_PARAMS['conv_filters'], (ARCH_PARAMS['conv_width'], 1))
+
+        # self.maxpool1 = nn.MaxPool1d(
+        #     ARCH_PARAMS['max_pool_size'], stride=ARCH_PARAMS['max_pool_stride'])
+
+        self.maxpool1 = nn.MaxPool2d(
+            (ARCH_PARAMS['max_pool_size'], 1), stride=ARCH_PARAMS['max_pool_stride'])
 
         self.flatten1 = nn.Flatten()
 
@@ -68,6 +74,7 @@ class CNN(LightningModule):
 
     def forward(self, x):
         x = x.transpose(1, 2).float()
+        x = x[:, :, :, None]
         x = self.dropout_conv1(F.relu(self.conv1(x)))
         x = self.dropout_conv2(F.relu(self.conv2(x)))
         x = self.maxpool1(x)
@@ -75,22 +82,25 @@ class CNN(LightningModule):
         x = self.dropout_linear1(F.relu(self.linear1(x)))
         x = self.linear2(x)
 
-        x = F.log_softmax(x, dim=1)
+        #x = F.log_softmax(x, dim=1)
         return x
 
     def training_step(self, batch, batch_idx):
         x, y = batch
         logits = self(x)
-        loss = F.nll_loss(logits, y)
+        #loss = F.nll_loss(logits, y)
+        loss = F.cross_entropy(logits, y)
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         x, y = batch
         y_hat = self(x)
-        loss = F.nll_loss(y_hat, y)
+        #loss = F.nll_loss(y_hat, y)
+        loss = F.cross_entropy(y_hat, y)
         self.log("val_loss", loss, on_epoch=True)
 
+        y_hat = F.log_softmax(y_hat, dim=1)
         # y_hat is log-"probabilities", so exp(y_hat) is "probabilities"
         # column 1 is "probability" of positive class
         y_hat = y_hat.exp()[:,1]

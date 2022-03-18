@@ -9,6 +9,7 @@ from pytorch_lightning import Trainer
 from torch.utils.data import DataLoader
 import torch
 import torchmetrics
+from torch.nn import functional as F
 
 from dataset import SinglePassDataset
 from train import CNN
@@ -57,7 +58,7 @@ def get_predictions(model, use_cache=False):
             y_hat = []
             targets = []
             for xs, ys in dataloader:
-                y_hat.append(model(xs.to(0)))
+                y_hat.append(F.log_softmax(model(xs.to(0)), dim=1))
                 targets.append(ys)
             y_hat = torch.cat(y_hat)
             targets = torch.cat(targets).to(0)
