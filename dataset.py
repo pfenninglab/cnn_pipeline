@@ -1,9 +1,6 @@
 
-# import tensorflow as tf
 import numpy as np
 from Bio import SeqIO
-
-# /projects/pfenninggroup/singleCell/Macaque_Multiome*/data/tidy_data/celltype*/fasta*
 
 # A, C, G, T
 NUM_BASES = 4
@@ -31,6 +28,7 @@ class FastaSource:
         self.len = self._get_len()
         self.seq_len = self._get_seq_len()
         self._load_gen()
+        self.seq_shape = (self.seq_len, NUM_BASES)
 
     def __iter__(self):
         return self
@@ -68,7 +66,7 @@ class FastaSource:
         self.fa_gen = SeqIO.parse(self.fa_file, "fasta")
 
     def _onehot(self, seq):
-        res = np.zeros((self.seq_len, NUM_BASES), dtype='int8')
+        res = np.zeros(self.seq_shape, dtype='int8')
         for idx, base in enumerate(seq.seq):
             if base in self.base_mapping:
                 res[idx, self.base_mapping[base]] = 1
@@ -109,6 +107,7 @@ class FastaCollection:
         self.labels = labels
         self.endless = endless
         self.fa_sources = [FastaSource(fa_file, endless=endless) for fa_file in self.fa_files]
+        self.seq_shape = self._get_seq_shape()
         self._make_frequency_tree()
 
     def _make_frequency_tree(self):
@@ -131,13 +130,13 @@ class FastaCollection:
         freqs = {'classes': dict(), 'labels': [], 'class_lens': []}
 
         # get sub-class counts
-        for fh, label in zip(self.fa_sources, self.labels):
+        for source, label in zip(self.fa_sources, self.labels):
             if label not in freqs['classes']:
                 freqs['classes'][label] = {'len': 0, 'sources': [], 'source_lens': []}
 
-            freqs['classes'][label]['len'] += len(fh)
-            freqs['classes'][label]['sources'].append(fh)
-            freqs['classes'][label]['source_lens'].append(len(fh))
+            freqs['classes'][label]['len'] += len(source)
+            freqs['classes'][label]['sources'].append(source)
+            freqs['classes'][label]['source_lens'].append(len(source))
 
         # get class counts
         for cl, cl_data in freqs['classes'].items():
@@ -154,6 +153,14 @@ class FastaCollection:
 
         self.class_freqs = freqs
 
+    def _get_seq_shape(self):
+        shape = None
+        for source in self.fa_sources:
+            shape = shape or source.seq_shape
+            if source.seq_shape != shape:
+                raise ValueError("FASTA sources have inconsistent shapes, found {shape} and {source.seq_shape}")
+        return shape
+
     def __iter__(self):
         if self.endless:
             while True:
@@ -165,10 +172,35 @@ class FastaCollection:
                     p=self.class_freqs['classes'][label]['source_freqs'])
                 yield next(source), label
         else:
-            for fh, label in zip(self.fa_sources, self.labels):
-                for seq in fh:
+            for source, label in zip(self.fa_sources, self.labels):
+                for seq in source:
                     yield seq, label
 
+    def __call__(self):
+        return self
+
+class FastaTfDataset:
+    """Fasta collection with a corresponding tf.data.Dataset.
+
+    Args:
+        fa_files (list of str): paths to FASTA files.
+        labels (list of int): labels to assign to each file.
+            If there are duplicate labels, then corresponding FASTA files are sampled
+            as if they are in the same class.
+        endless (bool): 
+            if False, then yield each example from each file exactly once (useful for validation)
+            if True, then randomly yield examples according to Sampling Logic (useful for training)
+
+    E.g.:
+    paths = ["/data/train_pos_A.fa", "/data/train_pos_B.fa", "/data/train_neg.fa"]
+    ftd = FastaTfDataset(paths, [1, 1, 0])
+    """
+    def __init__(self, fa_files, labels, endless: bool=True):
+        import tensorflow as tf
+        self.fc = FastaCollection(fa_files, labels, endless=endless)
+        self.ds = tf.data.Dataset.from_generator(self.fc,
+            output_types=(tf.int8, tf.int8),
+            output_shapes=(tf.TensorShape(self.fc.seq_shape), tf.TensorShape(())))
 
 def test():
     import os
@@ -177,17 +209,10 @@ def test():
     folder = "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/"
     paths = ["mouse_SST_neg_TRAIN.fa", "mouse_SST_pos_TRAIN.fa", "mouse_SST_pos_VAL.fa"]
     paths = [os.path.join(folder, p) for p in paths]
-    fc = FastaCollection(paths, [0, 1, 1], endless=True)
 
-    for seq, _ in islice(fc, 5):
-        print()
+    ftd = FastaTfDataset(paths, [0, 1, 1], endless=True)
+    ds = ftd.ds.batch(512)
+    for xs, ys in ds:
+        print(xs.shape, ys.shape)
 
-    
 
-# def read_csv(file_name="test.csv"):
-#     with open(file_name) as f:
-#         reader = csv.reader(f)
-#         for row in reader:
-#             yield row
-
-# ds = tf.data.Dataset.from_generator(read_csv)
