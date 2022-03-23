@@ -109,6 +109,7 @@ class FastaCollection:
         self.fa_sources = [FastaSource(fa_file, endless=endless) for fa_file in self.fa_files]
         self.seq_shape = self._get_seq_shape()
         self._make_frequency_tree()
+        self.num_classes = len(self.class_freqs['classes'])
 
     def _make_frequency_tree(self):
         """ Make a tree of counts and frequencies for each class and each of its data sources, e.g.
