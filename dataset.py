@@ -98,6 +98,10 @@ class FastaCollection:
     E.g.:
     paths = ["/data/train_pos_A.fa", "/data/train_pos_B.fa", "/data/train_neg.fa"]
     fc = FastaCollection(paths, [1, 1, 0])
+
+    NOTE This looping-and-sampling strategy works, but we could get the same behavior
+    using tf.data.Dataset functions repeat() and sample_from_datasets(). Consider
+    switching to that.
     """
     def __init__(self, fa_files, labels, endless: bool=True):
         if len(fa_files) != len(labels):
@@ -110,6 +114,7 @@ class FastaCollection:
         self.seq_shape = self._get_seq_shape()
         self._make_frequency_tree()
         self.num_classes = len(self.class_freqs['classes'])
+        self.len = self.class_freqs['total_len']
 
     def _make_frequency_tree(self):
         """ Make a tree of counts and frequencies for each class and each of its data sources, e.g.
@@ -179,6 +184,10 @@ class FastaCollection:
 
     def __call__(self):
         return self
+
+    def __len__(self):
+        return self.len
+
 
 class FastaTfDataset:
     """Fasta collection with a corresponding tf.data.Dataset.
