@@ -40,8 +40,16 @@ def get_model(input_shape, num_classes, config):
 
 	model = keras.Model(inputs=inputs, outputs=outputs)
 
+	initial_learning_rate = 0.1
+	lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+	    initial_learning_rate,
+	    decay_steps=10,
+	    decay_rate=0.5,
+	    staircase=False)
+
+
 	model.compile(loss='sparse_categorical_crossentropy',
-		optimizer=SGD(lr=config['base_lr']),
+		optimizer=SGD(learning_rate=lr_schedule),
 		metrics=[SparseCategoricalAccuracy(), MulticlassAUC(name='auroc', pos_label=1, curve='ROC')])
 
 	return model

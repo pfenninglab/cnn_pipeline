@@ -10,5 +10,5 @@ class LRLogger(tf.keras.callbacks.Callback):
       self.optimizer = optimizer
 
     def on_epoch_end(self, epoch, logs):
-      lr = self.optimizer.learning_rate
+      lr = self.optimizer.learning_rate(epoch)
       wandb.log({"lr": lr})
