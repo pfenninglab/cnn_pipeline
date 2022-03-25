@@ -5,6 +5,9 @@ from tensorflow import keras
 from tensorflow.keras import layers
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import SGD
+from tensorflow.keras.metrics import SparseCategoricalAccuracy
+
+from metrics import MulticlassAUC
 
 
 CONFIG = {
@@ -39,6 +42,6 @@ def get_model(input_shape, num_classes, config):
 
 	model.compile(loss='sparse_categorical_crossentropy',
 		optimizer=SGD(lr=config['base_lr']),
-		metrics=['accuracy'])
+		metrics=[SparseCategoricalAccuracy(), MulticlassAUC(name='auroc', pos_label=1, curve='ROC')])
 
 	return model
