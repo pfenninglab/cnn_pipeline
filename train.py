@@ -1,6 +1,7 @@
 import callbacks
 import dataset
 import models
+import lr_schedules
 
 import wandb
 from wandb.keras import WandbCallback
@@ -15,11 +16,12 @@ def train():
 	train_data = dataset.FastaTfDataset(train_paths, [0, 1])
 	val_data = dataset.FastaTfDataset(val_paths, [0, 1])
 
-	model = models.get_model(train_data.fc.seq_shape, train_data.fc.num_classes, models.CONFIG)
-
 	batch_size = 512
 	steps_per_epoch = 10 #len(train_data.fc) // batch_size
 	validation_steps = 10 #len(val_data.fc) // batch_size
+
+	lr_schedule = lr_schedules.get_clr_schedule(15, models.CONFIG)
+	model = models.get_model(train_data.fc.seq_shape, train_data.fc.num_classes, lr_schedule, models.CONFIG)
 	model.fit(
 		train_data.ds.batch(batch_size),
 		epochs=30,

@@ -20,10 +20,12 @@ CONFIG = {
     'max_pool_stride': 26,
     'dense_filters': 300,
     'l2_reg': 1e-4,
-    'base_lr': 1e-5
+    'lr_init': 1e-5,
+    'lr_max': 1e-1
 }
 
-def get_model(input_shape, num_classes, config):
+
+def get_model(input_shape, num_classes, lr_schedule, config):
 	inputs = keras.Input(shape=input_shape)
 	x = inputs
 	
@@ -39,15 +41,6 @@ def get_model(input_shape, num_classes, config):
 	outputs = layers.Dense(num_classes, activation="softmax", kernel_regularizer=l2(l=config['l2_reg']))(x)
 
 	model = keras.Model(inputs=inputs, outputs=outputs)
-
-	initial_learning_rate = 0.1
-	lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-	    initial_learning_rate,
-	    decay_steps=10,
-	    decay_rate=0.5,
-	    staircase=False)
-
-
 	model.compile(loss='sparse_categorical_crossentropy',
 		optimizer=SGD(learning_rate=lr_schedule),
 		metrics=[SparseCategoricalAccuracy(), MulticlassAUC(name='auroc', pos_label=1, curve='ROC')])
