@@ -17,14 +17,15 @@ def train():
 	val_data = dataset.FastaTfDataset(val_paths, [0, 1])
 
 	batch_size = 512
-	steps_per_epoch = 10 #len(train_data.fc) // batch_size
-	validation_steps = 10 #len(val_data.fc) // batch_size
+	steps_per_epoch = len(train_data.fc) // batch_size
+	validation_steps = len(val_data.fc) // batch_size
+	num_epochs = 24
 
-	lr_schedule = lr_schedules.get_clr_schedule(15, models.CONFIG)
+	lr_schedule = lr_schedules.get_clr_schedule(num_epochs / 2, models.CONFIG)
 	model = models.get_model(train_data.fc.seq_shape, train_data.fc.num_classes, lr_schedule, models.CONFIG)
 	model.fit(
 		train_data.ds.batch(batch_size),
-		epochs=30,
+		epochs=num_epochs,
 		steps_per_epoch=steps_per_epoch,
 		validation_data=val_data.ds.batch(batch_size),
 		validation_steps=validation_steps,
