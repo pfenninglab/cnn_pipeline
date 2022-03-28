@@ -21,7 +21,8 @@ def train():
 	validation_steps = len(val_data.fc) // batch_size
 	num_epochs = 24
 
-	lr_schedule = lr_schedules.get_clr_schedule(num_epochs / 2, models.CONFIG)
+	#lr_schedule = lr_schedules.get_clr_schedule(num_epochs, models.CONFIG)
+	lr_schedule = lr_schedules.get_exp_lr_schedule(0.9, models.CONFIG)
 	model = models.get_model(train_data.fc.seq_shape, train_data.fc.num_classes, lr_schedule, models.CONFIG)
 	model.fit(
 		train_data.ds.batch(batch_size),
@@ -31,6 +32,7 @@ def train():
 		validation_steps=validation_steps,
 		callbacks=[WandbCallback(), callbacks.LRLogger(model.optimizer)])
 
+	print("full validation:")
 	val_data = dataset.FastaTfDataset(val_paths, [0, 1], endless=False)
 	model.evaluate(val_data.ds.batch(batch_size),
 		callbacks=[WandbCallback()])
