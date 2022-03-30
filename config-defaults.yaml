@@ -1,0 +1,104 @@
+# config-defaults.yaml: Default configuration values for a training run.
+#
+# Usage:
+#     python train.py --configs my-config.yaml
+# If the --configs flag is omitted, config-defaults.yaml (this file) will be used.
+
+# Data
+
+train_data_paths:
+  desc: Paths to FASTA files for training data.
+  value:
+    - /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_TRAIN.fa
+    - /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_TRAIN.fa
+
+train_labels:
+  desc: Integer labels corresponding to each training data path. Duplicates are allowed.
+  value:
+    - 0
+    - 1
+
+val_data_paths:
+  desc: Paths to FASTA files for validation data.
+  value:
+    - /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_VAL.fa
+    - /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.fa
+
+val_labels:
+  desc: Integer labels corresponding to each validation data path. Duplicates are allowed.
+  value:
+    - 0
+    - 1
+
+# Training
+
+batch_size:
+  desc: Batch size for training and validation.
+  value: 512
+
+num_epochs:
+  desc: Number of training epochs.
+  value: 30
+
+# Optimization
+
+optimizer:
+  desc: Weight optimization algorithm to use.
+  allowed_values: ['sgd', 'adam']
+  value: adam
+
+lr_init:
+  desc: Initial learning rate.
+  value: 1.e-4
+
+lr_max:
+  desc: Maximum learning rate for cyclic LR schedule.
+  value: 1.e-1
+
+lr_exp_decay_per_epoch:
+  desc: Float in [0, 1]. Decay per epoch for exponential LR schedule.
+  value: 0.95
+
+# Regularization
+
+l2_reg:
+  desc: Strength of L2 regularization.
+  value: 1.e-4
+
+dropout_rate:
+  desc: Float in [0, 1]. Rate for each dropout layer.
+  value: 0.3
+
+# Architecture
+
+num_conv_layers:
+  desc: Number of 1D convolutional layers. Each is followed by a dropout layer.
+  value: 2
+
+conv_filters:
+  desc: Number of filters in each convolutional layer.
+  value: 300
+
+conv_width:
+  desc: Width of 1D convolutional kernels.
+  value: 7
+
+conv_stride:
+  desc: Stride of convolutional layers.
+  value: 1
+
+max_pool_size:
+  desc: Width of max pooling partitions.
+  value: 26
+
+max_pool_stride:
+  desc: Stride of max pooling layer.
+  value: 26
+
+num_dense_layers:
+  desc: Number of dense layers, not including the final layer. Each is followed by a dropout layer.
+  value: 1
+
+dense_filters:
+  desc: Number of filters in dense layer.
+  value: 300

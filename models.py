@@ -11,22 +11,6 @@ from tensorflow.keras.metrics import AUC, TrueNegatives, TruePositives, FalseNeg
 from metrics import get_multiclass_metric
 
 
-CONFIG = {
-	'num_conv_layers': 2,
-	'conv_filters': 300,
-	'conv_width': 7,
-	'conv_stride': 1,
-    'dropout_rate': 0.3,
-    'max_pool_size': 26,
-    'max_pool_stride': 26,
-    'dense_filters': 300,
-    'l2_reg': 1e-4,
-    'lr_init': 1e-3,
-    'lr_max': 1e-1,
-    'optimizer': 'adam',
-    'batch_size': 512,
-    'num_epochs': 30
-}
 OPTIMIZER_MAPPING = {
 	'sgd': SGD,
 	'adam': Adam
@@ -54,8 +38,10 @@ def get_model_architecture(input_shape, num_classes, config):
 
 	x = layers.MaxPooling1D(pool_size=config['max_pool_size'], strides=config['max_pool_stride'])(x)
 	x = layers.Flatten()(x)
-	x = layers.Dense(units=config['dense_filters'], activation='relu', kernel_regularizer=l2(l=config['l2_reg']))(x)
-	x = layers.Dropout(rate=config['dropout_rate'])(x)
+
+	for _ in range(config['num_dense_layers']):
+		x = layers.Dense(units=config['dense_filters'], activation='relu', kernel_regularizer=l2(l=config['l2_reg']))(x)
+		x = layers.Dropout(rate=config['dropout_rate'])(x)
 
 	outputs = layers.Dense(num_classes, activation="softmax", kernel_regularizer=l2(l=config['l2_reg']))(x)
 
