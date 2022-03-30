@@ -4,6 +4,12 @@
 #     python train.py --configs my-config.yaml
 # If the --configs flag is omitted, config-defaults.yaml (this file) will be used.
 
+# Project
+
+project_name:
+  desc: Name of `wandb` project for tracking.
+  value: mouse-sst
+
 # Data
 
 train_data_paths:

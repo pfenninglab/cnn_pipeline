@@ -1,4 +1,4 @@
-
+import wandb
 
 CONFIG_EXPECTED_KEYS = {
 	'train_data_paths': list,
@@ -21,6 +21,7 @@ CONFIG_EXPECTED_KEYS = {
 	'num_dense_layers': int,
 	'dense_filters': int
 }
+
 def validate_config(config_dict):
 	# check required keys
 	for k, t in CONFIG_EXPECTED_KEYS.items():
@@ -35,3 +36,13 @@ def validate_config(config_dict):
 		(config_dict['train_data_paths'], config_dict['train_labels']),
 		(config_dict['val_data_paths'], config_dict['val_labels'])]:
 		assert len(paths) == len(labels)
+
+def get_wandb_config():
+	wandb.init(mode="offline")
+	config = wandb.config
+	wandb.finish()
+	return config
+
+def get_wandb_project():
+	config = get_wandb_config()
+	return config.project_name

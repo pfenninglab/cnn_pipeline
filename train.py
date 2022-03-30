@@ -8,19 +8,23 @@ import wandb
 from wandb.keras import WandbCallback
 
 def train():
-	wandb.init(project="mouse-sst")
+	# Start `wandb`
+	project = utils.get_wandb_project()
+	wandb.init(project=project)
 	utils.validate_config(wandb.config)
 
+	# Get datasets
 	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
 	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels)
 
+	# Get model
 	batch_size = wandb.config.batch_size
 	steps_per_epoch = len(train_data.fc) // batch_size
 	validation_steps = len(val_data.fc) // batch_size
-
 	lr_schedule = lr_schedules.get_exp_lr_schedule(steps_per_epoch, wandb.config)
 	model = models.get_model(train_data.fc.seq_shape, train_data.fc.num_classes, lr_schedule, wandb.config)
 
+	# Train
 	model.fit(
 		train_data.ds.batch(batch_size),
 		epochs=wandb.config.num_epochs,
@@ -29,6 +33,7 @@ def train():
 		validation_steps=validation_steps,
 		callbacks=[WandbCallback(), callbacks.LRLogger(model.optimizer)])
 
+	# Validate on full validation set
 	print("full validation:")
 	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
 	model.evaluate(val_data.ds.batch(batch_size), callbacks=[WandbCallback()])
