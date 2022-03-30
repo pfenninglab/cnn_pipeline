@@ -211,18 +211,3 @@ class FastaTfDataset:
         self.ds = tf.data.Dataset.from_generator(self.fc,
             output_types=(tf.int8, tf.int8),
             output_shapes=(tf.TensorShape(self.fc.seq_shape), tf.TensorShape(())))
-
-def test():
-    import os
-    from itertools import islice
-    import pprint
-    folder = "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/"
-    paths = ["mouse_SST_neg_TRAIN.fa", "mouse_SST_pos_TRAIN.fa", "mouse_SST_pos_VAL.fa"]
-    paths = [os.path.join(folder, p) for p in paths]
-
-    ftd = FastaTfDataset(paths, [0, 1, 1], endless=True)
-    ds = ftd.ds.batch(512)
-    for xs, ys in ds:
-        print(xs.shape, ys.shape)
-
-
