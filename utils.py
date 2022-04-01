@@ -1,6 +1,10 @@
+import os
+
 import wandb
+import yaml
 
 CONFIG_EXPECTED_KEYS = {
+	'project': str,
 	'train_data_paths': list,
 	'train_labels': list,
 	'val_data_paths': list,
@@ -37,12 +41,9 @@ def validate_config(config_dict):
 		(config_dict['val_data_paths'], config_dict['val_labels'])]:
 		assert len(paths) == len(labels)
 
-def get_wandb_config():
-	wandb.init(mode="offline")
-	config = wandb.config
-	wandb.finish()
-	return config
-
-def get_wandb_project():
-	config = get_wandb_config()
-	return config.project_name
+def get_config(yaml_path):
+	with open(yaml_path, "r") as f:
+	    config = yaml.safe_load(f)
+	config = {k: v['value'] for k, v in config.items()}
+	project = config['project']
+	return config, project

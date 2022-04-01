@@ -7,10 +7,10 @@ import utils
 import wandb
 from wandb.keras import WandbCallback
 
-def train():
+def train(args):
 	# Start `wandb`
-	project = utils.get_wandb_project()
-	wandb.init(project=project)
+	config, project = utils.get_config(args.config)
+	wandb.init(config=config, project=project)
 	utils.validate_config(wandb.config)
 
 	# Get datasets
@@ -38,6 +38,12 @@ def train():
 	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
 	model.evaluate(val_data.ds.batch(batch_size), callbacks=[WandbCallback()])
 
+def get_args():
+	import argparse
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-config', type=str, required=True)
+	return parser.parse_args()
+
 
 if __name__ == '__main__':
-	train()
+	train(get_args())
