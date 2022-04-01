@@ -1,9 +1,3 @@
-# config-defaults.yaml: Default configuration values for a training run.
-#
-# Usage:
-#     python train.py --configs my-config.yaml
-# If the --configs flag is omitted, config-defaults.yaml (this file) will be used.
-
 # Project
 
 project:
@@ -53,17 +47,26 @@ optimizer:
   allowed_values: ['sgd', 'adam']
   value: adam
 
+lr_schedule:
+  desc: Learning rate schedule to use.
+  allowed_values: ['cyclic', 'exponential']
+  value: cyclic
+
 lr_init:
   desc: Initial learning rate.
   value: 1.e-4
 
 lr_max:
   desc: Maximum learning rate for cyclic LR schedule.
-  value: 1.e-1
+  value: 1.e-2
 
 lr_exp_decay_per_epoch:
-  desc: Float in [0, 1]. Decay per epoch for exponential LR schedule.
+  desc: Float in [0, 1]. Decay per epoch, for exponential LR schedule.
   value: 0.95
+
+lr_cyc_num_cycles:
+  desc: Float > 0. Number of cycles, for cyclic LR schedule.
+  value: 1.0
 
 # Regularization
 
