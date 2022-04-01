@@ -18,19 +18,19 @@ def train(args):
 	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels)
 
 	# Get model
-	batch_size = wandb.config.batch_size
-	steps_per_epoch = len(train_data.fc) // batch_size
-	validation_steps = len(val_data.fc) // batch_size
-	lr_schedule = lr_schedules.get_exp_lr_schedule(steps_per_epoch, wandb.config)
-	model = models.get_model(train_data.fc.seq_shape, train_data.fc.num_classes, lr_schedule, wandb.config)
+	batch_size, steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
+		wandb.config, train_data, val_data)
+	lr_schedule = lr_schedules.get_exp_lr_schedule(steps_per_epoch_train, wandb.config)
+	model = models.get_model(
+		train_data.fc.seq_shape, train_data.fc.num_classes, lr_schedule, wandb.config)
 
 	# Train
 	model.fit(
 		train_data.ds.batch(batch_size),
 		epochs=wandb.config.num_epochs,
-		steps_per_epoch=steps_per_epoch,
+		steps_per_epoch=steps_per_epoch_train,
 		validation_data=val_data.ds.batch(batch_size),
-		validation_steps=validation_steps,
+		validation_steps=steps_per_epoch_val,
 		callbacks=[WandbCallback(), callbacks.LRLogger(model.optimizer)])
 
 	# Validate on full validation set

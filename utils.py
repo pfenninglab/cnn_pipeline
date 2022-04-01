@@ -33,7 +33,8 @@ def validate_config(config_dict):
 
 	# check types
 	for k, t in CONFIG_EXPECTED_KEYS.items():
-		assert isinstance(config_dict[k], t), f"key {k}, expected {t}, got {type(config_dict[k])}"
+		assert isinstance(config_dict[k], t), (
+			f"Invalid type in config! key {k}, expected {t}, got {type(config_dict[k])}")
 
 	# check lengths
 	for paths, labels in [
@@ -47,3 +48,9 @@ def get_config(yaml_path):
 	config = {k: v['value'] for k, v in config.items()}
 	project = config['project']
 	return config, project
+
+def get_step_size(wandb_config, train_data, val_data):
+	batch_size = wandb_config.batch_size
+	steps_per_epoch_train = len(train_data.fc) // batch_size
+	steps_per_epoch_val = len(val_data.fc) // batch_size
+	return batch_size, steps_per_epoch_train, steps_per_epoch_val
