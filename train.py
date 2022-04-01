@@ -20,7 +20,8 @@ def train(args):
 	# Get model
 	batch_size, steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
 		wandb.config, train_data, val_data)
-	lr_schedule = lr_schedules.get_exp_lr_schedule(steps_per_epoch_train, wandb.config)
+	#lr_schedule = lr_schedules.get_exp_lr_schedule(steps_per_epoch_train, wandb.config)
+	lr_schedule = lr_schedules.get_clr_schedule(wandb.config.num_epochs, steps_per_epoch_train, wandb.config)
 	model = models.get_model(
 		train_data.fc.seq_shape, train_data.fc.num_classes, lr_schedule, wandb.config)
 

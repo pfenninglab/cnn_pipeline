@@ -2,15 +2,14 @@ import tensorflow as tf
 import tensorflow_addons as tfa
 
 
-def get_clr_schedule(cycle_period_epochs, config):
+def get_clr_schedule(cycle_period_epochs, steps_per_epoch, config):
 	"""Cyclic learning rate schedule.
-	TODO currently step_size is misconfigured
 	"""
 	return tfa.optimizers.CyclicalLearningRate(
 		initial_learning_rate=config.lr_init,
 	    maximal_learning_rate=config.lr_max,
 	    scale_fn=lambda x: 1/(2.**(x-1)),
-	    step_size=cycle_period_epochs / 2
+	    step_size=steps_per_epoch * cycle_period_epochs / 2
 	)
 
 def get_exp_lr_schedule(steps_per_epoch, config):
