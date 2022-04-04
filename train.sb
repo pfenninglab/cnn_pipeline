@@ -13,4 +13,4 @@
 module load cuda-10.2
 source activate keras2-tf27
 
-python /home/$(whoami)/repos/mouse_sst/train.py -config $1 > /home/$(whoami)/outputs/result.txt
+python train.py -config $1 > /home/$(whoami)/outputs/result.txt
