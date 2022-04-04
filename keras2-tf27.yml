@@ -1,0 +1,11 @@
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - biopython
+  - pip
+  - tensorflow-gpu=2.7.0
+  - wandb
+
+  - pip:
+    - tensorflow-addons

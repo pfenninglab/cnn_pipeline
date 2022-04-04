@@ -1,215 +1,213 @@
-import os.path
 
-from Bio import SeqIO
 import numpy as np
-from torch.utils.data import IterableDataset, ChainDataset
+from Bio import SeqIO
+
+# A, C, G, T
+NUM_BASES = 4
+
+# random seed for reproducibility
+SEED = 0
+rng = np.random.default_rng(SEED)
+
+class FastaSource:
+    """Iterator of sequences from a FASTA file.
+    Can reload itself once exhausted.
+
+    Args:
+        fa_file (str): FASTA file to read lines from.
+        endlesss (bool): if True, then restart iterator once exhausted.
+    """
+    base_mapping = {'A':0, 'a':0,
+                    'C':1, 'c':1,
+                    'G':2, 'g':2,
+                    'T':3, 't':3}
+
+    def __init__(self, fa_file: str, endless: bool=False):
+        self.fa_file = fa_file
+        self.endless = endless
+        self.len = self._get_len()
+        self.seq_len = self._get_seq_len()
+        self._load_gen()
+        self.seq_shape = (self.seq_len, NUM_BASES)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            return self._onehot(next(self.fa_gen))
+        except StopIteration as e:
+            if self.endless:
+                self._load_gen()
+                return self._onehot(next(self.fa_gen))
+            else:
+                raise e
+
+    def __len__(self):
+        return self.len
+
+    def _get_len(self):
+        fa_len = sum(1 for _ in SeqIO.parse(self.fa_file, "fasta"))
+        if fa_len < 1:
+            raise ValueError("No sequences in FASTA file: {self.fa_file}")
+        return fa_len
+
+    def _get_seq_len(self):
+        seq_len = None
+        for seq in SeqIO.parse(self.fa_file, "fasta"):
+            seq_len = seq_len or len(seq)
+            if len(seq) != seq_len:
+                raise ValueError("FASTA file contains sequences of different lengths! Found {seq_len} and {len(seq)}")
+            if seq_len < 1:
+                raise ValueError("Empty sequence in FASTA file: {self.fa_file}")
+        return seq_len
+
+    def _load_gen(self):
+        self.fa_gen = SeqIO.parse(self.fa_file, "fasta")
+
+    def _onehot(self, seq):
+        res = np.zeros(self.seq_shape, dtype='int8')
+        for idx, base in enumerate(seq.seq):
+            if base in self.base_mapping:
+                res[idx, self.base_mapping[base]] = 1
+        return res
+
+class FastaCollection:
+    """Collection of FASTA sources and labels that allows sampling.
+    Multiple FASTA files can be combined to the same class.
+
+    Assumes: Each FA file has examples with all the same label.
+
+    Sampling Logic:
+        Let C_1, ..., C_n be the n classes.
+        For each class C_i, let C_i_1, ..., C_i_k be the k sources of class C_i.
+
+        Then for each sample,
+            P(C_i) = |C_i| / sum(|C_1| + ... + |C_n|)
+            P(C_i_j | C_i) = |C_i_j| / sum(|C_i_1| + ... + |C_i_k|)
+
+    Args:
+        fa_files (list of str): paths to FASTA files.
+        labels (list of int): labels to assign to each file.
+            If there are duplicate labels, then corresponding FASTA files are sampled
+            as if they are in the same class.
+        endless (bool): 
+            if False, then yield each example from each file exactly once (useful for validation)
+            if True, then randomly yield examples according to Sampling Logic (useful for training)
+
+    E.g.:
+    paths = ["/data/train_pos_A.fa", "/data/train_pos_B.fa", "/data/train_neg.fa"]
+    fc = FastaCollection(paths, [1, 1, 0])
+
+    NOTE This looping-and-sampling strategy works, but we could get the same behavior
+    using tf.data.Dataset functions repeat() and sample_from_datasets(). Consider
+    switching to that.
+    """
+    def __init__(self, fa_files, labels, endless: bool=True):
+        if len(fa_files) != len(labels):
+            raise ValueError("Number of fa_files and number of labels must be equal")
+
+        self.fa_files = fa_files
+        self.labels = labels
+        self.endless = endless
+        self.fa_sources = [FastaSource(fa_file, endless=endless) for fa_file in self.fa_files]
+        self.seq_shape = self._get_seq_shape()
+        self._make_frequency_tree()
+        self.num_classes = len(self.class_freqs['classes'])
+        self.len = self.class_freqs['total_len']
+
+    def _make_frequency_tree(self):
+        """ Make a tree of counts and frequencies for each class and each of its data sources, e.g.
+
+        {   'class_freqs': array([0.66666, 0.33334]),
+            'class_lens': [4, 2],
+            'total_len': 6,
+            'classes': {   0: {   'source_freqs': array([0.25, 0.75]),
+                                  'source_lens': [1, 3],
+                                  'sources': [   <FastaSource object at 0x7f137428c4a8>,
+                                                 <FastaSource object at 0x7f137428cd30>],
+                                  'len': 4},
+                           1: {   'source_freqs': array([1.]),
+                                  'source_lens': [2],
+                                  'sources': [   <FastaSource object at 0x7f137428ccf8>],
+                                  'len': 2}},
+            'labels': [0, 1]}
+        """
+        freqs = {'classes': dict(), 'labels': [], 'class_lens': []}
+
+        # get sub-class counts
+        for source, label in zip(self.fa_sources, self.labels):
+            if label not in freqs['classes']:
+                freqs['classes'][label] = {'len': 0, 'sources': [], 'source_lens': []}
+
+            freqs['classes'][label]['len'] += len(source)
+            freqs['classes'][label]['sources'].append(source)
+            freqs['classes'][label]['source_lens'].append(len(source))
+
+        # get class counts
+        for cl, cl_data in freqs['classes'].items():
+            freqs['labels'].append(cl)
+            freqs['class_lens'].append(cl_data['len'])
+        freqs['total_len'] = sum(freqs['class_lens'])
+
+        # normalize sub-class counts
+        for _, cl_data in freqs['classes'].items():
+            cl_data['source_freqs'] = np.array(cl_data['source_lens']) / cl_data['len']
+
+        # normalize class counts
+        freqs['class_freqs'] = np.array(freqs['class_lens']) / freqs['total_len']
+
+        self.class_freqs = freqs
+
+    def _get_seq_shape(self):
+        shape = None
+        for source in self.fa_sources:
+            shape = shape or source.seq_shape
+            if source.seq_shape != shape:
+                raise ValueError("FASTA sources have inconsistent shapes, found {shape} and {source.seq_shape}")
+        return shape
+
+    def __iter__(self):
+        if self.endless:
+            while True:
+                # Draw a class, proportional to all the classes in the dataset.
+                label = rng.choice(self.class_freqs['labels'],
+                    p=self.class_freqs['class_freqs'])
+                # Draw a source, proportional to all the sources in that class.
+                source = rng.choice(self.class_freqs['classes'][label]['sources'],
+                    p=self.class_freqs['classes'][label]['source_freqs'])
+                yield next(source), label
+        else:
+            for source, label in zip(self.fa_sources, self.labels):
+                for seq in source:
+                    yield seq, label
+
+    def __call__(self):
+        return self
+
+    def __len__(self):
+        return self.len
 
 
+class FastaTfDataset:
+    """Fasta collection with a corresponding tf.data.Dataset.
 
-DATA_DIR = "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/"
+    Args:
+        fa_files (list of str): paths to FASTA files.
+        labels (list of int): labels to assign to each file.
+            If there are duplicate labels, then corresponding FASTA files are sampled
+            as if they are in the same class.
+        endless (bool): 
+            if False, then yield each example from each file exactly once (useful for validation)
+            if True, then randomly yield examples according to Sampling Logic (useful for training)
 
-def get_fa_file(label, part):
-	label = label.lower()
-	part = part.upper()
-	if label not in ["pos", "neg"]:
-		raise ValueError("bad label")
-	if part not in ["TRAIN", "VAL", "TEST"]:
-		raise ValueError("bad part")
-
-	fname = f"mouse_SST_{label}_{part}.fa"
-	return os.path.join(DATA_DIR, fname)
-
-class FaExampleIterator(IterableDataset):
-	base_mapping = {
-		'A': np.array([1, 0, 0, 0]),
-		'C': np.array([0, 1, 0, 0]),
-		'G': np.array([0, 0, 1, 0]),
-		'T': np.array([0, 0, 0, 1])
-	}
-	label_mapping = {
-		'neg': 0,
-		'pos': 1
-	}
-
-	def __init__(self, label, part, random_skip_range:int=None):
-		self.fa_file = get_fa_file(label, part)
-		self.seqio_iter = SeqIO.parse(self.fa_file, "fasta")
-		self.label = label.lower()
-		self.part = part.upper()
-		self.example_num = -1
-		self.len = sum(1 for seq in SeqIO.parse(self.fa_file, "fasta") if not self._is_malformed(seq))
-		# if random_skip_range is passed, then
-		#     skip [0, ..., random_skip_range - 1]-many sequences on each iteration
-		# otherwise, don't skip sequences
-		self.random_skip_range = random_skip_range or 1
-
-	def __next__(self):
-		seq = None
-		skip = 0
-		if self.random_skip_range > 1:
-			skip = np.random.randint(self.random_skip_range)
-		while ((seq is None) or self._is_malformed(seq) or (skip > 0)):
-			seq = next(self.seqio_iter)
-			self.example_num += 1
-			skip -= 1
-		seq_str = bytes(seq.seq).decode('utf-8')
-		seq_arr = np.zeros((len(seq_str), len(self.base_mapping)))
-		for i, base in enumerate(seq_str.upper()):
-			seq_arr[i] = self.base_mapping[base]
-		res = {
-			"seq_str": seq_str,
-			"seq_arr": seq_arr,
-			"label_str": self.label,
-			"label": self.label_mapping[self.label],
-			"part": self.part,
-			"fa_file": self.fa_file,
-			"example_num": self.example_num
-		}
-		#TODO is there a way to pass all the metadata and only take the tensors later?
-		return res["seq_arr"], res["label"]
-
-	def __iter__(self):
-		return self
-
-	def __len__(self):
-		return self.len
-
-	def _is_malformed(self, seq: SeqIO.SeqRecord):
-		return 'N' in seq.upper()
-
-class FaDatasetSampler(IterableDataset):
-	def __init__(self, part=None, random_skip_range:int=None, epoch_len:int=None):
-		it_args = [
-			(FaExampleIterator, {'label': label, 'part': part, 'random_skip_range': random_skip_range})
-			for label in ['pos', 'neg']
-		]
-		self.it_args = it_args
-		self.iterators = [it_class(**kwargs) for it_class, kwargs in it_args]
-		class_counts = np.array([len(it) for it in self.iterators])
-		self.class_p = class_counts/class_counts.sum()
-		self.epoch_len = epoch_len or class_counts.sum()
-		self.num_classes = len(it_args)
-
-	def __iter__(self):
-		while True:
-			it_idx = np.random.choice(self.num_classes, p=self.class_p)
-			try:
-				val = next(self.iterators[it_idx])
-			except StopIteration:
-				it_class, kwargs = self.it_args[it_idx]
-				self.iterators[it_idx] = it_class(**kwargs)
-				val = next(self.iterators[it_idx])
-			yield val
-
-	def __len__(self):
-		return self.epoch_len
-
-class FaDataset(IterableDataset):
-	"""Iterable dataset of sequences (1-hot tensor) and labels (int).
-	Examples alternate between positive and negative with equal frequency.
-	Useful for training.
-
-	Args:
-	    part (str): in ['train', 'val', 'test']
-	"""
-	def __init__(self, part=None, random_skip_range:int=None):
-		it_args = [
-			(FaExampleIterator, {'label': label, 'part': part, 'random_skip_range': random_skip_range})
-			for label in ['pos', 'neg']
-		]
-		self.epoch_len = max(len(it(**kwargs)) for it, kwargs in it_args) * len(it_args)
-		self.it = roundrobin_batcher(it_args)
-
-	def __iter__(self):
-		return self.it
-
-	def __len__(self):
-		return self.epoch_len
-
-def roundrobin_batcher(it_args, endless=True):
-	"""Yield elements from each iterator until they have all been exhausted.
-	If iterators exhaust at different times, they will keep yielding elements
-	in a loop until all are exhausted, such that all iterators yield the same
-	number of elements in total.
-
-	E.g. if itA yields 'ABCDE' and itB yields 'XYZ',
-	then roundrobin_batcher(itA, itB) yields 'AXBYCZDXEY'.
-
-	Args:
-	    it_args: list of tuple (IterableDataset subclass, dict of kwargs)
-	    endless (bool): if True, then always refresh iterators without ending
-	                    if False, then end once all iterators have been exhausted
-	"""
-	num_unfinished = len(it_args)
-	iterators = [
-		{
-			"it_class": it_class,
-			"kwargs": kwargs,
-			"iterator": it_class(**kwargs),
-			"finished": False
-		}
-		for it_class, kwargs in it_args
-	]
-	while True:
-		batch = []
-		for rep in iterators:
-			try:
-				batch.append(next(rep["iterator"]))
-			except StopIteration:
-				if not rep["finished"]:
-					if not endless:
-						num_unfinished -= 1
-
-				rep["finished"] = True
-				rep["iterator"] = rep["it_class"](**rep["kwargs"])
-				batch.append(next(rep["iterator"]))
-		if num_unfinished:
-			for thing in batch:
-				yield thing
-		else:
-			return
-
-class FiniteIterator:
-	def __init__(self, elements=None):
-		self.it = iter(elements)
-
-	def __next__(self):
-		return next(self.it)
-
-def roundrobin_test():
-	it_args = [(FiniteIterator, {'elements': 'ABCDE'}), (FiniteIterator, {'elements': 'XYZ'})]
-	res = [c for c in roundrobin_batcher(it_args, endless=False)]
-	assert(res == ['A', 'X', 'B', 'Y', 'C', 'Z', 'D', 'X', 'E', 'Y'])
-
-	from itertools import islice
-	res = [c for c in islice(roundrobin_batcher(it_args, endless=True), 12)]
-	assert(res == ['A', 'X', 'B', 'Y', 'C', 'Z', 'D', 'X', 'E', 'Y', 'A', 'Z'])
-
-import itertools
-class SinglePassDataset(IterableDataset):
-	"""Iterable dataset where each example appears exactly once in each epoch.
-	Useful for validation.
-
-	Args:
-		part (str): in ['train', 'val', 'test']
-	"""
-	def __init__(self, part, endless=True):
-		self.part = part
-		self._refresh_dataset()
-		self.len = len(self.dataset)
-		self.endless = endless
-
-	def __len__(self):
-		return self.len
-
-	def __iter__(self):
-		while True:
-			for x in self.dataset:
-				yield x
-			if self.endless:
-				self._refresh_dataset()
-			else:
-				break
-
-	def _refresh_dataset(self):
-		self.dataset = ChainDataset([FaExampleIterator(label, self.part) for label in ['pos', 'neg']])
+    E.g.:
+    paths = ["/data/train_pos_A.fa", "/data/train_pos_B.fa", "/data/train_neg.fa"]
+    ftd = FastaTfDataset(paths, [1, 1, 0])
+    """
+    def __init__(self, fa_files, labels, endless: bool=True):
+        import tensorflow as tf
+        self.fc = FastaCollection(fa_files, labels, endless=endless)
+        self.ds = tf.data.Dataset.from_generator(self.fc,
+            output_types=(tf.int8, tf.int8),
+            output_shapes=(tf.TensorShape(self.fc.seq_shape), tf.TensorShape(())))
