@@ -8,7 +8,7 @@ from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.metrics import AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives
 
-from metrics import get_multiclass_metric, MulticlassAUC
+from metrics import MulticlassMetric
 
 
 OPTIMIZER_MAPPING = {
@@ -53,13 +53,13 @@ def get_optimizer(lr_schedule, config):
 def get_metrics():
 
 	metrics = [SparseCategoricalAccuracy(name='acc'),
-		MulticlassAUC(name='auroc', pos_label=1, curve='ROC'),
-		MulticlassAUC(name='auprc', pos_label=1, curve='PR')]
+		MulticlassMetric('AUC', name='auroc', pos_label=1, curve='ROC'),
+		MulticlassMetric('AUC', name='auprc', pos_label=1, curve='PR')]
 	if USE_CONFUSION_METRICS:
 		metrics.extend([
-			get_multiclass_metric(TruePositives, name='conf_TP', pos_label=1),
-			get_multiclass_metric(TrueNegatives, name='conf_TN', pos_label=1),
-			get_multiclass_metric(FalsePositives, name='conf_FP', pos_label=1),
-			get_multiclass_metric(FalseNegatives, name='conf_FN', pos_label=1)])
+			MulticlassMetric('TruePositives', name='conf_TP', pos_label=1),
+			MulticlassMetric('TrueNegatives', name='conf_TN', pos_label=1),
+			MulticlassMetric('FalsePositives', name='conf_FP', pos_label=1),
+			MulticlassMetric('FalseNegatives', name='conf_FN', pos_label=1)])
 
 	return metrics
