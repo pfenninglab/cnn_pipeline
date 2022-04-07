@@ -11,6 +11,18 @@ def get_lr_schedule(steps_per_epoch, config):
 	else:
 		raise ValueError("Invalid learning rate schedule")
 
+class ClrScaleFn:
+	def __init__(self, scale_fn_type):
+		self.scale_fn_type = scale_fn_type
+
+	def scale_fn(self, x):
+		if self.scale_fn_type == 'triangular2':
+			return 1/(2.**(x-1))
+		elif self.scale_fn_type == 'triangular':
+			return 1
+		else:
+			raise NotImplementedError(f"scale_fn type not implemented: {self.scale_fn_type}")
+
 def get_clr_schedule(cycle_period_epochs, steps_per_epoch, config):
 	"""Cyclic learning rate schedule.
 	See Smith, 2015: https://arxiv.org/abs/1506.01186
@@ -26,8 +38,7 @@ def get_clr_schedule(cycle_period_epochs, steps_per_epoch, config):
 	return tfa.optimizers.CyclicalLearningRate(
 		initial_learning_rate=config.lr_init,
 	    maximal_learning_rate=config.lr_max,
-	    # this scale_fn implements the "triangular2" decay shape from the paper
-	    scale_fn=lambda x: 1/(2.**(x-1)),
+	    scale_fn=ClrScaleFn(config.lr_cyc_scale_fn).scale_fn,
 	    step_size=steps_per_epoch * cycle_period_epochs / 2
 	)
 

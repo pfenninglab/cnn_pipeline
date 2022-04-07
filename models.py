@@ -9,6 +9,8 @@ from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.metrics import AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives
 
 from metrics import MulticlassMetric
+import metrics
+import lr_schedules
 
 
 OPTIMIZER_MAPPING = {
@@ -63,3 +65,20 @@ def get_metrics():
 			MulticlassMetric('FalseNegatives', name='conf_FN', pos_label=1)])
 
 	return metrics
+
+def load_model(model_path):
+	"""Load a model .h5 file.
+
+	Args:
+		model_path (str): path to model .h5 file
+	"""
+	# These are all the custom_objects that *could* be needed to load the model,
+	# even if some of them don't end up getting used. This approach might become
+	# unwieldy as more features get added. If that starts to happen, consider
+	# changing it so that each object knows its own `custom_objects` entries,
+	# and construct this dict dynamically before load.
+	custom_objects = {
+		"MulticlassMetric": metrics.MulticlassMetric,
+		"scale_fn": lr_schedules.ClrScaleFn.scale_fn
+	}
+	return tf.keras.models.load_model(model_path, custom_objects=custom_objects)
