@@ -1,0 +1,12 @@
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - biopython
+  - pip
+  - tensorflow-gpu=2.2.0
+  - wandb
+  - shap
+
+  - pip:
+    - tensorflow-addons
