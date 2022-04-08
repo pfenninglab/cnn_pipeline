@@ -52,6 +52,11 @@ lr_schedule:
   allowed_values: ['cyclic', 'exponential']
   value: cyclic
 
+lr_cyc_scale_fn:
+  desc: Scaling function for each cycle of cyclic LR schedule.
+  allowed_values: ['triangular', 'triangular2']
+  value: triangular2
+
 lr_init:
   desc: Initial learning rate.
   value: 1.e-4

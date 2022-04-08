@@ -8,7 +8,9 @@ from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.metrics import AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives
 
-from metrics import get_multiclass_metric
+from metrics import MulticlassMetric
+import metrics
+import lr_schedules
 
 
 OPTIMIZER_MAPPING = {
@@ -51,14 +53,32 @@ def get_optimizer(lr_schedule, config):
 	return OPTIMIZER_MAPPING[config['optimizer'].lower()](learning_rate=lr_schedule)
 
 def get_metrics():
+
 	metrics = [SparseCategoricalAccuracy(name='acc'),
-		get_multiclass_metric(AUC, name='auroc', pos_label=1, curve='ROC'),
-		get_multiclass_metric(AUC, name='auprc', pos_label=1, curve='PR')]
+		MulticlassMetric('AUC', name='auroc', pos_label=1, curve='ROC'),
+		MulticlassMetric('AUC', name='auprc', pos_label=1, curve='PR')]
 	if USE_CONFUSION_METRICS:
 		metrics.extend([
-			get_multiclass_metric(TruePositives, name='conf_TP', pos_label=1),
-			get_multiclass_metric(TrueNegatives, name='conf_TN', pos_label=1),
-			get_multiclass_metric(FalsePositives, name='conf_FP', pos_label=1),
-			get_multiclass_metric(FalseNegatives, name='conf_FN', pos_label=1)])
+			MulticlassMetric('TruePositives', name='conf_TP', pos_label=1),
+			MulticlassMetric('TrueNegatives', name='conf_TN', pos_label=1),
+			MulticlassMetric('FalsePositives', name='conf_FP', pos_label=1),
+			MulticlassMetric('FalseNegatives', name='conf_FN', pos_label=1)])
 
 	return metrics
+
+def load_model(model_path):
+	"""Load a model .h5 file.
+
+	Args:
+		model_path (str): path to model .h5 file
+	"""
+	# These are all the custom_objects that *could* be needed to load the model,
+	# even if some of them don't end up getting used. This approach might become
+	# unwieldy as more features get added. If that starts to happen, consider
+	# changing it so that each object knows its own `custom_objects` entries,
+	# and construct this dict dynamically before load.
+	custom_objects = {
+		"MulticlassMetric": metrics.MulticlassMetric,
+		"scale_fn": lr_schedules.ClrScaleFn.scale_fn
+	}
+	return tf.keras.models.load_model(model_path, custom_objects=custom_objects)

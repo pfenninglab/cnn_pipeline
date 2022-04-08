@@ -13,6 +13,7 @@ CONFIG_EXPECTED_KEYS = {
 	'num_epochs': int,
 	'optimizer': str,
 	'lr_schedule': str,
+	'lr_cyc_scale_fn': str,
 	'lr_init': float,
 	'lr_max': float,
 	'l2_reg': float,
