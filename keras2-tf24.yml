@@ -7,6 +7,9 @@ dependencies:
   - tensorflow-gpu=2.4.1
   - wandb
   - shap
+  - cmake
+  - leidenalg
 
   - pip:
     - tensorflow-addons
+    - modisco
