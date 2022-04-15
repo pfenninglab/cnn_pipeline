@@ -19,10 +19,15 @@ NUM_FG = 5
 MODEL_PATH = "/home/csestili/repos/mouse_sst/wandb/run-20220408_112918-eg1rb9tq/files/model-best.h5"
 POS_LABEL = 1
 
+# TODO remove
+import sys
+np.set_printoptions(threshold=sys.maxsize)
+
 def explain():
     init()
     bg, fg = get_data(NUM_BG, NUM_FG)
     shap_values = get_deepshap_scores(MODEL_PATH, bg, fg)
+    print(shap_values[1])
     modisco_results = get_modisco_results(shap_values, fg)
     return modisco_results
 
@@ -48,7 +53,7 @@ def get_deepshap_scores(model_path, bg, fg):
 	return shap_values
 
 class ModiscoNormalization:
-	VALID_NORMALIZATION_TYPES = ['none', 'gkm_explain', 'pointwise']
+	VALID_NORMALIZATION_TYPES = ('none', 'gkm_explain', 'pointwise')
 
 	def __init__(self, normalization_type):
 		normalization_type = normalization_type.lower()
@@ -87,11 +92,20 @@ class ModiscoNormalization:
 		# https://academic.oup.com/bioinformatics/article/35/14/i173/5529147#supplementary-data
 
 		# actual_scores is f_h(S_x, i, S_x^i)
-		actual_scores = np.sum(hyp_impscores * sequences, axis=-1)[:, np.newaxis]
+		actual_scores = np.expand_dims(np.sum(hyp_impscores * sequences, axis=-1), axis=-1)
 		numerator = hyp_impscores * actual_scores
-		denominator = np.sum(hyp_impscores * (hyp_impscores * actual_scores > 0), axis=-1)[:, np.newaxis]
+		denominator = np.expand_dims(np.sum(hyp_impscores * (hyp_impscores * actual_scores > 0), axis=-1), axis=-1)
+
+		# numerical fix: it is possible for some entries in the denominator to be 0!
+		# however, this happens only when the actual score f_h(S_x, i, S_x^i) is 0.
+		# therefore, the correct normalized score at this position should be 0 as well.
+		# we will set the denominator equal to 1 at this position, because
+		# 0 / 1 = 0 yields the correct normalized answer in this special case.
+		denominator = denominator + np.ones_like(denominator) * (denominator == 0)
+
 		normed_hyp_impscores = numerator / denominator
 		normed_impscores = normed_hyp_impscores * sequences
+
 		return normed_impscores, normed_hyp_impscores
 
 	@staticmethod
@@ -103,17 +117,60 @@ class ModiscoNormalization:
 		return normed_impscores, normed_hyp_impscores
 
 def _test_gkm_explain_normalization():
-	hyp_impscores = np.array([[1, -2, 3, -4], [-5, 6, -7, 8], [-9, 1, 2, -3]])
-	sequences     = np.array([[0,  1, 0,  0], [ 0, 0,  0, 1], [ 1, 0, 0,  0]])
+	# test case inputs
+	hyp_impscores = np.array([[ 1, -2,  3, -4], [ -5,  6,  -7,  8], [-9,  1,   2, -3]])
+	sequences     = np.array([[ 0,  1,  0,  0], [  0,  0,   0,  1], [ 1,  0,   0,  0]])
 
-	numerator     = np.array([[-2, 4, -6, 8], [-40, 48, -56, 64], [81, -9, -18, 27]])
-	# TODO denominator sum parts
+	# expected values (computed by hand)
+	numerator     = np.array([[-2,  4, -6,  8], [-40, 48, -56, 64], [81, -9, -18, 27]])
+	denominator   = np.array([[ 0, -2,  0, -4], [  0,  6,   0,  8], [-9,  0,   0, -3]])
+	denominator   = np.sum(denominator, axis=-1)[:, np.newaxis]
+	expected_hyp_imp = numerator / denominator
+	expected_imp = expected_hyp_imp * sequences
 
-	# TODO actually test
+	# computed values
+	normed_impscores, normed_hyp_impscores = ModiscoNormalization('gkm_explain')(hyp_impscores, sequences)
+
+	for arr in [expected_hyp_imp, expected_imp, normed_impscores, normed_hyp_impscores]:
+		assert arr.shape == (3, 4)
+	assert np.allclose(expected_hyp_imp, normed_hyp_impscores)
+	assert np.allclose(expected_imp, normed_impscores)
+
+	# test that it works when the batch dimension is added
+	# shape = (1, 3, 4)
+	hyp_impscores = hyp_impscores[np.newaxis, :]
+	sequences = sequences[np.newaxis, :]
+	numerator = numerator[np.newaxis, :]
+	denominator = denominator[np.newaxis, :]
+	expected_hyp_imp = numerator / denominator
+	expected_imp = expected_hyp_imp * sequences
+	normed_impscores, normed_hyp_impscores = ModiscoNormalization('gkm_explain')(hyp_impscores, sequences)
+	for arr in [expected_hyp_imp, expected_imp, normed_impscores, normed_hyp_impscores]:
+		assert arr.shape == (1, 3, 4)	
+	assert np.allclose(expected_hyp_imp, normed_hyp_impscores)
+	assert np.allclose(expected_imp, normed_impscores)
+
+	# test that it works with batch size of 2
+	# shape = (2, 3, 4)
+	hyp_impscores = np.repeat(hyp_impscores, 2, axis=0)
+	sequences = np.repeat(sequences, 2, axis=0)
+	numerator = np.repeat(numerator, 2, axis=0)
+	denominator = np.repeat(denominator, 2, axis=0)
+	expected_hyp_imp = numerator / denominator
+	expected_imp = expected_hyp_imp * sequences
+	normed_impscores, normed_hyp_impscores = ModiscoNormalization('gkm_explain')(hyp_impscores, sequences)
+	for arr in [expected_hyp_imp, expected_imp, normed_impscores, normed_hyp_impscores]:
+		assert arr.shape == (2, 3, 4)	
+	assert np.allclose(expected_hyp_imp, normed_hyp_impscores)
+	assert np.allclose(expected_imp, normed_impscores)
+
+	print(normed_hyp_impscores)
+	print(normed_impscores)
+
 
 def get_modisco_results(shap_values, fg):
 	hyp_imp_scores = shap_values[POS_LABEL]
-	normalization = ModiscoNormalization('pointwise')
+	normalization = ModiscoNormalization('gkm_explain')
 	normed_impscores, normed_hyp_impscores = normalization(hyp_imp_scores, fg)
 
 	seqlets_to_patterns_factory = modisco.tfmodisco_workflow.seqlets_to_patterns.TfModiscoSeqletsToPatternsFactory(
