@@ -5,7 +5,15 @@ import lr_schedules
 import utils
 
 import wandb
-from wandb.keras import WandbCallback
+# TODO once finished debugging, remove mock_wandb
+use_wandb = hasattr(wandb, 'init')
+if not use_wandb:
+	import mock_wandb
+	wandb = mock_wandb.MockWandb()
+	from mock_wandb import MockWandbCallback as WandbCallback
+else:
+	from wandb.keras import WandbCallback
+
 
 def train(args):
 	# Start `wandb`

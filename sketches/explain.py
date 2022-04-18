@@ -16,20 +16,31 @@ import utils
 # TODO convert constants to config settings
 NUM_BG = 20
 NUM_FG = 5
-MODEL_PATH = "/home/csestili/repos/mouse_sst/wandb/run-20220408_112918-eg1rb9tq/files/model-best.h5"
+# 10 epoch model, tf 2.7
+#MODEL_PATH = "/home/csestili/repos/mouse_sst/wandb/run-20220415_131434-25a65ctc/files/model-best.h5"
+# 0 epoch model, tf 2.4
+#MODEL_PATH = "/home/csestili/models/model_untrained_tf24.h5"
+# 0 epoch model, keras2 env
+MODEL_PATH = "/home/csestili/models/model_untrained_keras2.h5"
 POS_LABEL = 1
 
-# TODO remove
+# DEBUG Print whole numpy arrays
 import sys
 np.set_printoptions(threshold=sys.maxsize)
 
+# Check if we can use wandb in current environment
+use_wandb = hasattr(wandb, 'init')
+# TODO once finished debugging, remove mock_wandb
+if not use_wandb:
+	import mock_wandb
+	wandb = mock_wandb.MockWandb()
+
 def explain():
-    init()
-    bg, fg = get_data(NUM_BG, NUM_FG)
-    shap_values = get_deepshap_scores(MODEL_PATH, bg, fg)
-    print(shap_values[1])
-    modisco_results = get_modisco_results(shap_values, fg)
-    return modisco_results
+	init()
+	bg, fg = get_data(NUM_BG, NUM_FG)
+	shap_values = get_deepshap_scores(MODEL_PATH, bg, fg)
+	modisco_results = get_modisco_results(shap_values, fg)
+	return modisco_results
 
 def init():
 	config, project = utils.get_config("../config-mouse-sst.yaml")
@@ -164,14 +175,13 @@ def _test_gkm_explain_normalization():
 	assert np.allclose(expected_hyp_imp, normed_hyp_impscores)
 	assert np.allclose(expected_imp, normed_impscores)
 
-	print(normed_hyp_impscores)
-	print(normed_impscores)
-
 
 def get_modisco_results(shap_values, fg):
 	hyp_imp_scores = shap_values[POS_LABEL]
 	normalization = ModiscoNormalization('gkm_explain')
 	normed_impscores, normed_hyp_impscores = normalization(hyp_imp_scores, fg)
+
+	print(normed_hyp_impscores)
 
 	seqlets_to_patterns_factory = modisco.tfmodisco_workflow.seqlets_to_patterns.TfModiscoSeqletsToPatternsFactory(
         trim_to_window_size=11,
