@@ -19,18 +19,15 @@ import dataset
 import utils
 
 
-MODEL_PATH = "/home/csestili/repos/mouse_sst/wandb/run-20220415_131044-1y55qe78/files/model-best.h5"
-
-
-def explain():
-	init()
+def explain(args):
+	init(args)
 	bg, fg = get_data()
-	shap_values = get_deepshap_scores(MODEL_PATH, bg, fg)
+	shap_values = get_deepshap_scores(bg, fg)
 	modisco_results = get_modisco_results(shap_values, fg)
 	return modisco_results
 
-def init():
-	config, project = utils.get_config("../config-mouse-sst.yaml")
+def init(args):
+	config, project = utils.get_config(args.config)
 	wandb.init(config=config, project=project, mode="disabled")
 	utils.validate_config(wandb.config)
 
@@ -48,8 +45,8 @@ def get_data():
 
 	return bg, fg
 
-def get_deepshap_scores(model_path, bg, fg):
-	model = models.load_model(model_path)
+def get_deepshap_scores(bg, fg):
+	model = models.load_model(wandb.config.interp_model_path)
 	explainer = shap.DeepExplainer(model, bg)
 	shap_values = explainer.shap_values(fg)
 
@@ -167,7 +164,6 @@ def _test_gkm_explain_normalization():
 	assert np.allclose(expected_hyp_imp, normed_hyp_impscores)
 	assert np.allclose(expected_imp, normed_impscores)
 
-
 def get_modisco_results(shap_values, fg):
 	# Get normalized importance scores
 	hyp_imp_scores = shap_values[wandb.config.shap_pos_label]
@@ -193,5 +189,12 @@ def get_modisco_results(shap_values, fg):
 
 	return tfmodisco_results
 
+def get_args():
+	import argparse
+	parser = argparse.ArgumentParser()
+	parser.add_argument('-config', type=str, required=True)
+	return parser.parse_args()
+
+
 if __name__ == '__main__':
-	explain()
+	explain(get_args())
