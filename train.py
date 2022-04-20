@@ -7,6 +7,7 @@ import utils
 import wandb
 from wandb.keras import WandbCallback
 
+
 def train(args):
 	# Start `wandb`
 	config, project = utils.get_config(args.config)

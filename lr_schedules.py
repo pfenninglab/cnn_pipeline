@@ -1,5 +1,4 @@
 import tensorflow as tf
-import tensorflow_addons as tfa
 
 
 def get_lr_schedule(steps_per_epoch, config):
@@ -35,6 +34,7 @@ def get_clr_schedule(cycle_period_epochs, steps_per_epoch, config):
 			lr_init: initial learning rate, the min value of each cycle
 			lr_max: maximum learning rate, the max value of each cycle
 	"""
+	import tensorflow_addons as tfa
 	return tfa.optimizers.CyclicalLearningRate(
 		initial_learning_rate=config.lr_init,
 	    maximal_learning_rate=config.lr_max,

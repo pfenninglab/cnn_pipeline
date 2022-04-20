@@ -40,6 +40,10 @@ num_epochs:
   desc: Number of training epochs.
   value: 30
 
+metric_pos_label:
+  desc: Positive label to use for binary metrics.
+  value: 1
+
 # Optimization
 
 optimizer:
@@ -116,3 +120,21 @@ num_dense_layers:
 dense_filters:
   desc: Number of filters in dense layer.
   value: 300
+
+# Interpretation
+
+interp_model_path:
+  desc: Path to model to interpret.
+  value: /home/csestili/models/model-5layer.h5
+
+shap_num_bg:
+  desc: Number of background samples to use for SHAP model interpretation. Taken from training set.
+  value: 20
+
+shap_num_fg:
+  desc: Number of foreground samples to use for SHAP model interpretation. Taken from positive subset of validation set.
+  value: 5
+
+shap_pos_label:
+  desc: Positive label to use for SHAP model interpretation.
+  value: 1

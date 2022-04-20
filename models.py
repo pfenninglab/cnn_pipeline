@@ -23,7 +23,7 @@ USE_CONFUSION_METRICS = False
 def get_model(input_shape, num_classes, lr_schedule, config):
 	model = get_model_architecture(input_shape, num_classes, config)
 	optimizer = get_optimizer(lr_schedule, config)
-	metrics = get_metrics()
+	metrics = get_metrics(config)
 	model.compile(loss='sparse_categorical_crossentropy',
 		optimizer=optimizer,
 		metrics=metrics)
@@ -38,7 +38,11 @@ def get_model_architecture(input_shape, num_classes, config):
 		x = layers.Conv1D(filters=config['conv_filters'], kernel_size=config['conv_width'], activation='relu', strides=config['conv_stride'], kernel_regularizer=l2(l=config['l2_reg']))(x)
 		x = layers.Dropout(rate=config['dropout_rate'])(x)
 
-	x = layers.MaxPooling1D(pool_size=config['max_pool_size'], strides=config['max_pool_stride'])(x)
+	x = layers.MaxPooling1D(
+			pool_size=config['max_pool_size'],
+			strides=config['max_pool_stride'],
+			# NOTE we use padding='same' so that no input data gets discarded
+			padding='same')(x)
 	x = layers.Flatten()(x)
 
 	for _ in range(config['num_dense_layers']):
@@ -52,17 +56,17 @@ def get_model_architecture(input_shape, num_classes, config):
 def get_optimizer(lr_schedule, config):
 	return OPTIMIZER_MAPPING[config['optimizer'].lower()](learning_rate=lr_schedule)
 
-def get_metrics():
+def get_metrics(config):
 
 	metrics = [SparseCategoricalAccuracy(name='acc'),
-		MulticlassMetric('AUC', name='auroc', pos_label=1, curve='ROC'),
-		MulticlassMetric('AUC', name='auprc', pos_label=1, curve='PR')]
+		MulticlassMetric('AUC', name='auroc', pos_label=config.metric_pos_label, curve='ROC'),
+		MulticlassMetric('AUC', name='auprc', pos_label=config.metric_pos_label, curve='PR')]
 	if USE_CONFUSION_METRICS:
 		metrics.extend([
-			MulticlassMetric('TruePositives', name='conf_TP', pos_label=1),
-			MulticlassMetric('TrueNegatives', name='conf_TN', pos_label=1),
-			MulticlassMetric('FalsePositives', name='conf_FP', pos_label=1),
-			MulticlassMetric('FalseNegatives', name='conf_FN', pos_label=1)])
+			MulticlassMetric('TruePositives', name='conf_TP', pos_label=config.metric_pos_label),
+			MulticlassMetric('TrueNegatives', name='conf_TN', pos_label=config.metric_pos_label),
+			MulticlassMetric('FalsePositives', name='conf_FP', pos_label=config.metric_pos_label),
+			MulticlassMetric('FalseNegatives', name='conf_FN', pos_label=config.metric_pos_label)])
 
 	return metrics
 
