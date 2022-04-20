@@ -116,3 +116,13 @@ num_dense_layers:
 dense_filters:
   desc: Number of filters in dense layer.
   value: 300
+
+# Interpretation
+
+shap_num_bg:
+  desc: Number of background samples to use, for SHAP model interpretation.
+  value: 20
+
+shap_num_fg:
+  desc: Number of foreground samples to use, for SHAP model interpretation.
+  value: 5

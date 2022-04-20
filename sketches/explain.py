@@ -29,7 +29,7 @@ POS_LABEL = 1
 
 def explain():
 	init()
-	bg, fg = get_data(NUM_BG, NUM_FG)
+	bg, fg = get_data()
 	shap_values = get_deepshap_scores(MODEL_PATH, bg, fg)
 	modisco_results = get_modisco_results(shap_values, fg)
 	return modisco_results
@@ -39,13 +39,17 @@ def init():
 	wandb.init(config=config, project=project, mode="disabled")
 	utils.validate_config(wandb.config)
 
-def get_data(num_bg, num_fg):
-	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
-	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels)
+def get_data():
+	# Background is training set
+	bg_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
+	# Foreground is positive examples from validation set
+	fg_idx = np.array(wandb.config.val_labels) == POS_LABEL
+	fg_data = dataset.FastaTfDataset(
+		list(np.array(wandb.config.val_data_paths)[fg_idx]),
+		list(np.array(wandb.config.val_labels)[fg_idx]))
 
-	# TODO better shuffling for more representative datasets
-	bg = np.array([itm[0] for itm in train_data.ds.shuffle(20000).take(num_bg).as_numpy_iterator()])
-	fg = np.array([itm[0] for itm in val_data.ds.shuffle(20000).take(num_fg).as_numpy_iterator()])
+	bg, _ = bg_data.get_subset_as_arrays(wandb.config.shap_num_bg)
+	fg, _ = fg_data.get_subset_as_arrays(wandb.config.shap_num_fg)
 
 	return bg, fg
 

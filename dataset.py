@@ -211,3 +211,20 @@ class FastaTfDataset:
         self.ds = tf.data.Dataset.from_generator(self.fc,
             output_types=(tf.int8, tf.int8),
             output_shapes=(tf.TensorShape(self.fc.seq_shape), tf.TensorShape(())))
+
+    def get_subset_as_arrays(self, size):
+        """Return a random subset as 2 numpy arrays.
+
+        Args:
+            size (int): Number of examples in subset.
+
+        Returns:
+            xs (np.ndarray): [size, num_bp, 4], one-hot sequences
+            ys (np.ndarray): [size, num_bp], labels
+        """
+        dataset = self.ds.shuffle(len(self.fc)).take(size)
+        xs, ys = [], []
+        for (x, y) in dataset.as_numpy_iterator():
+            xs.append(x)
+            ys.append(y)
+        return np.array(xs), np.array(ys)
