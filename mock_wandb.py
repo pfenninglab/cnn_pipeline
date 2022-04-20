@@ -42,6 +42,10 @@ class MockWandbConfig:
 	def __getitem__(self, key):
 		return getattr(self, key)
 
+	def update(self, data, allow_val_change):
+		for k, v in data.items():
+			setattr(self, k, v)
+
 class MockWandbCallback:
 	def __init__(self):
 		pass

@@ -38,7 +38,11 @@ def get_model_architecture(input_shape, num_classes, config):
 		x = layers.Conv1D(filters=config['conv_filters'], kernel_size=config['conv_width'], activation='relu', strides=config['conv_stride'], kernel_regularizer=l2(l=config['l2_reg']))(x)
 		x = layers.Dropout(rate=config['dropout_rate'])(x)
 
-	x = layers.MaxPooling1D(pool_size=config['max_pool_size'], strides=config['max_pool_stride'])(x)
+	x = layers.MaxPooling1D(
+			pool_size=config['max_pool_size'],
+			strides=config['max_pool_stride'],
+			# NOTE we use padding='same' so that no input data gets discarded
+			padding='same')(x)
 	x = layers.Flatten()(x)
 
 	for _ in range(config['num_dense_layers']):

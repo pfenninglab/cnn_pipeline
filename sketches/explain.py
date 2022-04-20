@@ -1,3 +1,9 @@
+"""explain.py: Get SHAP importance scores and TF-MoDISco motifs.
+
+NOTE this must be run in an environment with tensorflow 2.4.1.
+Tested with a conda env created from ../keras2-tf24.yml.
+"""
+
 # allow importing from one directory up
 import sys
 sys.path.append('..')
@@ -16,24 +22,10 @@ import utils
 # TODO convert constants to config settings
 NUM_BG = 20
 NUM_FG = 5
-# 10 epoch model, tf 2.7
-#MODEL_PATH = "/home/csestili/repos/mouse_sst/wandb/run-20220415_131434-25a65ctc/files/model-best.h5"
-# 0 epoch model, tf 2.4
-#MODEL_PATH = "/home/csestili/models/model_untrained_tf24.h5"
-# 0 epoch model, keras2 env
-MODEL_PATH = "/home/csestili/models/model_untrained_keras2.h5"
+
+MODEL_PATH = "/home/csestili/repos/mouse_sst/wandb/run-20220415_131044-1y55qe78/files/model-best.h5"
 POS_LABEL = 1
 
-# DEBUG Print whole numpy arrays
-import sys
-np.set_printoptions(threshold=sys.maxsize)
-
-# Check if we can use wandb in current environment
-use_wandb = hasattr(wandb, 'init')
-# TODO once finished debugging, remove mock_wandb
-if not use_wandb:
-	import mock_wandb
-	wandb = mock_wandb.MockWandb()
 
 def explain():
 	init()
@@ -51,8 +43,9 @@ def get_data(num_bg, num_fg):
 	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
 	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels)
 
-	bg = np.array([itm[0] for itm in train_data.ds.take(num_bg).as_numpy_iterator()])
-	fg = np.array([itm[0] for itm in val_data.ds.take(num_fg).as_numpy_iterator()])
+	# TODO better shuffling for more representative datasets
+	bg = np.array([itm[0] for itm in train_data.ds.shuffle(20000).take(num_bg).as_numpy_iterator()])
+	fg = np.array([itm[0] for itm in val_data.ds.shuffle(20000).take(num_fg).as_numpy_iterator()])
 
 	return bg, fg
 
@@ -177,12 +170,12 @@ def _test_gkm_explain_normalization():
 
 
 def get_modisco_results(shap_values, fg):
+	# Get normalized importance scores
 	hyp_imp_scores = shap_values[POS_LABEL]
 	normalization = ModiscoNormalization('gkm_explain')
 	normed_impscores, normed_hyp_impscores = normalization(hyp_imp_scores, fg)
 
-	print(normed_hyp_impscores)
-
+	# Run TF-MoDISco
 	seqlets_to_patterns_factory = modisco.tfmodisco_workflow.seqlets_to_patterns.TfModiscoSeqletsToPatternsFactory(
         trim_to_window_size=11,
         initial_flank_to_add=3,
@@ -200,7 +193,6 @@ def get_modisco_results(shap_values, fg):
 	                one_hot=fg)
 
 	return tfmodisco_results
-
 
 if __name__ == '__main__':
 	explain()
