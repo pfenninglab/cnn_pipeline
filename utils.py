@@ -11,6 +11,7 @@ CONFIG_EXPECTED_KEYS = {
 	'val_labels': list,
 	'batch_size': int,
 	'num_epochs': int,
+	'metric_pos_label': int,
 	'optimizer': str,
 	'lr_schedule': str,
 	'lr_cyc_scale_fn': str,
@@ -27,7 +28,10 @@ CONFIG_EXPECTED_KEYS = {
 	'max_pool_size': int,
 	'max_pool_stride': int,
 	'num_dense_layers': int,
-	'dense_filters': int
+	'dense_filters': int,
+	'shap_num_bg': int,
+	'shap_num_fg': int,
+	'shap_pos_label': int
 }
 
 def validate_config(config_dict):

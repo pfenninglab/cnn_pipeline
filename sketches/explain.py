@@ -19,12 +19,7 @@ import dataset
 import utils
 
 
-# TODO convert constants to config settings
-NUM_BG = 20
-NUM_FG = 5
-
 MODEL_PATH = "/home/csestili/repos/mouse_sst/wandb/run-20220415_131044-1y55qe78/files/model-best.h5"
-POS_LABEL = 1
 
 
 def explain():
@@ -43,7 +38,7 @@ def get_data():
 	# Background is training set
 	bg_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
 	# Foreground is positive examples from validation set
-	fg_idx = np.array(wandb.config.val_labels) == POS_LABEL
+	fg_idx = np.array(wandb.config.val_labels) == wandb.config.shap_pos_label
 	fg_data = dataset.FastaTfDataset(
 		list(np.array(wandb.config.val_data_paths)[fg_idx]),
 		list(np.array(wandb.config.val_labels)[fg_idx]))
@@ -175,7 +170,7 @@ def _test_gkm_explain_normalization():
 
 def get_modisco_results(shap_values, fg):
 	# Get normalized importance scores
-	hyp_imp_scores = shap_values[POS_LABEL]
+	hyp_imp_scores = shap_values[wandb.config.shap_pos_label]
 	normalization = ModiscoNormalization('gkm_explain')
 	normed_impscores, normed_hyp_impscores = normalization(hyp_imp_scores, fg)
 
