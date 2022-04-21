@@ -8,11 +8,12 @@ import wandb
 from wandb.keras import WandbCallback
 
 
-def train(args):
+def train():
 	# Start `wandb`
-	config, project = utils.get_config(args.config)
+	#config, project = utils.get_config(args.config)
+	config, project = "config-mouse-sst.yaml", "sweep-test"
 	wandb.init(config=config, project=project)
-	utils.validate_config(wandb.config)
+	#utils.validate_config(wandb.config)
 
 	# Get datasets
 	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
@@ -34,10 +35,10 @@ def train(args):
 		validation_steps=steps_per_epoch_val,
 		callbacks=[WandbCallback(), callbacks.LRLogger(model.optimizer)])
 
-	# Validate on full validation set
-	print("full validation:")
-	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
-	model.evaluate(val_data.ds.batch(batch_size), callbacks=[WandbCallback()])
+	# # Validate on full validation set
+	# print("full validation:")
+	# val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
+	# model.evaluate(val_data.ds.batch(batch_size), callbacks=[WandbCallback()])
 
 def get_args():
 	import argparse
@@ -47,4 +48,4 @@ def get_args():
 
 
 if __name__ == '__main__':
-	train(get_args())
+	train()

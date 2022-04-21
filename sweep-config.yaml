@@ -1,0 +1,22 @@
+program: train.py
+
+project: test-sweep
+
+method: random
+
+metric:
+  goal: minimize
+  name: val_loss
+
+early_terminate:
+  type: hyperband
+  s: 2
+  eta: 3
+  max_iter: 27
+
+parameters:
+  num_conv_layers:
+    values: [2, 3, 4]
+
+  lr_init:
+    values: [1.e-5, 1.e-4, 1.e-3]
