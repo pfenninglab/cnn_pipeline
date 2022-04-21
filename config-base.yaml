@@ -38,7 +38,7 @@ batch_size:
 
 num_epochs:
   desc: Number of training epochs.
-  value: 1
+  value: 30
 
 metric_pos_label:
   desc: Positive label to use for binary metrics.
@@ -54,7 +54,7 @@ optimizer:
 lr_schedule:
   desc: Learning rate schedule to use.
   allowed_values: ['cyclic', 'exponential']
-  value: cyclic
+  value: exponential
 
 lr_cyc_scale_fn:
   desc: Scaling function for each cycle of cyclic LR schedule.

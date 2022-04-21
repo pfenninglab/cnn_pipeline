@@ -8,12 +8,11 @@ import wandb
 from wandb.keras import WandbCallback
 
 
-def train():
+def train(args):
 	# Start `wandb`
-	#config, project = utils.get_config(args.config)
-	config, project = "config-mouse-sst.yaml", "sweep-test"
+	config, project = utils.get_config(args.config)
 	wandb.init(config=config, project=project)
-	#utils.validate_config(wandb.config)
+	utils.validate_config(wandb.config)
 
 	# Get datasets
 	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
@@ -44,8 +43,10 @@ def get_args():
 	import argparse
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-config', type=str, required=True)
-	return parser.parse_args()
+	# parse_known_args() allows hyperparameters to be passed in during sweeps
+	args, _ = parser.parse_known_args()
+	return args
 
 
 if __name__ == '__main__':
-	train()
+	train(get_args())
