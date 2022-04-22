@@ -24,4 +24,14 @@ early_terminate:
 
 parameters:
   lr_init:
-    values: [1.e-5, 1.e-4, 1.e-3]
+    distribution: log_uniform_values
+    min: 1.e-6
+    max: 1.e-2
+
+  lr_exp_decay_per_epoch:
+    distribution: log_uniform_values
+    min: 0.9
+    max: 1
+
+  num_conv_layers:
+    values: [1, 2, 3, 4, 5]
