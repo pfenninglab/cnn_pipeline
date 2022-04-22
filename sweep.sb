@@ -15,4 +15,4 @@
 module load cuda-10.2
 source activate keras2-tf27
 
-python wandb_on_slurm.py -sweep_config sweep-config.yaml
+python sweep.py -sweep_config sweep-config.yaml
