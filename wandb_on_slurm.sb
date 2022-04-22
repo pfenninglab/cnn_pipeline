@@ -14,14 +14,4 @@
 module load cuda-10.2
 source activate keras2-tf27
 
-config_yaml='sweep-config.yaml'
-echo 'template:' $config_yaml
-
-train_file='train.py'
-echo 'train_file:' $train_file
-
-project='test-sweep'
-echo 'project:' $project
-
-echo 'running script'
-python wandb_on_slurm.py -sweep_config $config_yaml -train_file $train_file -project $project
+python wandb_on_slurm.py -sweep_config sweep-config.yaml

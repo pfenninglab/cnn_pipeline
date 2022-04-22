@@ -15,14 +15,11 @@ result = subprocess.run(['scontrol', 'show', 'hostnames'], stdout=subprocess.PIP
 node_list = result.stdout.decode('utf-8').split('\n')[:-1]
 
 def run(args):
-
-    wandb.init(project=args.project, mode="disabled")
-    
     with open(args.sweep_config) as file:
         config_dict = yaml.load(file, Loader=yaml.FullLoader)
-    config_dict['program'] = args.train_file
-
-    sweep_id = wandb.sweep(config_dict, project=args.project)
+    project = config_dict['project']
+    wandb.init(project=project, mode="disabled")
+    sweep_id = wandb.sweep(config_dict, project=project)
     
     sp = []
     for node in node_list:
@@ -40,8 +37,6 @@ def get_args():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument('-sweep_config', type=str, required=True)
-    parser.add_argument('-train_file', type=str, required=True)
-    parser.add_argument('-project', type=str, required=True)
     return parser.parse_args()
 
 if __name__ == '__main__':
