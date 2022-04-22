@@ -1,3 +1,11 @@
+"""train.py: Train a model.
+
+Usage:
+- Single training run, from interactive session: python train.py -config config-base.yaml
+- Single training run, on slurm: sbatch train.sb config-base.yaml
+- Hyperparameter sweep, on slurm: sbatch sweep.sb
+"""
+
 import callbacks
 import dataset
 import models
@@ -34,10 +42,17 @@ def train(args):
 		validation_steps=steps_per_epoch_val,
 		callbacks=[WandbCallback(), callbacks.LRLogger(model.optimizer)])
 
-	# # Validate on full validation set
-	# print("full validation:")
-	# val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
-	# model.evaluate(val_data.ds.batch(batch_size), callbacks=[WandbCallback()])
+def validate(model_path):
+	"""Validate on full validation set.
+	
+	During training, evaluation metrics are slightly off (+/- ~2%), because
+	the eval set is missing a small number of examples, due to streaming and batching.
+
+	Use this method to get exact validation metrics on the full validation set.
+	"""
+	model = models.load_model(model_path)
+	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
+	model.evaluate(val_data.ds.batch(wandb.config.batch_size))
 
 def get_args():
 	import argparse

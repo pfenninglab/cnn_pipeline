@@ -4,15 +4,18 @@ Adapted from https://github.com/elyall/wandb_on_slurm
 """
 
 import wandb
+"""sweep.py: Launch `wandb` sweep controller and agents on slurm.
+NOTE: This script should be run via sbatch. It is not guaranteed to work if you simply run it with python.
+
+Usage:
+sbatch sweep.sb
+"""
+
 import subprocess
 import yaml
 import os
 import json
 
-
-# Gather nodes allocated to current slurm job
-result = subprocess.run(['scontrol', 'show', 'hostnames'], stdout=subprocess.PIPE)
-node_list = result.stdout.decode('utf-8').split('\n')[:-1]
 
 def run(args):
     with open(args.sweep_config) as file:
@@ -20,6 +23,10 @@ def run(args):
     project = config_dict['project']
     wandb.init(project=project, mode="disabled")
     sweep_id = wandb.sweep(config_dict, project=project)
+
+    # Gather nodes allocated to current slurm job
+    result = subprocess.run(['scontrol', 'show', 'hostnames'], stdout=subprocess.PIPE)
+    node_list = result.stdout.decode('utf-8').split('\n')[:-1]
     
     sp = []
     for node in node_list:
@@ -38,6 +45,7 @@ def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-sweep_config', type=str, required=True)
     return parser.parse_args()
+
 
 if __name__ == '__main__':
     run(get_args())

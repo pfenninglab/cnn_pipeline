@@ -1,6 +1,7 @@
 #!/bin/bash
 # wandb_on_slurm.sb: Launch `wandb` sweep controller and agents on slurm.
 # Adapted from https://github.com/elyall/wandb_on_slurm
+# Usage: sbatch sweep.sb
 
 #SBATCH --nodes=1
 #SBATCH -p pfen3

@@ -1,3 +1,10 @@
+# sweep-config.yaml: Config for `wandb` hyperparameter sweep.
+# Usage: sbatch sweep.sb
+#
+# Note: To run the sweep in an interactive session (e.g. for debugging),
+#     wandb sweep sweep-config.yaml
+# This is not recommended for actual training (use sbatch instead).
+
 program: train.py
 
 command:
