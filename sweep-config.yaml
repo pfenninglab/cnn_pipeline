@@ -32,13 +32,29 @@ early_terminate:
 parameters:
   lr_init:
     distribution: log_uniform_values
-    min: 1.e-6
+    min: 1.5e-5
     max: 1.e-2
 
   lr_exp_decay_per_epoch:
-    distribution: log_uniform_values
-    min: 0.9
-    max: 1
+    distribution: uniform
+    min: 0.75
+    max: 0.98
 
   num_conv_layers:
     values: [1, 2, 3, 4, 5]
+
+  conv_width:
+    values: [3, 5, 7, 9, 11]
+
+  conv_filters:
+    values: [50, 100, 200, 300, 500]
+
+  l2_reg:
+    distribution: log_uniform_values
+    min: 1e-5
+    max: 1e-3
+
+  dropout_rate:
+    distribution: uniform
+    min: 0.0
+    max: 0.6

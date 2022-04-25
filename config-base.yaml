@@ -38,7 +38,7 @@ batch_size:
 
 num_epochs:
   desc: Number of training epochs.
-  value: 30
+  value: 25
 
 metric_pos_label:
   desc: Positive label to use for binary metrics.
