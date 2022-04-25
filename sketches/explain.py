@@ -167,7 +167,7 @@ def _test_gkm_explain_normalization():
 def get_modisco_results(shap_values, fg):
 	# Get normalized importance scores
 	hyp_imp_scores = shap_values[wandb.config.shap_pos_label]
-	normalization = ModiscoNormalization('gkm_explain')
+	normalization = ModiscoNormalization(wandb.config.modisco_normalization)
 	normed_impscores, normed_hyp_impscores = normalization(hyp_imp_scores, fg)
 
 	# Run TF-MoDISco
