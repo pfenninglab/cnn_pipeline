@@ -138,3 +138,8 @@ shap_num_fg:
 shap_pos_label:
   desc: Positive label to use for SHAP model interpretation.
   value: 1
+
+modisco_normalization:
+  desc: Normalization method to use for importance scores.
+  allowed_values: ['none', 'pointwise', 'gkm_explain']
+  value: gkm_explain

@@ -10,3 +10,4 @@
 
 conda update -y -n base -c defaults conda
 conda env create -n keras2-tf27 --file=keras2-tf27.yml
+conda env create -n keras2-tf24 --file=keras2-tf24.yml

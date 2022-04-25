@@ -10,12 +10,11 @@ Track experiments, visualize performance metrics, and search hyperparameters usi
 the `wandb` framework.
 
 ## Setup
-1. Create conda environment `keras2-tf27`:
+1. Create conda environments `keras2-tf27` (for training) and `keras2-tf24` (for SHAP/TF-MoDISco interpretation):
 
 ```
 sbatch setup.sb
 ```
- This should take about 3-5 minutes to complete.
 
 2. Create `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
 
@@ -31,7 +30,11 @@ wandb login
 ```
 
 ## Usage
-1. Edit `config-mouse-sst.yaml` to configure:
+
+### Single training run
+To train a single model:
+
+1. Edit `config-base.yaml` to configure:
 - `wandb` project name for tracking
 - data sources (FASTA files)
 - labels
@@ -39,6 +42,7 @@ wandb login
 - regularization
 - learning rate and optimizer
 - training details
+- SHAP details
 
  Save the new config as `<my-config>.yaml`.
 
@@ -48,3 +52,21 @@ sbatch train.sb <my-config>.yaml
 ```
 
 3. Check experiment results in-browser at [https://wandb.ai/](https://wandb.ai/).
+
+Trained models are saved in the `wandb/` directory.
+
+### Hyperparameter sweep
+To initiate a hyperparameter sweep, training many models with different hyperparameters:
+
+1. Edit `config-base.yaml` as above, for all the parameters that should remain *fixed* during training.
+
+2. Edit `sweep-config.yaml`, specifying all the parameters that should vary during the search, as well as the ranges to search over. If you saved your copy of `config-base.yaml` under a different name in step 1, be sure to change the base config name in the `command` section of `sweep-config.yaml`.
+
+3. Start the sweep:
+```
+sbatch sweep.sb
+```
+
+4. Check sweep results in-browser at [https://wandb.ai/](https://wandb.ai/).
+
+Trained models are saved in the `wandb/` directory.
