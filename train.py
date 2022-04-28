@@ -33,6 +33,10 @@ def train(args):
 	model = models.get_model(
 		train_data.fc.seq_shape, train_data.fc.num_classes, lr_schedule, wandb.config)
 
+	# Get callbacks
+	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config)
+	callback_fns.extend([WandbCallback(), callbacks.LRLogger(model.optimizer)])
+
 	# Train
 	model.fit(
 		train_data.ds.batch(batch_size),
@@ -40,7 +44,7 @@ def train(args):
 		steps_per_epoch=steps_per_epoch_train,
 		validation_data=val_data.ds.batch(batch_size),
 		validation_steps=steps_per_epoch_val,
-		callbacks=[WandbCallback(), callbacks.LRLogger(model.optimizer)])
+		callbacks=callback_fns)
 
 def validate(model_path):
 	"""Validate on full validation set.

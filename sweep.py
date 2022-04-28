@@ -1,15 +1,14 @@
-"""wandb_on_slurm.py: Launch `wandb` sweep controller and agents with slurm.
+"""sweep.py: Launch `wandb` sweep controller and agents on slurm.
+NOTE: This script should be run via sbatch. It is not guaranteed 
+to work if you simply run it with python.
+
+Usage:
+sbatch sweep.sb
 
 Adapted from https://github.com/elyall/wandb_on_slurm
 """
 
 import wandb
-"""sweep.py: Launch `wandb` sweep controller and agents on slurm.
-NOTE: This script should be run via sbatch. It is not guaranteed to work if you simply run it with python.
-
-Usage:
-sbatch sweep.sb
-"""
 
 import subprocess
 import yaml

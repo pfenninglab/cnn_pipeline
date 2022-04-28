@@ -44,6 +44,17 @@ metric_pos_label:
   desc: Positive label to use for binary metrics.
   value: 1
 
+early_stopping_callbacks:
+  desc: Callbacks to use for early stopping. Use arguments as in tf.keras.callbacks.EarlyStopping.
+  value:
+    - monitor: val_loss
+      patience: 3
+      verbose: 1
+      mode: min
+    - monitor: val_auprc
+      patience: 3
+      verbose: 1
+
 # Optimization
 
 optimizer:
