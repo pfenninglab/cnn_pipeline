@@ -26,6 +26,8 @@ def run(args):
     # Gather nodes allocated to current slurm job
     result = subprocess.run(['scontrol', 'show', 'hostnames'], stdout=subprocess.PIPE)
     node_list = result.stdout.decode('utf-8').split('\n')[:-1]
+
+    raise ValueError(f"node_list: {node_list}")
     
     sp = []
     for node in node_list:
