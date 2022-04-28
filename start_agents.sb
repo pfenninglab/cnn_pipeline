@@ -5,7 +5,6 @@
 #SBATCH -o /home/%u/outputs/out.txt
 #SBATCH -e /home/%u/outputs/err.txt
 #SBATCH --exclude compute-4-20
-#SBATCH --array=1-5%3
 
 sweep_id=$1
 
