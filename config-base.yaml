@@ -54,6 +54,7 @@ early_stopping_callbacks:
     - monitor: val_auprc
       patience: 3
       verbose: 1
+      mode: max
 
 # Optimization
 

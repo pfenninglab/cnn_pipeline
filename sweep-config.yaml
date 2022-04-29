@@ -19,6 +19,10 @@ project: test-sweep
 
 method: random
 
+metric:
+  name: val_auroc
+  goal: maximize
+
 parameters:
   lr_init:
     distribution: log_uniform_values
