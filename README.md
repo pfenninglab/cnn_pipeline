@@ -64,9 +64,19 @@ To initiate a hyperparameter sweep, training many models with different hyperpar
 
 3. Start the sweep:
 ```
-sbatch sweep.sb
+srun -n 1 -p pool1 --pty ./start_sweep.sh sweep-config.yaml
 ```
+This will output a sweep id, e.g. `csestili-cmu/test-sweep/kztk7ceb`. Make note of it for the next step.
 
-4. Check sweep results in-browser at [https://wandb.ai/](https://wandb.ai/).
+4. Start the sweep agents in parallel:
+```
+sbatch --array=1-<num_agents>%<throttle> start_agents.sb <sweep_id>
+```
+where
+- `<sweep_id>` is the sweep id you got in step 3
+- `<num_agents>` is the total number of agents you want to run in the sweep
+- `<throttle>` is the maximum number of agents to run simultaneously. Please use this to keep resources free for other users!
+
+5. Check sweep results in-browser at [https://wandb.ai/](https://wandb.ai/).
 
 Trained models are saved in the `wandb/` directory.

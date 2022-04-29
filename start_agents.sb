@@ -1,0 +1,15 @@
+#!/bin/bash
+#SBATCH --partition=pfen3
+#SBATCH --nodes=1
+#SBATCH --gres=gpu:1
+#SBATCH -o /home/%u/outputs/out.txt
+#SBATCH -e /home/%u/outputs/err.txt
+#SBATCH --exclude compute-4-20
+
+sweep_id=$1
+
+module load cuda-10.2
+source activate keras2-tf27
+
+wandb login
+wandb agent --count 1 $sweep_id
