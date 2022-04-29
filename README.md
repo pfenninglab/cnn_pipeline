@@ -68,7 +68,7 @@ srun -n 1 -p pool1 --pty ./start_sweep.sh sweep-config.yaml
 ```
 This will output a sweep id, e.g. `csestili-cmu/test-sweep/kztk7ceb`. Make note of it for the next step.
 
-4. Start the sweep agents in parallels:
+4. Start the sweep agents in parallel:
 ```
 sbatch --array=1-<num_agents>%<throttle> start_agents.sb <sweep_id>
 ```
