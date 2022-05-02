@@ -47,12 +47,8 @@ metric_pos_label:
 early_stopping_callbacks:
   desc: Callbacks to use for early stopping. Use arguments as in tf.keras.callbacks.EarlyStopping.
   value:
-    - monitor: val_loss
-      patience: 6
-      verbose: 1
-      mode: min
     - monitor: val_auprc
-      patience: 6
+      patience: 5
       verbose: 1
       mode: max
 
