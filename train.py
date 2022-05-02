@@ -23,9 +23,10 @@ def train(args):
 	utils.validate_config(wandb.config)
 
 	# Get datasets
-	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
-	# TODO simplify this code
-	val_data, val_data_for_fit = get_val_data()
+	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels,
+		batch_size=wandb.config.batch_size)
+	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels,
+		endless=not wandb.config.use_exact_val_metrics, batch_size=wandb.config.batch_size)
 
 	# Get model
 	batch_size, steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
@@ -40,10 +41,10 @@ def train(args):
 
 	# Train
 	model.fit(
-		train_data.ds.batch(batch_size),
+		train_data.dataset,
 		epochs=wandb.config.num_epochs,
 		steps_per_epoch=steps_per_epoch_train,
-		validation_data=val_data_for_fit,
+		validation_data=val_data.dataset,
 		validation_steps=steps_per_epoch_val,
 		callbacks=callback_fns)
 
