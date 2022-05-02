@@ -201,16 +201,29 @@ class FastaTfDataset:
             if False, then yield each example from each file exactly once (useful for validation)
             if True, then randomly yield examples according to Sampling Logic (useful for training)
 
+    Attributes:
+        fc (FastaCollection): streaming dataset of examples from FASTA files.
+        ds (tf.data.Dataset): same collection, as a tf Dataset.
+        dataset (tf.data.Dataset or tuple(np.ndarray)): data to pass to keras fit().
+            If endless is True, this is a tf Dataset yielding batches:
+                xs (batch_size, seq_len, 4)
+                ys (batch_size,) (sparse labels in {0, ..., num_classes - 1})
+            If endless is False, this is a tuple of numpy arrays:
+                xs (num_sequences, seq_len, 4)
+                ys (num_sequences,) (sparse labels in {0, ..., num_classes - 1})
+
     E.g.:
     paths = ["/data/train_pos_A.fa", "/data/train_pos_B.fa", "/data/train_neg.fa"]
     ftd = FastaTfDataset(paths, [1, 1, 0])
     """
-    def __init__(self, fa_files, labels, endless: bool=True):
+    def __init__(self, fa_files, labels, endless: bool=True, batch_size: int=512):
         import tensorflow as tf
         self.fc = FastaCollection(fa_files, labels, endless=endless)
         self.ds = tf.data.Dataset.from_generator(self.fc,
             output_types=(tf.int8, tf.int8),
             output_shapes=(tf.TensorShape(self.fc.seq_shape), tf.TensorShape(())))
+        self.batch_size = batch_size
+        self.dataset = self._get_dataset(endless)
 
     def get_subset_as_arrays(self, size):
         """Return a random subset as 2 numpy arrays.
@@ -228,3 +241,9 @@ class FastaTfDataset:
             xs.append(x)
             ys.append(y)
         return np.array(xs), np.array(ys)
+
+    def _get_dataset(self, endless):
+        if endless:
+            return self.ds.batch(self.batch_size)
+        else:
+            return self.get_subset_as_arrays(len(self.fc))

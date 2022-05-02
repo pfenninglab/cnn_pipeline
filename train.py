@@ -3,7 +3,7 @@
 Usage:
 - Single training run, from interactive session: python train.py -config config-base.yaml
 - Single training run, on slurm: sbatch train.sb config-base.yaml
-- Hyperparameter sweep, on slurm: sbatch sweep.sb
+- Hyperparameter sweep, on slurm: see README.md
 """
 
 import callbacks
@@ -23,8 +23,10 @@ def train(args):
 	utils.validate_config(wandb.config)
 
 	# Get datasets
-	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
-	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels)
+	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels,
+		batch_size=wandb.config.batch_size)
+	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels,
+		endless=not wandb.config.use_exact_val_metrics, batch_size=wandb.config.batch_size)
 
 	# Get model
 	batch_size, steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
@@ -39,12 +41,22 @@ def train(args):
 
 	# Train
 	model.fit(
-		train_data.ds.batch(batch_size),
+		train_data.dataset,
 		epochs=wandb.config.num_epochs,
 		steps_per_epoch=steps_per_epoch_train,
-		validation_data=val_data.ds.batch(batch_size),
+		validation_data=val_data.dataset,
 		validation_steps=steps_per_epoch_val,
 		callbacks=callback_fns)
+
+def get_val_data():
+	if wandb.config.use_exact_val_metrics:
+		val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
+		val_data_for_fit = val_data.get_subset_as_arrays(len(val_data.fc))
+	else:
+		val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels)
+		val_data_for_fit = val_data.ds.batch(wandb.config.batch_size)
+
+	return val_data, val_data_for_fit
 
 def validate(model_path):
 	"""Validate on full validation set.
