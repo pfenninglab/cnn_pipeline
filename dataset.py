@@ -54,7 +54,7 @@ class BedSource:
     def __init__(self, genome_file: str, bed_file: str, endless: bool=False):
         self.genome_file = genome_file
         self.bed_file = bed_file
-        self.intervals = self.get_intervals(self.bed_file)
+        self.intervals = self.get_intervals(self.bed_file, self.genome_file)
         self.endless = endless
         self.len = self._get_len()
         self.seq_len = self._get_seq_len()
@@ -91,13 +91,7 @@ class BedSource:
         return seq_len
 
     def _load_gen(self):
-        # NOTE this implementation is 24x slower than the FastaSource iterator
-        # we need a faster implementation
-        def gen():
-            for interval in self.intervals:
-                seq = self.get_interval_seq(interval.chrom, interval.start, interval.stop, self.genome_file)
-                yield seq
-        self.seq_gen = gen()
+        self.seq_gen = SeqIO.parse(self.intervals.seqfn, "fasta")
 
     def _onehot(self, seq):
         res = np.zeros(self.seq_shape, dtype='int8')
@@ -107,10 +101,12 @@ class BedSource:
         return res
 
     @staticmethod
-    def get_intervals(bed_file_path):
+    def get_intervals(bed_file, genome_file=None):
         """Get pybedtools.BedTool object from .bed or .narrowPeak file"""
-        with open(bed_file_path, "r") as f:
+        with open(bed_file, "r") as f:
             intervals = pybedtools.BedTool(f.read(), from_string=True)
+        if genome_file is not None:
+            intervals = intervals.sequence(fi=genome_file)
         return intervals
 
     @staticmethod
@@ -120,6 +116,10 @@ class BedSource:
         # so need to add 1 to start, and keep stop the same
         loc = f"{chrom}:{start + 1}-{stop}"
         return pybedtools.BedTool.seq(loc, genome_file)
+
+    def __del__(self):
+        """Cleanup tmp files"""
+        pybedtools.helpers.cleanup()
 
 class FastaSource:
     """Iterator of sequences from a FASTA file.
