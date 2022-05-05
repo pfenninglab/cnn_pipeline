@@ -11,16 +11,26 @@ rng = np.random.default_rng(SEED)
 
 
 def test_bedsource():
-    fa_source = FastaSource("/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.fa")
+    fa_source = FastaSource("/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.fa",
+        endless=True)
     bed_source = BedSource(
         "/projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa",
-        "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed")
+        "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed",
+        endless=True)
 
     assert fa_source.len == bed_source.len
     assert fa_source.seq_len == bed_source.seq_len
     assert fa_source.seq_shape == bed_source.seq_shape
 
     from itertools import islice
+    for fa_seq, bed_seq in islice(zip(fa_source, bed_source), 10):
+        assert np.all(fa_seq == bed_seq)
+        assert bed_seq.shape == bed_source.seq_shape
+
+    # exhaust and restart generator
+    for _ in range(bed_source.len):
+        next(fa_source)
+        next(bed_source)
     for fa_seq, bed_seq in islice(zip(fa_source, bed_source), 10):
         assert np.all(fa_seq == bed_seq)
         assert bed_seq.shape == bed_source.seq_shape
@@ -81,6 +91,8 @@ class BedSource:
         return seq_len
 
     def _load_gen(self):
+        # NOTE this implementation is 24x slower than the FastaSource iterator
+        # we need a faster implementation
         def gen():
             for interval in self.intervals:
                 seq = self.get_interval_seq(interval.chrom, interval.start, interval.stop, self.genome_file)
