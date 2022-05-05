@@ -1,6 +1,6 @@
-
 import numpy as np
 from Bio import SeqIO
+import pybedtools
 
 # A, C, G, T
 NUM_BASES = 4
@@ -8,6 +8,106 @@ NUM_BASES = 4
 # random seed for reproducibility
 SEED = 0
 rng = np.random.default_rng(SEED)
+
+
+def test_bedsource():
+    fa_source = FastaSource("/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.fa")
+    bed_source = BedSource(
+        "/projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa",
+        "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed")
+
+    assert fa_source.len == bed_source.len
+    assert fa_source.seq_len == bed_source.seq_len
+    assert fa_source.seq_shape == bed_source.seq_shape
+
+    from itertools import islice
+    for fa_seq, bed_seq in islice(zip(fa_source, bed_source), 10):
+        assert np.all(fa_seq == bed_seq)
+        assert bed_seq.shape == bed_source.seq_shape
+
+    return fa_source, bed_source
+
+class BedSource:
+    """Iterator of sequences from a .bed or .narrowPeaks file and corresponding reference genome .fa file.
+    Can reload itself once exhausted.
+
+    Args:
+        genome_file (str): path to whole-genome reference FASTA file.
+        bed_file (str): path to .bed or .narrowPeaks file with intervals.
+        endlesss (bool): if True, then restart iterator once exhausted.
+    """
+    base_mapping = {'A':0, 'a':0,
+                    'C':1, 'c':1,
+                    'G':2, 'g':2,
+                    'T':3, 't':3}
+
+    def __init__(self, genome_file: str, bed_file: str, endless: bool=False):
+        self.genome_file = genome_file
+        self.bed_file = bed_file
+        self.intervals = self.get_intervals(self.bed_file)
+        self.endless = endless
+        self.len = self._get_len()
+        self.seq_len = self._get_seq_len()
+        self._load_gen()
+        self.seq_shape = (self.seq_len, NUM_BASES)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        try:
+            return self._onehot(next(self.seq_gen))
+        except StopIteration as e:
+            if self.endless:
+                self._load_gen()
+                return self._onehot(next(self.seq_gen))
+            else:
+                raise e
+
+    def __len__(self):
+        return self.len
+
+    def _get_len(self):
+        return len(self.intervals)
+
+    def _get_seq_len(self):
+        seq_len = None
+        for interval in self.intervals:
+            seq_len = seq_len or len(interval)
+            if len(interval) != seq_len:
+                raise ValueError(f"BED file contains sequences of different lengths! Found {seq_len} and {len(interval)}")
+            if seq_len < 1:
+                raise ValueError(f"Empty sequence in BED file: {self.bed_file}")
+        return seq_len
+
+    def _load_gen(self):
+        def gen():
+            for interval in self.intervals:
+                seq = self.get_interval_seq(interval.chrom, interval.start, interval.stop, self.genome_file)
+                yield seq
+        self.seq_gen = gen()
+
+    def _onehot(self, seq):
+        res = np.zeros(self.seq_shape, dtype='int8')
+        for idx, base in enumerate(seq):
+            if base in self.base_mapping:
+                res[idx, self.base_mapping[base]] = 1
+        return res
+
+    @staticmethod
+    def get_intervals(bed_file_path):
+        """Get pybedtools.BedTool object from .bed or .narrowPeak file"""
+        with open(bed_file_path, "r") as f:
+            intervals = pybedtools.BedTool(f.read(), from_string=True)
+        return intervals
+
+    @staticmethod
+    def get_interval_seq(chrom, start, stop, genome_file):
+        # .bed file uses 0-based, [start, stop) numbering
+        # BedTool.seq() assumes 1-based, inclusive numbering
+        # so need to add 1 to start, and keep stop the same
+        loc = f"{chrom}:{start + 1}-{stop}"
+        return pybedtools.BedTool.seq(loc, genome_file)
 
 class FastaSource:
     """Iterator of sequences from a FASTA file.
