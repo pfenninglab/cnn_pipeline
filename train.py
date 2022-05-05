@@ -19,7 +19,7 @@ from wandb.keras import WandbCallback
 def train(args):
 	# Start `wandb`
 	config, project = utils.get_config(args.config)
-	wandb.init(config=config, project=project)
+	wandb.init(config=config, project=project, mode=args.wandb_mode)
 	utils.validate_config(wandb.config)
 
 	# Get datasets
@@ -74,6 +74,7 @@ def get_args():
 	import argparse
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-config', type=str, required=True)
+	parser.add_argument('-wandb-mode', type=str)
 	# parse_known_args() allows hyperparameters to be passed in during sweeps
 	args, _ = parser.parse_known_args()
 	return args
