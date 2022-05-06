@@ -11,6 +11,9 @@ rng = np.random.default_rng(SEED)
 
 
 def test_bedsource():
+    from itertools import islice
+    # No bed columns
+
     fa_source = FastaSource("/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.fa",
         endless=True)
     bed_source = BedSource(
@@ -22,7 +25,6 @@ def test_bedsource():
     assert fa_source.seq_len == bed_source.seq_len
     assert fa_source.seq_shape == bed_source.seq_shape
 
-    from itertools import islice
     for fa_seq, bed_seq in islice(zip(fa_source, bed_source), 10):
         assert np.all(fa_seq == bed_seq)
         assert bed_seq.shape == bed_source.seq_shape
@@ -35,7 +37,31 @@ def test_bedsource():
         assert np.all(fa_seq == bed_seq)
         assert bed_seq.shape == bed_source.seq_shape
 
-    return fa_source, bed_source
+    # Bed columns
+    bed_source = BedSource(
+        "/projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa",
+        "example_files/example.narrowPeak",
+        endless=True,
+        bedfile_columns=(0, 5, 6, 7))
+
+    assert bed_source.len == 3
+    assert bed_source.seq_len == 100
+    assert bed_source.seq_shape == (100, 4)
+
+    expected_bed_values = [
+        ("chr1", None, 182, 5.0945),
+        ("chr1", None, 91, 4.6052),
+        ("chr1", None, 182, 9.2103)
+    ]
+
+    for _ in range(2):
+        # First iteration: tests bed_source before refresh
+        # Second iteration: tests bed_source after refresh
+        for expected_values, (bed_seq, bed_values) in zip(expected_bed_values, bed_source):
+            assert bed_seq.shape == bed_source.seq_shape
+            assert bed_values == expected_values
+
+    return bed_source
 
 class BedSource:
     """Iterator of sequences from a .bed or .narrowPeaks file and corresponding reference genome .fa file.
@@ -51,11 +77,12 @@ class BedSource:
                     'G':2, 'g':2,
                     'T':3, 't':3}
 
-    def __init__(self, genome_file: str, bed_file: str, endless: bool=False):
+    def __init__(self, genome_file: str, bed_file: str, endless: bool=False, bedfile_columns=None):
         self.genome_file = genome_file
         self.bed_file = bed_file
-        self.intervals = self.get_intervals(self.bed_file, self.genome_file)
         self.endless = endless
+        self.bedfile_columns = bedfile_columns
+        self.intervals = self.get_intervals(self.bed_file, self.genome_file)
         self.len = self._get_len()
         self.seq_len = self._get_seq_len()
         self._load_gen()
@@ -66,11 +93,11 @@ class BedSource:
 
     def __next__(self):
         try:
-            return self._onehot(next(self.seq_gen))
+            return next(self.gen)
         except StopIteration as e:
             if self.endless:
                 self._load_gen()
-                return self._onehot(next(self.seq_gen))
+                return next(self.gen)
             else:
                 raise e
 
@@ -91,7 +118,33 @@ class BedSource:
         return seq_len
 
     def _load_gen(self):
-        self.seq_gen = SeqIO.parse(self.intervals.seqfn, "fasta")
+        seq_gen = (self._onehot(seq) for seq in SeqIO.parse(self.intervals.seqfn, "fasta"))
+        if not self.bedfile_columns:
+            # Only yield sequences
+            self.gen = seq_gen
+        else:
+            # Yield sequences and column values
+
+            def convert(x):
+                """Attempt to convert column value to number"""
+                if x == ".":
+                    return None
+                try:
+                    val = int(x)
+                except ValueError:
+                    try:
+                        val = float(x)
+                    except ValueError:
+                        val = x
+                return val
+
+            def column_gen():
+                """Yield tuples of selected columns"""
+                for interval in self.intervals:
+                    yield tuple(convert(interval.fields[i]) for i in self.bedfile_columns)
+            column_gen = column_gen()
+
+            self.gen = zip(seq_gen, column_gen)
 
     def _onehot(self, seq):
         res = np.zeros(self.seq_shape, dtype='int8')
