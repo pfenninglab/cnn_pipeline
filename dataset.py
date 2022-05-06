@@ -184,6 +184,113 @@ class FastaSource:
                 res[idx, self.base_mapping[base]] = 1
         return res
 
+class SequenceCollection:
+
+    def __init__(self, source_files, targets, targets_are_classes: bool, endless: bool=True):
+        if len(source_files) != len(targets):
+            raise ValueError("Number of fa_files and number of labels must be equal")
+
+        self.source_files = source_files
+        self.targets = targets
+        self.targets_are_classes = targets_are_classes
+        self.endless = endless
+        self.sources = self._get_sources()
+        self.num_sources = len(self.sources)
+        self.seq_shape = self._get_seq_shape()
+        self.source_freqs = self._get_source_freqs()
+        self.num_classes = self._get_num_classes()
+        self.len = self.source_freqs['total_len']
+
+    def _get_sources(self):
+        sources = []
+        for source, target in zip(self.source_files, self.targets):
+            if isinstance(source, str):
+                source_obj = FastaSource(source, endless=self.endless)
+            elif isinstance(source, dict):
+                for key in ['genome_file', 'intervals']:
+                    if key not in source:
+                        raise ValueError(f"Missing expected key {key} in source specification {source}")
+                bedfile_columns = None
+                if isinstance(target, dict):
+                    if 'column' not in target:
+                        raise ValueError(f"Missing `column` in target specification {target}")
+                    bedfile_columns = (target,)
+                source_obj = BedSource(
+                    source['genome_file'], source['intervals'], endless=self.endless,
+                    bedfile_columns=bedfile_columns)
+            else:
+                raise ValueError(f"Invalid source specification: {source}")
+            sources.append(source_obj)
+        return sources
+
+    def _get_num_classes(self):
+        if self.targets_are_classes:
+            unique_classes = set()
+            for source, target in zip(self.source_files, self.targets):
+                if isinstance(target, int):
+                    unique_classes.add(target)
+                elif isinstance(target, dict):
+                    # scan the target column from the corresponding source
+                    source_obj = BedSource(source['genome_file'], source['intervals'], endless=False, bedfile_columns=(target['column'],))
+                    for _, target_val in source_obj:
+                        unique_classes.add(target_val)
+            return len(unique_classes)
+        else:
+            # targets are regression values
+            return None
+
+    def _get_source_freqs(self):
+        """ Make a tree of counts and frequencies for each class and each of its data sources, e.g.
+
+
+        {'source_freqs': array([0.25, 0.75]),
+         'source_lens': [1000, 3000],
+         'sources': [   <FastaSource object at 0x7f137428c4a8>,
+                        <BedSource object at 0x7f137428cd30>],
+         'total_len': 4000},
+        """
+
+        freqs = {'source_lens': [len(source) for source in self.sources]}
+        freqs['total_len'] = sum(freqs['source_lens'])
+        freqs['source_freqs'] = np.array(freqs['source_lens']) / freqs['total_len']
+
+        return freqs
+
+    def _get_seq_shape(self):
+        shape = None
+        for source in self.sources:
+            shape = shape or source.seq_shape
+            if source.seq_shape != shape:
+                raise ValueError("Sources have inconsistent shapes, found {shape} and {source.seq_shape}")
+        return shape
+
+    def __iter__(self):
+        if self.endless:
+            while True:
+                source_idx = rng.choice(self.num_sources, p=self.source_freqs['source_freqs'])
+                source, target = self.sources[source_idx], self.targets[source_idx]
+                if isinstance(target, int):
+                    yield next(source), target
+                else:
+                    # source already yields target
+                    yield next(source)
+        else:
+            for source, target in zip(self.sources, self.targets):
+                for itm in source:
+                    if isinstance(target, int):
+                        print(itm, target)
+                        yield itm, target
+                    else:
+                        print(itm)
+                        # itm already contains target
+                        yield itm
+
+    def __call__(self):
+        return self
+
+    def __len__(self):
+        return self.len
+
 class FastaCollection:
     """Collection of FASTA sources and labels that allows sampling.
     Multiple FASTA files can be combined to the same class.

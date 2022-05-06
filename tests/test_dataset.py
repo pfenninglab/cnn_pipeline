@@ -6,7 +6,7 @@ from itertools import islice
 
 import numpy as np
 
-from dataset import FastaSource, BedSource
+from dataset import FastaSource, BedSource, SequenceCollection
 
 def test_bedsource():
     # No bed columns
@@ -60,6 +60,35 @@ def test_bedsource():
 
     return bed_source
 
+def test_sequence_collection():
+    fa_path = "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.fa"
+    genome_path = "/projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa"
+    mouse_interval_path = "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed"
+    narrowpeak_path = "../example_files/example.narrowPeak"
+
+    seq_collection_A = SequenceCollection([fa_path], [1], True, endless=True)
+    seq_collection_B = SequenceCollection([{'genome_file': genome_path, 'intervals': mouse_interval_path}], [1], True, endless=True)
+
+    assert len(seq_collection_A) == len(seq_collection_B)
+    assert seq_collection_A.num_classes == seq_collection_B.num_classes
+    for (seq_A, label_A), (seq_B, label_B) in islice(zip(seq_collection_A, seq_collection_B), 10):
+        assert np.all(seq_A == seq_B)
+        assert label_A == label_B
+    for _ in islice(zip(seq_collection_A, seq_collection_B), len(seq_collection_A)):
+        pass
+    for (seq_A, label_A), (seq_B, label_B) in islice(zip(seq_collection_A, seq_collection_B), 10):
+        assert np.all(seq_A == seq_B)
+        assert label_A == label_B
+
+    # TODO test multiple files per source
+    # TODO test mixed file types per source
+    # TODO test label extracted from bed column
+    # TODO test class sampling
+    # TODO test regression target from bed column
+
+    print('done')
+
 
 if __name__ == '__main__':
-	test_bedsource()
+    test_sequence_collection()
+    test_bedsource()

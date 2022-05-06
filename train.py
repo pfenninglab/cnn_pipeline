@@ -48,24 +48,8 @@ def train(args):
 		validation_steps=steps_per_epoch_val,
 		callbacks=callback_fns)
 
-def get_val_data():
-	if wandb.config.use_exact_val_metrics:
-		val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
-		val_data_for_fit = val_data.get_subset_as_arrays(len(val_data.fc))
-	else:
-		val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels)
-		val_data_for_fit = val_data.ds.batch(wandb.config.batch_size)
-
-	return val_data, val_data_for_fit
-
 def validate(model_path):
-	"""Validate on full validation set.
-	
-	During training, evaluation metrics are slightly off (+/- ~2%), because
-	the eval set is missing a small number of examples, due to streaming and batching.
-
-	Use this method to get exact validation metrics on the full validation set.
-	"""
+	"""Run trained model on full validation set."""
 	model = models.load_model(model_path)
 	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
 	model.evaluate(val_data.ds.batch(wandb.config.batch_size))
