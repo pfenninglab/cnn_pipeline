@@ -191,6 +191,18 @@ def test_sequence_collection():
     target_values = [val for _, val in islice(seq_collection, 6)]
     assert expected_values == target_values, target_values
 
+    # With fixed target (str) and bed target
+    seq_collection = SequenceCollection(
+        [{'genome_file': genome_path, 'intervals': narrowpeak_path},
+         {'genome_file': genome_path, 'intervals': narrowpeak_path}],
+        [{'column': 0}, "chr1"], targets_are_classes=True, endless=False)
+    assert seq_collection.idx_to_class_mapping == {0: "chr1", 1: "chr2"}, seq_collection.idx_to_class_mapping
+    assert seq_collection.class_to_idx_mapping == {"chr1": 0, "chr2": 1}, seq_collection.class_to_idx_mapping
+    # First 3 values are taken from bed column, second 3 values are taken from fixed target
+    expected_values = [0, 0, 1, 0, 0, 0]
+    target_values = [val for _, val in islice(seq_collection, 6)]
+    assert expected_values == target_values, target_values
+
     #####################
     # Test source sampling
 
@@ -205,12 +217,8 @@ def test_sequence_collection():
     freqs = [np.sum(labels == i) / num_examples for i in [0, 1]]
     for i in [0, 1]:
         assert np.allclose(freqs[i], source_freqs[i], rtol=0.05)
-    
-
-
-    print('done')
-
 
 if __name__ == '__main__':
-    test_sequence_collection()
     test_bedsource()
+    test_sequence_collection()
+    

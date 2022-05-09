@@ -199,18 +199,20 @@ class SequenceCollection:
 
     def _get_sources(self):
         sources = []
-        for source, target in zip(self.source_files, self.targets):
+        for source, target_spec in zip(self.source_files, self.targets):
             if isinstance(source, str):
+                # path to FASTA file of sequences
                 source_obj = FastaSource(source, endless=self.endless)
             elif isinstance(source, dict):
+                # genome FA file and interval BED file
                 for key in ['genome_file', 'intervals']:
                     if key not in source:
                         raise ValueError(f"Missing expected key {key} in source specification {source}")
                 bedfile_columns = None
-                if isinstance(target, dict):
-                    if 'column' not in target:
-                        raise ValueError(f"Missing `column` in target specification {target}")
-                    bedfile_columns = (target['column'],)
+                if isinstance(target_spec, dict):
+                    if 'column' not in target_spec:
+                        raise ValueError(f"Missing `column` in target specification {target_spec}")
+                    bedfile_columns = (target_spec['column'],)
                 source_obj = BedSource(
                     source['genome_file'], source['intervals'], endless=self.endless,
                     bedfile_columns=bedfile_columns)
@@ -222,16 +224,17 @@ class SequenceCollection:
     def _get_classes(self):
         if self.targets_are_classes:
             unique_classes = set()
-            for source, target in zip(self.source_files, self.targets):
-                if isinstance(target, int):
-                    unique_classes.add(target)
-                elif isinstance(target, dict):
+            for source, target_spec in zip(self.source_files, self.targets):
+                if isinstance(target_spec, dict):
                     # scan the target column from the corresponding source
-                    source_obj = BedSource(source['genome_file'], source['intervals'], endless=False, bedfile_columns=(target['column'],))
+                    source_obj = BedSource(source['genome_file'], source['intervals'],
+                        endless=False, bedfile_columns=(target_spec['column'],))
                     for _, target_val in source_obj:
                         # extract value from singleton tuple
                         target_val = target_val[0]
                         unique_classes.add(target_val)
+                else:
+                    unique_classes.add(target_spec)
             self.idx_to_class_mapping = {idx: v for idx, v in enumerate(sorted(unique_classes))}
             self.class_to_idx_mapping = {v: k for k, v in self.idx_to_class_mapping.items()}
             self.num_classes = len(unique_classes)
