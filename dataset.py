@@ -117,10 +117,6 @@ class BedSource:
         loc = f"{chrom}:{start + 1}-{stop}"
         return pybedtools.BedTool.seq(loc, genome_file)
 
-    def __del__(self):
-        """Cleanup tmp files"""
-        pybedtools.helpers.cleanup()
-
 class FastaSource:
     """Iterator of sequences from a FASTA file.
     Can reload itself once exhausted.
@@ -188,7 +184,7 @@ class SequenceCollection:
 
     def __init__(self, source_files, targets, targets_are_classes: bool, endless: bool=True):
         if len(source_files) != len(targets):
-            raise ValueError("Number of fa_files and number of labels must be equal")
+            raise ValueError("Number of source_files and number of targets must be equal")
 
         self.source_files = source_files
         self.targets = targets
@@ -198,7 +194,7 @@ class SequenceCollection:
         self.num_sources = len(self.sources)
         self.seq_shape = self._get_seq_shape()
         self.source_freqs = self._get_source_freqs()
-        self.num_classes = self._get_num_classes()
+        self._get_classes()
         self.len = self.source_freqs['total_len']
 
     def _get_sources(self):
@@ -214,7 +210,7 @@ class SequenceCollection:
                 if isinstance(target, dict):
                     if 'column' not in target:
                         raise ValueError(f"Missing `column` in target specification {target}")
-                    bedfile_columns = (target,)
+                    bedfile_columns = (target['column'],)
                 source_obj = BedSource(
                     source['genome_file'], source['intervals'], endless=self.endless,
                     bedfile_columns=bedfile_columns)
@@ -223,7 +219,7 @@ class SequenceCollection:
             sources.append(source_obj)
         return sources
 
-    def _get_num_classes(self):
+    def _get_classes(self):
         if self.targets_are_classes:
             unique_classes = set()
             for source, target in zip(self.source_files, self.targets):
@@ -233,11 +229,17 @@ class SequenceCollection:
                     # scan the target column from the corresponding source
                     source_obj = BedSource(source['genome_file'], source['intervals'], endless=False, bedfile_columns=(target['column'],))
                     for _, target_val in source_obj:
+                        # extract value from singleton tuple
+                        target_val = target_val[0]
                         unique_classes.add(target_val)
-            return len(unique_classes)
+            self.idx_to_class_mapping = {idx: v for idx, v in enumerate(sorted(unique_classes))}
+            self.class_to_idx_mapping = {v: k for k, v in self.idx_to_class_mapping.items()}
+            self.num_classes = len(unique_classes)
         else:
             # targets are regression values
-            return None
+            self.idx_to_class_mapping = None
+            self.class_to_idx_mapping = None
+            self.num_classes = None
 
     def _get_source_freqs(self):
         """ Make a tree of counts and frequencies for each class and each of its data sources, e.g.
@@ -270,10 +272,15 @@ class SequenceCollection:
                 source_idx = rng.choice(self.num_sources, p=self.source_freqs['source_freqs'])
                 source, target = self.sources[source_idx], self.targets[source_idx]
                 if isinstance(target, int):
+                    # this target specification is a constant, so just yield it directly
                     yield next(source), target
                 else:
-                    # source already yields target
-                    yield next(source)
+                    # this target will be yielded in a tuple from source, so unpack
+                    seq, target_val = next(source)
+                    target_val = target_val[0]
+                    if self.targets_are_classes:
+                        target_val = self.class_to_idx_mapping[target_val]
+                    yield seq, target_val
         else:
             for source, target in zip(self.sources, self.targets):
                 for itm in source:
