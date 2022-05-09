@@ -137,48 +137,76 @@ def test_sequence_collection():
 
     #####################
     # Test regression target extracted from bed column
-    seq_collection = SequenceCollection(
-        [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
-        [{'column': 6}], targets_are_classes=False, endless=True)
-    assert seq_collection.idx_to_class_mapping == None
-    assert seq_collection.class_to_idx_mapping == None
-    assert seq_collection.num_classes == None
-    expected_values = [182, 91, 182]
-    target_values = [val for _, val in islice(seq_collection, 3)]
-    assert expected_values == target_values, target_values
+    for endless in [True, False]:
+        seq_collection = SequenceCollection(
+            [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
+            [{'column': 6}], targets_are_classes=False, endless=endless)
+        assert seq_collection.idx_to_class_mapping == None
+        assert seq_collection.class_to_idx_mapping == None
+        assert seq_collection.num_classes == None
+        expected_values = [182, 91, 182]
+        target_values = [val for _, val in islice(seq_collection, 3)]
+        assert expected_values == target_values, target_values
 
+        seq_collection = SequenceCollection(
+            [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
+            [{'column': 7}], targets_are_classes=False, endless=endless)
+        assert seq_collection.idx_to_class_mapping == None
+        assert seq_collection.class_to_idx_mapping == None
+        assert seq_collection.num_classes == None
+        expected_values = [5.0945, 4.6052, 9.2103]
+        target_values = [val for _, val in islice(seq_collection, 3)]
+        assert expected_values == target_values, target_values
+
+    #####################
+    # Test classification label extracted from bed column and mapped
+    for endless in [True, False]:
+        seq_collection = SequenceCollection(
+            [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
+            [{'column': 6}], targets_are_classes=True, endless=endless)
+        assert seq_collection.idx_to_class_mapping == {0: 91, 1: 182}, seq_collection.idx_to_class_mapping
+        assert seq_collection.class_to_idx_mapping == {91: 0, 182: 1}, seq_collection.class_to_idx_mapping
+        expected_values = [1, 0, 1]
+        target_values = [val for _, val in islice(seq_collection, 3)]
+        assert expected_values == target_values, target_values
+
+        seq_collection = SequenceCollection(
+            [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
+            [{'column': 0}], targets_are_classes=True, endless=endless)
+        assert seq_collection.idx_to_class_mapping == {0: "chr1", 1: "chr2"}, seq_collection.idx_to_class_mapping
+        assert seq_collection.class_to_idx_mapping == {"chr1": 0, "chr2": 1}, seq_collection.class_to_idx_mapping
+        expected_values = [0, 0, 1]
+        target_values = [val for _, val in islice(seq_collection, 3)]
+        assert expected_values == target_values, target_values 
+
+    # With fixed target and bed target
     seq_collection = SequenceCollection(
-        [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
-        [{'column': 7}], targets_are_classes=False, endless=True)
-    assert seq_collection.idx_to_class_mapping == None
-    assert seq_collection.class_to_idx_mapping == None
-    assert seq_collection.num_classes == None
-    expected_values = [5.0945, 4.6052, 9.2103]
-    target_values = [val for _, val in islice(seq_collection, 3)]
+        [{'genome_file': genome_path, 'intervals': narrowpeak_path},
+         {'genome_file': genome_path, 'intervals': narrowpeak_path}],
+        [{'column': 6}, 91], targets_are_classes=True, endless=False)
+    assert seq_collection.idx_to_class_mapping == {0: 91, 1: 182}, seq_collection.idx_to_class_mapping
+    assert seq_collection.class_to_idx_mapping == {91: 0, 182: 1}, seq_collection.class_to_idx_mapping
+    # First 3 values are taken from bed column, second 3 values are taken from fixed target
+    expected_values = [1, 0, 1, 0, 0, 0]
+    target_values = [val for _, val in islice(seq_collection, 6)]
     assert expected_values == target_values, target_values
 
     #####################
-    # Test classification label extracted from bed column 
-    seq_collection = SequenceCollection(
-        [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
-        [{'column': 6}], targets_are_classes=True, endless=True)
-    assert seq_collection.idx_to_class_mapping == {0: 91, 1: 182}, seq_collection.idx_to_class_mapping
-    assert seq_collection.class_to_idx_mapping == {91: 0, 182: 1}, seq_collection.class_to_idx_mapping
-    expected_values = [1, 0, 1]
-    target_values = [val for _, val in islice(seq_collection, 3)]
-    assert expected_values == target_values, target_values
+    # Test source sampling
 
     seq_collection = SequenceCollection(
-        [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
-        [{'column': 0}], targets_are_classes=True, endless=True)
-    assert seq_collection.idx_to_class_mapping == {0: "chr1", 1: "chr2"}, seq_collection.idx_to_class_mapping
-    assert seq_collection.class_to_idx_mapping == {"chr1": 0, "chr2": 1}, seq_collection.class_to_idx_mapping
-    expected_values = [0, 0, 1]
-    target_values = [val for _, val in islice(seq_collection, 3)]
-    assert expected_values == target_values, target_values 
+        [{'genome_file': genome_path, 'intervals': mouse_interval_path_neg},
+        {'genome_file': genome_path, 'intervals': mouse_interval_path_pos}],
+        [0, 1], targets_are_classes=True, endless=True)
+    num_examples = 10000
+    source_freqs = seq_collection.source_freqs['source_freqs']
+    # Count number of examples from each source
+    labels = np.array([label for _, label in islice(seq_collection, num_examples)])
+    freqs = [np.sum(labels == i) / num_examples for i in [0, 1]]
+    for i in [0, 1]:
+        assert np.allclose(freqs[i], source_freqs[i], rtol=0.05)
+    
 
-    # TODO test class sampling
-    # TODO test regression target from bed column
 
     print('done')
 

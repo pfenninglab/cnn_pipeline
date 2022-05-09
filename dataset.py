@@ -266,31 +266,32 @@ class SequenceCollection:
                 raise ValueError("Sources have inconsistent shapes, found {shape} and {source.seq_shape}")
         return shape
 
+    def _get_example(self, data, target_spec):
+        if isinstance(target_spec, dict):
+            seq, target_val = data
+            target_val = target_val[0]
+        else:
+            seq = data
+            target_val = target_spec
+
+        if self.targets_are_classes:
+            target_val = self.class_to_idx_mapping[target_val]
+
+        return seq, target_val
+
     def __iter__(self):
         if self.endless:
             while True:
                 source_idx = rng.choice(self.num_sources, p=self.source_freqs['source_freqs'])
-                source, target = self.sources[source_idx], self.targets[source_idx]
-                if isinstance(target, int):
-                    # this target specification is a constant, so just yield it directly
-                    yield next(source), target
-                else:
-                    # this target will be yielded in a tuple from source, so unpack
-                    seq, target_val = next(source)
-                    target_val = target_val[0]
-                    if self.targets_are_classes:
-                        target_val = self.class_to_idx_mapping[target_val]
-                    yield seq, target_val
+                source, target_spec = self.sources[source_idx], self.targets[source_idx]
+                data = next(source)
+                seq, target_val = self._get_example(data, target_spec)
+                yield seq, target_val
         else:
-            for source, target in zip(self.sources, self.targets):
-                for itm in source:
-                    if isinstance(target, int):
-                        print(itm, target)
-                        yield itm, target
-                    else:
-                        print(itm)
-                        # itm already contains target
-                        yield itm
+            for source, target_spec in zip(self.sources, self.targets):
+                for data in source:
+                    seq, target_val = self._get_example(data, target_spec)
+                    yield seq, target_val
 
     def __call__(self):
         return self
