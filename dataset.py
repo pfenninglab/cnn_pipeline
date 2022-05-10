@@ -432,7 +432,7 @@ class SequenceTfDataset:
             if True, then randomly yield examples according to Sampling Logic (useful for training)
 
     Attributes:
-        fc (FastaCollection): streaming dataset of examples from FASTA files.
+        sc (SequenceCollection): streaming collection of sequences & targets.
         ds (tf.data.Dataset): same collection, as a tf Dataset.
         dataset (tf.data.Dataset or tuple(np.ndarray)): data to pass to keras fit().
             If endless is True, this is a tf Dataset yielding batches:
@@ -449,10 +449,12 @@ class SequenceTfDataset:
     def __init__(self, source_files, targets, targets_are_classes: bool,
                     endless: bool=True, batch_size: int=512):
         import tensorflow as tf
-        self.fc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless)
-        self.ds = tf.data.Dataset.from_generator(self.fc,
+        self.sc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless)
+        self.seq_shape = self.sc.seq_shape
+        self.num_classes = self.sc.num_classes
+        self.ds = tf.data.Dataset.from_generator(self.sc,
             output_types=(tf.int8, tf.int8),
-            output_shapes=(tf.TensorShape(self.fc.seq_shape), tf.TensorShape(())))
+            output_shapes=(tf.TensorShape(self.seq_shape), tf.TensorShape(())))
         self.batch_size = batch_size
         self.dataset = self._get_dataset(endless)
 
@@ -472,7 +474,7 @@ class SequenceTfDataset:
             xs (np.ndarray): [size, num_bp, 4], one-hot sequences
             ys (np.ndarray): [size, num_bp], labels
         """
-        dataset = self.ds.shuffle(len(self.fc)).take(size)
+        dataset = self.ds.shuffle(len(self)).take(size)
         xs, ys = [], []
         for (x, y) in dataset.as_numpy_iterator():
             xs.append(x)
@@ -483,4 +485,7 @@ class SequenceTfDataset:
         if endless:
             return self.ds.batch(self.batch_size)
         else:
-            return self.get_subset_as_arrays(len(self.fc))
+            return self.get_subset_as_arrays(len(self))
+
+    def __len__(self):
+        return len(self.sc)

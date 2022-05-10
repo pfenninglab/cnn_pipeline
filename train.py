@@ -38,7 +38,7 @@ def train(args):
 		wandb.config, train_data, val_data)
 	lr_schedule = lr_schedules.get_lr_schedule(steps_per_epoch_train, wandb.config)
 	model = models.get_model(
-		train_data.fc.seq_shape, train_data.fc.num_classes, lr_schedule, wandb.config)
+		train_data.seq_shape, train_data.num_classes, lr_schedule, wandb.config)
 
 	# Get callbacks
 	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config)

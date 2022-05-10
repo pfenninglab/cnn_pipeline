@@ -60,6 +60,6 @@ def get_config(yaml_path):
 
 def get_step_size(wandb_config, train_data, val_data):
 	batch_size = wandb_config.batch_size
-	steps_per_epoch_train = len(train_data.fc) // batch_size
-	steps_per_epoch_val = len(val_data.fc) // batch_size
+	steps_per_epoch_train = len(train_data) // batch_size
+	steps_per_epoch_val = len(val_data) // batch_size
 	return batch_size, steps_per_epoch_train, steps_per_epoch_val
