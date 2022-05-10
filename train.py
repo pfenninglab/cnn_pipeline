@@ -23,10 +23,15 @@ def train(args):
 	utils.validate_config(wandb.config)
 
 	# Get datasets
-	train_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels,
+	train_data = dataset.SequenceTfDataset(
+		wandb.config.train_data_paths, wandb.config.train_labels,
+		targets_are_classes=True, endless=True,
 		batch_size=wandb.config.batch_size)
-	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels,
-		endless=not wandb.config.use_exact_val_metrics, batch_size=wandb.config.batch_size)
+	val_data = dataset.SequenceTfDataset(
+		wandb.config.val_data_paths, wandb.config.val_labels,
+		targets_are_classes=True,
+		endless=not wandb.config.use_exact_val_metrics,
+		batch_size=wandb.config.batch_size)
 
 	# Get model
 	batch_size, steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
@@ -51,7 +56,9 @@ def train(args):
 def validate(model_path):
 	"""Run trained model on full validation set."""
 	model = models.load_model(model_path)
-	val_data = dataset.FastaTfDataset(wandb.config.val_data_paths, wandb.config.val_labels, endless=False)
+	val_data = dataset.SequenceTfDataset(
+		wandb.config.val_data_paths, wandb.config.val_labels,
+		targets_are_classes=True, endless=False)
 	model.evaluate(val_data.ds.batch(wandb.config.batch_size))
 
 def get_args():

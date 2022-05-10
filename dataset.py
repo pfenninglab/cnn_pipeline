@@ -205,7 +205,7 @@ class SequenceCollection:
                 source_obj = FastaSource(source, endless=self.endless)
             elif isinstance(source, dict):
                 # genome FA file and interval BED file
-                for key in ['genome_file', 'intervals']:
+                for key in ['genome', 'intervals']:
                     if key not in source:
                         raise ValueError(f"Missing expected key {key} in source specification {source}")
                 bedfile_columns = None
@@ -214,7 +214,7 @@ class SequenceCollection:
                         raise ValueError(f"Missing `column` in target specification {target_spec}")
                     bedfile_columns = (target_spec['column'],)
                 source_obj = BedSource(
-                    source['genome_file'], source['intervals'], endless=self.endless,
+                    source['genome'], source['intervals'], endless=self.endless,
                     bedfile_columns=bedfile_columns)
             else:
                 raise ValueError(f"Invalid source specification: {source}")
@@ -227,7 +227,7 @@ class SequenceCollection:
             for source, target_spec in zip(self.source_files, self.targets):
                 if isinstance(target_spec, dict):
                     # scan the target column from the corresponding source
-                    source_obj = BedSource(source['genome_file'], source['intervals'],
+                    source_obj = BedSource(source['genome'], source['intervals'],
                         endless=False, bedfile_columns=(target_spec['column'],))
                     for _, target_val in source_obj:
                         # extract value from singleton tuple
@@ -419,8 +419,8 @@ class FastaCollection:
         return self.len
 
 
-class FastaTfDataset:
-    """Fasta collection with a corresponding tf.data.Dataset.
+class SequenceTfDataset:
+    """Sequence collection with a corresponding tf.data.Dataset.
 
     Args:
         fa_files (list of str): paths to FASTA files.
@@ -446,9 +446,10 @@ class FastaTfDataset:
     paths = ["/data/train_pos_A.fa", "/data/train_pos_B.fa", "/data/train_neg.fa"]
     ftd = FastaTfDataset(paths, [1, 1, 0])
     """
-    def __init__(self, fa_files, labels, endless: bool=True, batch_size: int=512):
+    def __init__(self, source_files, targets, targets_are_classes: bool,
+                    endless: bool=True, batch_size: int=512):
         import tensorflow as tf
-        self.fc = FastaCollection(fa_files, labels, endless=endless)
+        self.fc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless)
         self.ds = tf.data.Dataset.from_generator(self.fc,
             output_types=(tf.int8, tf.int8),
             output_shapes=(tf.TensorShape(self.fc.seq_shape), tf.TensorShape(())))
@@ -457,6 +458,12 @@ class FastaTfDataset:
 
     def get_subset_as_arrays(self, size):
         """Return a random subset as 2 numpy arrays.
+
+        NOTE this method is slow, depending on the size of the entire
+        SequenceTfDataset: ~1 minute for a SequenceTfDataset with 200K
+        items. This is because to randomly sample from a stream dataset,
+        you need to read every element. Please only use this method when
+        you need a fixed random subset of the dataset.
 
         Args:
             size (int): Number of examples in subset.

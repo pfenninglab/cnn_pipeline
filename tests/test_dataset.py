@@ -71,7 +71,7 @@ def test_sequence_collection():
     #####################
     # Test that FASTA source and genome+interval source produce the same results
     seq_collection_A = SequenceCollection([fa_path_pos], [1], True, endless=True)
-    seq_collection_B = SequenceCollection([{'genome_file': genome_path, 'intervals': mouse_interval_path_pos}], [1], True, endless=True)
+    seq_collection_B = SequenceCollection([{'genome': genome_path, 'intervals': mouse_interval_path_pos}], [1], True, endless=True)
 
     assert len(seq_collection_A) == len(seq_collection_B)
     assert seq_collection_A.num_classes == seq_collection_B.num_classes
@@ -89,8 +89,8 @@ def test_sequence_collection():
     # Test multiple files per source
     seq_collection_A = SequenceCollection([fa_path_neg, fa_path_pos], [0, 1], True, endless=True)
     seq_collection_B = SequenceCollection(
-        [{'genome_file': genome_path, 'intervals': mouse_interval_path_neg},
-        {'genome_file': genome_path, 'intervals': mouse_interval_path_pos}],
+        [{'genome': genome_path, 'intervals': mouse_interval_path_neg},
+        {'genome': genome_path, 'intervals': mouse_interval_path_pos}],
         [0, 1], True, endless=True)
 
     pos_A, pos_B, neg_A, neg_B = [], [], [], []
@@ -115,7 +115,7 @@ def test_sequence_collection():
     seq_collection_A = SequenceCollection([fa_path_neg, fa_path_pos], [0, 1], True, endless=True)
     seq_collection_B = SequenceCollection(
         [fa_path_neg,
-        {'genome_file': genome_path, 'intervals': mouse_interval_path_pos}],
+        {'genome': genome_path, 'intervals': mouse_interval_path_pos}],
         [0, 1], True, endless=True)
 
     pos_A, pos_B, neg_A, neg_B = [], [], [], []
@@ -139,7 +139,7 @@ def test_sequence_collection():
     # Test regression target extracted from bed column
     for endless in [True, False]:
         seq_collection = SequenceCollection(
-            [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
+            [{'genome': genome_path, 'intervals': narrowpeak_path}],
             [{'column': 6}], targets_are_classes=False, endless=endless)
         assert seq_collection.idx_to_class_mapping == None
         assert seq_collection.class_to_idx_mapping == None
@@ -149,7 +149,7 @@ def test_sequence_collection():
         assert expected_values == target_values, target_values
 
         seq_collection = SequenceCollection(
-            [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
+            [{'genome': genome_path, 'intervals': narrowpeak_path}],
             [{'column': 7}], targets_are_classes=False, endless=endless)
         assert seq_collection.idx_to_class_mapping == None
         assert seq_collection.class_to_idx_mapping == None
@@ -162,7 +162,7 @@ def test_sequence_collection():
     # Test classification label extracted from bed column and mapped
     for endless in [True, False]:
         seq_collection = SequenceCollection(
-            [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
+            [{'genome': genome_path, 'intervals': narrowpeak_path}],
             [{'column': 6}], targets_are_classes=True, endless=endless)
         assert seq_collection.idx_to_class_mapping == {0: 91, 1: 182}, seq_collection.idx_to_class_mapping
         assert seq_collection.class_to_idx_mapping == {91: 0, 182: 1}, seq_collection.class_to_idx_mapping
@@ -171,7 +171,7 @@ def test_sequence_collection():
         assert expected_values == target_values, target_values
 
         seq_collection = SequenceCollection(
-            [{'genome_file': genome_path, 'intervals': narrowpeak_path}],
+            [{'genome': genome_path, 'intervals': narrowpeak_path}],
             [{'column': 0}], targets_are_classes=True, endless=endless)
         assert seq_collection.idx_to_class_mapping == {0: "chr1", 1: "chr2"}, seq_collection.idx_to_class_mapping
         assert seq_collection.class_to_idx_mapping == {"chr1": 0, "chr2": 1}, seq_collection.class_to_idx_mapping
@@ -181,8 +181,8 @@ def test_sequence_collection():
 
     # With fixed target and bed target
     seq_collection = SequenceCollection(
-        [{'genome_file': genome_path, 'intervals': narrowpeak_path},
-         {'genome_file': genome_path, 'intervals': narrowpeak_path}],
+        [{'genome': genome_path, 'intervals': narrowpeak_path},
+         {'genome': genome_path, 'intervals': narrowpeak_path}],
         [{'column': 6}, 91], targets_are_classes=True, endless=False)
     assert seq_collection.idx_to_class_mapping == {0: 91, 1: 182}, seq_collection.idx_to_class_mapping
     assert seq_collection.class_to_idx_mapping == {91: 0, 182: 1}, seq_collection.class_to_idx_mapping
@@ -193,8 +193,8 @@ def test_sequence_collection():
 
     # With fixed target (str) and bed target
     seq_collection = SequenceCollection(
-        [{'genome_file': genome_path, 'intervals': narrowpeak_path},
-         {'genome_file': genome_path, 'intervals': narrowpeak_path}],
+        [{'genome': genome_path, 'intervals': narrowpeak_path},
+         {'genome': genome_path, 'intervals': narrowpeak_path}],
         [{'column': 0}, "chr1"], targets_are_classes=True, endless=False)
     assert seq_collection.idx_to_class_mapping == {0: "chr1", 1: "chr2"}, seq_collection.idx_to_class_mapping
     assert seq_collection.class_to_idx_mapping == {"chr1": 0, "chr2": 1}, seq_collection.class_to_idx_mapping
@@ -207,8 +207,8 @@ def test_sequence_collection():
     # Test source sampling
 
     seq_collection = SequenceCollection(
-        [{'genome_file': genome_path, 'intervals': mouse_interval_path_neg},
-        {'genome_file': genome_path, 'intervals': mouse_interval_path_pos}],
+        [{'genome': genome_path, 'intervals': mouse_interval_path_neg},
+        {'genome': genome_path, 'intervals': mouse_interval_path_pos}],
         [0, 1], targets_are_classes=True, endless=True)
     num_examples = 10000
     source_freqs = seq_collection.source_freqs['source_freqs']

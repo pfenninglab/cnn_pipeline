@@ -33,12 +33,14 @@ def init(args):
 
 def get_data():
 	# Background is training set
-	bg_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
+	bg_data = dataset.SequenceTfDataset(wandb.config.train_data_paths, wandb.config.train_labels,
+		targets_are_classes=True)
 	# Foreground is positive examples from validation set
 	fg_idx = np.array(wandb.config.val_labels) == wandb.config.shap_pos_label
-	fg_data = dataset.FastaTfDataset(
+	fg_data = dataset.SequenceTfDataset(
 		list(np.array(wandb.config.val_data_paths)[fg_idx]),
-		list(np.array(wandb.config.val_labels)[fg_idx]))
+		list(np.array(wandb.config.val_labels)[fg_idx]),
+		targets_are_classes=True)
 
 	bg, _ = bg_data.get_subset_as_arrays(wandb.config.shap_num_bg)
 	fg, _ = fg_data.get_subset_as_arrays(wandb.config.shap_num_fg)

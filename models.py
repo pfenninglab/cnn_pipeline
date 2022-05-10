@@ -49,7 +49,16 @@ def get_model_architecture(input_shape, num_classes, config):
 		x = layers.Dense(units=config['dense_filters'], activation='relu', kernel_regularizer=l2(l=config['l2_reg']))(x)
 		x = layers.Dropout(rate=config['dropout_rate'])(x)
 
-	outputs = layers.Dense(num_classes, activation="softmax", kernel_regularizer=l2(l=config['l2_reg']))(x)
+	if num_classes is None:
+		num_output_units = 1
+		activation = None
+	elif isinstance(num_classes, int):
+		num_output_units = num_classes
+		activation = "softmax"
+	else:
+		raise ValueError(f"Invalid num_classes: {num_classes}")
+	outputs = layers.Dense(num_output_units, activation=activation,
+		kernel_regularizer=l2(l=config['l2_reg']))(x)
 
 	return keras.Model(inputs=inputs, outputs=outputs)
 
@@ -57,6 +66,7 @@ def get_optimizer(lr_schedule, config):
 	return OPTIMIZER_MAPPING[config['optimizer'].lower()](learning_rate=lr_schedule)
 
 def get_metrics(config):
+	# TODO think about whether I have to map metric_pos_label
 
 	metrics = [SparseCategoricalAccuracy(name='acc'),
 		MulticlassMetric('AUC', name='auroc', pos_label=config.metric_pos_label, curve='ROC'),
