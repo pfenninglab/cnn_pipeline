@@ -33,12 +33,14 @@ def train(args):
 		endless=not wandb.config.use_exact_val_metrics,
 		batch_size=wandb.config.batch_size)
 
+	utils.validate_datasets([train_data, val_data])
+
 	# Get model
 	batch_size, steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
 		wandb.config, train_data, val_data)
 	lr_schedule = lr_schedules.get_lr_schedule(steps_per_epoch_train, wandb.config)
 	model = models.get_model(
-		train_data.seq_shape, train_data.num_classes, lr_schedule, wandb.config)
+		train_data.seq_shape, train_data.num_classes, train_data.class_to_idx_mapping, lr_schedule, wandb.config)
 
 	# Get callbacks
 	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config)

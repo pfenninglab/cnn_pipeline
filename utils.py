@@ -11,7 +11,7 @@ CONFIG_EXPECTED_KEYS = {
 	'val_labels': list,
 	'batch_size': int,
 	'num_epochs': int,
-	'metric_pos_label': int,
+	'metric_pos_label': [int, str],
 	'optimizer': str,
 	'lr_schedule': str,
 	'lr_cyc_scale_fn': str,
@@ -42,7 +42,9 @@ def validate_config(config_dict):
 
 	# check types
 	for k, t in CONFIG_EXPECTED_KEYS.items():
-		assert isinstance(config_dict[k], t), (
+		if not isinstance(t, list):
+			t = [t]
+		assert any(isinstance(config_dict[k], tt) for tt in t), (
 			f"Invalid type in config! key {k}, expected {t}, got {type(config_dict[k])}")
 
 	# check lengths
@@ -63,3 +65,29 @@ def get_step_size(wandb_config, train_data, val_data):
 	steps_per_epoch_train = len(train_data) // batch_size
 	steps_per_epoch_val = len(val_data) // batch_size
 	return batch_size, steps_per_epoch_train, steps_per_epoch_val
+
+def validate_datasets(datasets):
+	"""
+	Args:
+		datasets (list of dataset.SequenceTfDataset)
+	"""
+	# Check that classes and class mappings are all the same
+	if datasets[0].targets_are_classes:
+		class_to_idx_mapping = None
+		idx_to_class_mapping = None
+		for dataset in datasets:
+			class_to_idx_mapping = class_to_idx_mapping or dataset.class_to_idx_mapping
+			if dataset.class_to_idx_mapping != class_to_idx_mapping:
+				raise ValueError(f"Inconsistent class_to_idx_mapping: {class_to_idx_mapping}, {dataset.class_to_idx_mapping}")
+			idx_to_class_mapping = idx_to_class_mapping or dataset.idx_to_class_mapping
+			if dataset.idx_to_class_mapping != idx_to_class_mapping:
+				raise ValueError(f"Inconsistent idx_to_class_mapping: {idx_to_class_mapping}, {dataset.idx_to_class_mapping}")
+
+
+
+
+
+
+
+
+

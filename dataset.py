@@ -450,6 +450,9 @@ class SequenceTfDataset:
                     endless: bool=True, batch_size: int=512):
         import tensorflow as tf
         self.sc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless)
+        self.targets_are_classes = targets_are_classes
+        self.class_to_idx_mapping = self.sc.class_to_idx_mapping
+        self.idx_to_class_mapping = self.sc.idx_to_class_mapping
         self.seq_shape = self.sc.seq_shape
         self.num_classes = self.sc.num_classes
         self.ds = tf.data.Dataset.from_generator(self.sc,
