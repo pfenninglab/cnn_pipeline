@@ -222,35 +222,48 @@ class SequenceCollection:
         return sources
 
     def _get_classes(self):
-        if self.targets_are_classes:
-            unique_classes = set()
-            for source, target_spec in zip(self.source_files, self.targets):
-                if isinstance(target_spec, dict):
-                    # scan the target column from the corresponding source
-                    source_obj = BedSource(source['genome'], source['intervals'],
-                        endless=False, bedfile_columns=(target_spec['column'],))
-                    for _, target_val in source_obj:
-                        # extract value from singleton tuple
-                        target_val = target_val[0]
-                        unique_classes.add(target_val)
-                else:
-                    unique_classes.add(target_spec)
+        unique_values = self._get_unique_values()
 
+        if self.targets_are_classes:
             # Check that classes are all the same type
             class_types = set()
-            for label in unique_classes:
+            for label in unique_values:
+                # Only allow int and str class values
+                if not any(isinstance(label, t) for t in [int, str]):
+                    raise ValueError(f"Invalid type for classification target, value {label}, type {type(label)}")
                 class_types.add(type(label))
-                if len(class_types) > 1:
-                    raise NotImplementedError(f"Class values must all be the same type. Found types: {class_types}")
+            if len(class_types) > 1:
+                raise NotImplementedError(f"Class values must all be the same type. Found types: {class_types}")
 
-            self.idx_to_class_mapping = {idx: v for idx, v in enumerate(sorted(unique_classes))}
+            self.idx_to_class_mapping = {idx: v for idx, v in enumerate(sorted(unique_values))}
             self.class_to_idx_mapping = {v: k for k, v in self.idx_to_class_mapping.items()}
-            self.num_classes = len(unique_classes)
+            self.num_classes = len(unique_values)
         else:
             # targets are regression values
+
+            # Only allow int and float regression targets
+            for value in unique_values:
+                if not any(isinstance(value, t) for t in [int, float]):
+                    raise ValueError(f"Invalid type for regression target, value {value}, type {type(value)}")
+
             self.idx_to_class_mapping = None
             self.class_to_idx_mapping = None
             self.num_classes = None
+
+    def _get_unique_values(self):
+        unique_values = set()
+        for source, target_spec in zip(self.source_files, self.targets):
+            if isinstance(target_spec, dict):
+                # scan the target column from the corresponding source
+                source_obj = BedSource(source['genome'], source['intervals'],
+                    endless=False, bedfile_columns=(target_spec['column'],))
+                for _, target_val in source_obj:
+                    # extract value from singleton tuple
+                    target_val = target_val[0]
+                    unique_values.add(target_val)
+            else:
+                unique_values.add(target_spec)
+        return unique_values
 
     def _get_source_freqs(self):
         """ Make a tree of counts and frequencies for each class and each of its data sources, e.g.
