@@ -235,6 +235,14 @@ class SequenceCollection:
                         unique_classes.add(target_val)
                 else:
                     unique_classes.add(target_spec)
+
+            # Check that classes are all the same type
+            class_types = set()
+            for label in unique_classes:
+                class_types.add(type(label))
+                if len(class_types) > 1:
+                    raise NotImplementedError(f"Class values must all be the same type. Found types: {class_types}")
+
             self.idx_to_class_mapping = {idx: v for idx, v in enumerate(sorted(unique_classes))}
             self.class_to_idx_mapping = {v: k for k, v in self.idx_to_class_mapping.items()}
             self.num_classes = len(unique_classes)
