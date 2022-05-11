@@ -7,6 +7,7 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.metrics import AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives
+from tensorflow.keras.metrics import MeanSquaredError, MeanAbsoluteError, MeanAbsolutePercentageError
 
 from metrics import MulticlassMetric
 import metrics
@@ -23,7 +24,7 @@ USE_CONFUSION_METRICS = False
 def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config):
 	model = get_model_architecture(input_shape, num_classes, config)
 	optimizer = get_optimizer(lr_schedule, config)
-	metrics = get_metrics(class_to_idx_mapping, config)
+	metrics = get_metrics(num_classes, class_to_idx_mapping, config)
 
 	loss = 'mean_squared_error' if num_classes is None else 'sparse_categorical_crossentropy' 
 	model.compile(loss=loss,
@@ -67,18 +68,23 @@ def get_model_architecture(input_shape, num_classes, config):
 def get_optimizer(lr_schedule, config):
 	return OPTIMIZER_MAPPING[config['optimizer'].lower()](learning_rate=lr_schedule)
 
-def get_metrics(class_to_idx_mapping, config):
-	pos_label = class_to_idx_mapping[config.metric_pos_label]
+def get_metrics(num_classes, class_to_idx_mapping, config):
+	if num_classes is None:
+		# regression
+		metrics = [MeanSquaredError(), MeanAbsoluteError(), MeanAbsolutePercentageError()]
+	else:
+		# classification
+		pos_label = class_to_idx_mapping[config.metric_pos_label]
 
-	metrics = [SparseCategoricalAccuracy(name='acc'),
-		MulticlassMetric('AUC', name='auroc', pos_label=pos_label, curve='ROC'),
-		MulticlassMetric('AUC', name='auprc', pos_label=pos_label, curve='PR')]
-	if USE_CONFUSION_METRICS:
-		metrics.extend([
-			MulticlassMetric('TruePositives', name='conf_TP', pos_label=pos_label),
-			MulticlassMetric('TrueNegatives', name='conf_TN', pos_label=pos_label),
-			MulticlassMetric('FalsePositives', name='conf_FP', pos_label=pos_label),
-			MulticlassMetric('FalseNegatives', name='conf_FN', pos_label=pos_label)])
+		metrics = [SparseCategoricalAccuracy(name='acc'),
+			MulticlassMetric('AUC', name='auroc', pos_label=pos_label, curve='ROC'),
+			MulticlassMetric('AUC', name='auprc', pos_label=pos_label, curve='PR')]
+		if USE_CONFUSION_METRICS:
+			metrics.extend([
+				MulticlassMetric('TruePositives', name='conf_TP', pos_label=pos_label),
+				MulticlassMetric('TrueNegatives', name='conf_TN', pos_label=pos_label),
+				MulticlassMetric('FalsePositives', name='conf_FP', pos_label=pos_label),
+				MulticlassMetric('FalseNegatives', name='conf_FN', pos_label=pos_label)])
 
 	return metrics
 
