@@ -34,6 +34,10 @@ val_labels:
     - 0
     - 1
 
+targets_are_classes:
+  desc: Whether to treat targets as a set of discrete classes (classification) or as continuous values (regression).
+  value: true
+
 # Training
 
 batch_size:
@@ -79,7 +83,7 @@ lr_cyc_scale_fn:
 
 lr_init:
   desc: Initial learning rate.
-  value: 1.e-4
+  value: 4.e-4
 
 lr_max:
   desc: Maximum learning rate for cyclic LR schedule.

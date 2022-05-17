@@ -9,6 +9,7 @@ dependencies:
   - tensorflow-gpu=2.4.1
   - wandb
   - pybedtools
+  - tqdm
   # SHAP and TF-MoDISco
   - shap
   - cmake

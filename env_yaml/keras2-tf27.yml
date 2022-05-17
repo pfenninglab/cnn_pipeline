@@ -9,6 +9,7 @@ dependencies:
   - tensorflow-gpu=2.7.0
   - wandb
   - pybedtools
+  - tqdm
 
   - pip:
     - tensorflow-addons

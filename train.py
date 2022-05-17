@@ -55,13 +55,19 @@ def train(args):
 		validation_steps=steps_per_epoch_val,
 		callbacks=callback_fns)
 
-def validate(model_path):
-	"""Run trained model on full validation set."""
-	model = models.load_model(model_path)
+def validate(model):
+	"""Run trained model on full validation set.
+
+	Args:
+		model (str or keras model)
+	"""
+	if isinstance(model, str):
+		model = models.load_model(model)
 	val_data = dataset.SequenceTfDataset(
 		wandb.config.val_data_paths, wandb.config.val_labels,
 		targets_are_classes=wandb.config.targets_are_classes, endless=False)
-	model.evaluate(val_data.ds.batch(wandb.config.batch_size))
+	model.evaluate(x=val_data.dataset[0], y=val_data.dataset[1],
+		batch_size=wandb.config.batch_size)
 
 def get_args():
 	import argparse

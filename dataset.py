@@ -1,6 +1,7 @@
 import numpy as np
 from Bio import SeqIO
 import pybedtools
+from tqdm import tqdm
 
 # A, C, G, T
 NUM_BASES = 4
@@ -242,7 +243,8 @@ class SequenceCollection:
             # targets are regression values
 
             # Only allow int and float regression targets
-            for value in unique_values:
+            print("Checking target values...")
+            for value in tqdm(unique_values):
                 if not any(isinstance(value, t) for t in [int, float]):
                     raise ValueError(f"Invalid type for regression target, value {value}, type {type(value)}")
 
@@ -257,7 +259,8 @@ class SequenceCollection:
                 # scan the target column from the corresponding source
                 source_obj = BedSource(source['genome'], source['intervals'],
                     endless=False, bedfile_columns=(target_spec['column'],))
-                for _, target_val in source_obj:
+                print(f"Getting target values from {source['intervals']}...")
+                for _, target_val in tqdm(source_obj):
                     # extract value from singleton tuple
                     target_val = target_val[0]
                     unique_values.add(target_val)
@@ -476,10 +479,12 @@ class SequenceTfDataset:
         self.idx_to_class_mapping = self.sc.idx_to_class_mapping
         self.seq_shape = self.sc.seq_shape
         self.num_classes = self.sc.num_classes
+        target_type = tf.int8 if targets_are_classes else tf.float32
         self.ds = tf.data.Dataset.from_generator(self.sc,
-            output_types=(tf.int8, tf.int8),
+            output_types=(tf.int8, target_type),
             output_shapes=(tf.TensorShape(self.seq_shape), tf.TensorShape(())))
         self.batch_size = batch_size
+        self.endless = endless
         self.dataset = self._get_dataset(endless)
 
     def get_subset_as_arrays(self, size):
@@ -498,7 +503,14 @@ class SequenceTfDataset:
             xs (np.ndarray): [size, num_bp, 4], one-hot sequences
             ys (np.ndarray): [size, num_bp], labels
         """
-        dataset = self.ds.shuffle(len(self)).take(size)
+        if size > len(self):
+            raise ValueError(f"Requested subset size {size} is too large for dataset of size {len(self)}")
+
+        dataset = self.ds
+        if size < len(self):
+            dataset = dataset.shuffle(len(self))
+        dataset = dataset.take(size)
+
         xs, ys = [], []
         for (x, y) in dataset.as_numpy_iterator():
             xs.append(x)
