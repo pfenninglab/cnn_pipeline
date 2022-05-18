@@ -1,12 +1,16 @@
+"""preprocessing.py: Data preprocessing
+
+Usage:
+python preprocessing.py expand_peaks -b <input bed file> -o <output bed file> -w 501
+"""
+
 import numpy as np
 import pandas as pd
 
 
 def main(args):
-	if args.function[0] == 'expand_peaks':
-		bed_file, out_file, width = tuple(args.function[1:])
-		width = int(width)
-		expand_peaks(bed_file, out_file, width)
+	if args.function == 'expand_peaks':
+		expand_peaks(args.bed_file, args.out_file, args.width)
 	else:
 		raise ValueError(f"Invalid args: {args}")
 
@@ -42,7 +46,10 @@ def expand_peaks(bed_file, out_file, width):
 def get_args():
 	import argparse
 	parser = argparse.ArgumentParser()
-	parser.add_argument('function', nargs='*')
+	parser.add_argument('function')
+	parser.add_argument('--bed_file', '-b')
+	parser.add_argument('--out_file', '-o')
+	parser.add_argument('--width', '-w', type=int)
 	return parser.parse_args()
 
 if __name__ == '__main__':
