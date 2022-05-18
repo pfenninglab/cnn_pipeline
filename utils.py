@@ -6,9 +6,9 @@ import yaml
 CONFIG_EXPECTED_KEYS = {
 	'project': str,
 	'train_data_paths': list,
-	'train_labels': list,
+	'train_targets': list,
 	'val_data_paths': list,
-	'val_labels': list,
+	'val_targets': list,
 	'batch_size': int,
 	'num_epochs': int,
 	'metric_pos_label': [int, str],
@@ -48,10 +48,10 @@ def validate_config(config_dict):
 			f"Invalid type in config! key {k}, expected {t}, got {type(config_dict[k])}")
 
 	# check lengths
-	for paths, labels in [
-		(config_dict['train_data_paths'], config_dict['train_labels']),
-		(config_dict['val_data_paths'], config_dict['val_labels'])]:
-		assert len(paths) == len(labels)
+	for paths, targets in [
+		(config_dict['train_data_paths'], config_dict['train_targets']),
+		(config_dict['val_data_paths'], config_dict['val_targets'])]:
+		assert len(paths) == len(targets)
 
 def get_config(yaml_path):
 	with open(yaml_path, "r") as f:

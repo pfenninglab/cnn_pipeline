@@ -24,11 +24,11 @@ def train(args):
 
 	# Get datasets
 	train_data = dataset.SequenceTfDataset(
-		wandb.config.train_data_paths, wandb.config.train_labels,
+		wandb.config.train_data_paths, wandb.config.train_targets,
 		targets_are_classes=wandb.config.targets_are_classes, endless=True,
 		batch_size=wandb.config.batch_size)
 	val_data = dataset.SequenceTfDataset(
-		wandb.config.val_data_paths, wandb.config.val_labels,
+		wandb.config.val_data_paths, wandb.config.val_targets,
 		targets_are_classes=wandb.config.targets_are_classes,
 		endless=not wandb.config.use_exact_val_metrics,
 		batch_size=wandb.config.batch_size)
@@ -64,7 +64,7 @@ def validate(model):
 	if isinstance(model, str):
 		model = models.load_model(model)
 	val_data = dataset.SequenceTfDataset(
-		wandb.config.val_data_paths, wandb.config.val_labels,
+		wandb.config.val_data_paths, wandb.config.val_targets,
 		targets_are_classes=wandb.config.targets_are_classes, endless=False)
 	model.evaluate(x=val_data.dataset[0], y=val_data.dataset[1],
 		batch_size=wandb.config.batch_size)

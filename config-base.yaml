@@ -7,29 +7,43 @@ project:
 # Data
 
 train_data_paths:
-  desc: Paths to FASTA files for training data.
+  desc: Paths to FASTA, BED, or NarrowPeak files for training data.
+  # To use FASTA files with sequences already extracted, just put the file path.
+  # To use a reference genome and a BED or NarrowPeak file with intervals, put:
+  #     genome: <path to genome .fa>
+  #     intervals: <path to interval .bed or .narrowPeak>
   value:
     - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
       intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_TRAIN.bed
     - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
       intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_TRAIN.bed
 
-train_labels:
-  desc: Integer labels corresponding to each training data path. Duplicates are allowed.
+train_targets:
+  desc: Targets corresponding to each training data path.
+  # To use a constant value per file, e.g. 0 or "neg", just put the value here.
+  # To extract the value from each line of a BED or NarrowPeak file, put:
+  #     column: <column number>
   value:
     - 0
     - 1
 
 val_data_paths:
-  desc: Paths to FASTA files for validation data.
+  desc: Paths to FASTA, BED, or NarrowPeak files for validation data.
+  # To use FASTA files with sequences already extracted, just put the file path.
+  # To use a reference genome and a BED or NarrowPeak file with intervals, put:
+  #     genome: <path to genome .fa>
+  #     intervals: <path to interval .bed or .narrowPeak>
   value:
     - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
       intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed
     - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
       intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_VAL.bed
 
-val_labels:
-  desc: Integer labels corresponding to each validation data path. Duplicates are allowed.
+val_targets:
+  desc: Targets corresponding to each validation data path.
+  # To use a constant value per file, e.g. 0 or "neg", just put the value here.
+  # To extract the value from each line of a BED or NarrowPeak file, put:
+  #     column: <column number>
   value:
     - 0
     - 1
