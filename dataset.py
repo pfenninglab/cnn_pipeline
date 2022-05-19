@@ -182,6 +182,11 @@ class FastaSource:
         return res
 
 class SequenceCollection:
+    """Iterable collection of sequences from FASTA, BED, or NarrowPeak files.
+    Can reload itself once exhausted, to function as an infinite iterator.
+
+    See SequenceTfDataset for a description of args.
+    """
 
     def __init__(self, source_files, targets, targets_are_classes: bool, endless: bool=True):
         if len(source_files) != len(targets):
@@ -447,28 +452,66 @@ class SequenceTfDataset:
     """Sequence collection with a corresponding tf.data.Dataset.
 
     Args:
-        fa_files (list of str): paths to FASTA files.
-        labels (list of int): labels to assign to each file.
-            If there are duplicate labels, then corresponding FASTA files are sampled
-            as if they are in the same class.
+        source files (list of str or dict): Source files to get sequence data.
+            Each source can be either:
+                str, path to .fa file with sequences already extracted, or
+                dict, with keys
+                    "genome": path to .fa file of reference genome
+                    "intervals": path to a .bed or .narrowPeaks file with intervals to extract from reference
+        targets (list of str or dict): Targets to associate with data from each source.
+            Each target can be either:
+                int or str, a fixed value to associate with every example from the corresponding source
+                dict, with key
+                    "column": column to extract from each row of .bed or .narrowPeak file
+        targets_are_classes (bool): Whether to treat targets as classes in a classification problem (True),
+            or continuous values in a single-variable regression problem (False)
+            if True, then the target outputs are int sparse labels in {0, ..., num_classes - 1}
+            if False, then the target outputs are float regression targets
         endless (bool): 
-            if False, then yield each example from each file exactly once (useful for validation)
-            if True, then randomly yield examples according to Sampling Logic (useful for training)
+            if False, then dataset is a tuple of fixed numpy arrays. Each example appears
+                exactly once. Useful for validation.
+            if True, then dataset is an infinite iterator. Examples are randomly sampled from
+                sources, such that the expected number of times an example appears in each
+                epoch is 1. Useful for training.
+        batch_size (int): Batch size to yield when dataset is an iterator. Only has effect when
+            endless == True.
+
+    Sampling Logic: When endless == True, each example is randomly sampled from the set of
+    data sources, proportionally to the size of each source. That is, if we have:
+        - N sources, S_1, ..., S_N
+        - source S_i has k examples |S_i| = k
+        - the full dataset has j examples |S_1| + ... + |S_N| = j
+        - the batch size is b
+    Then the expected number of examples from source S_i in a given batch is k / j * b.
+    The expected number of examples from source S_i across all batches in an epoch is k / j.
 
     Attributes:
-        sc (SequenceCollection): streaming collection of sequences & targets.
-        ds (tf.data.Dataset): same collection, as a tf Dataset.
-        dataset (tf.data.Dataset or tuple(np.ndarray)): data to pass to keras fit().
+        sc (SequenceCollection): Streaming collection of sequences & targets.
+        ds (tf.data.Dataset): Same collection, as a tf Dataset.
+        dataset (tf.data.Dataset or tuple(np.ndarray)): Data to pass to keras fit().
             If endless is True, this is a tf Dataset yielding batches:
                 xs (batch_size, seq_len, 4)
-                ys (batch_size,) (sparse labels in {0, ..., num_classes - 1})
+                ys (batch_size,)
             If endless is False, this is a tuple of numpy arrays:
                 xs (num_sequences, seq_len, 4)
-                ys (num_sequences,) (sparse labels in {0, ..., num_classes - 1})
+                ys (num_sequences,)
+        class_to_idx_mapping (dict): Maps class labels to the integer class output by the model.
+            Applicable only when targets_are_classes == True.
+            e.g. {"neg": 0, "pos": 1} or {"chr1": 0, "chr2": 1, "chrX": 2}
+        idx_to_class_mapping (dict): Maps integer classes to class labels.
+            Applicable only when targets_are_classes = True.
+            e.g. {0: "neg", 1: "pos"} or {0: "chr1", 1: "chr2", 2: "chrX"}
+        seq_shape (tuple of int): Dimensions of each example's input features, e.g. (500, 4)
+        num_classes (int): If targets_are_classes == True, the number of classes.
+            If targets_are_classes == False, None.
 
     E.g.:
-    paths = ["/data/train_pos_A.fa", "/data/train_pos_B.fa", "/data/train_neg.fa"]
-    ftd = FastaTfDataset(paths, [1, 1, 0])
+    paths = [
+        "/data/train_pos_A.fa",
+        {"genome": "/data/Mus_musculus.fa", "intervals": "/data/peaks_pos.narrowPeak"},
+        {"genome": "/data/Mus_musculus.fa", "intervals": "/data/peaks_neg.narrowPeak"}
+    ]
+    train_data = SequenceTfDataset(paths, [1, 1, 0], True)
     """
     def __init__(self, source_files, targets, targets_are_classes: bool,
                     endless: bool=True, batch_size: int=512):
