@@ -1,9 +1,10 @@
-# Classifier training tool
+# CNN Training Platform
 
 ## About
-This tool enables you to train a CNN classifier on DNA sequences.
+This tool enables you to train a CNN model on DNA sequences.
+Classification (2 or more classes) and regression (single variable) are both supported.
 
-Specify datasets, labels, CNN architecture, hyperparameters and training details
+Specify datasets, targets, CNN architecture, hyperparameters, and training details
 from a text configuration file.
 
 Track experiments, visualize performance metrics, and search hyperparameters using
@@ -36,7 +37,7 @@ To train a single model:
 
 1. Edit `config-base.yaml` to configure:
 - `wandb` project name for tracking
-- data sources (FASTA files)
+- data sources
 - labels
 - CNN architecture
 - regularization
