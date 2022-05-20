@@ -6,7 +6,6 @@ from tensorflow.keras import layers
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
-from tensorflow.keras.metrics import AUC, TrueNegatives, TruePositives, FalseNegatives, FalsePositives
 from tensorflow.keras.metrics import MeanSquaredError, MeanAbsoluteError, MeanAbsolutePercentageError
 
 from metrics import MulticlassMetric
@@ -18,7 +17,7 @@ OPTIMIZER_MAPPING = {
 	'sgd': SGD,
 	'adam': Adam
 }
-USE_CONFUSION_METRICS = False
+USE_CONFUSION_METRICS = True
 
 
 def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config):
@@ -78,7 +77,10 @@ def get_metrics(num_classes, class_to_idx_mapping, config):
 
 		metrics = [SparseCategoricalAccuracy(name='acc'),
 			MulticlassMetric('AUC', name='auroc', pos_label=pos_label, curve='ROC'),
-			MulticlassMetric('AUC', name='auprc', pos_label=pos_label, curve='PR')]
+			MulticlassMetric('AUC', name='auprc', pos_label=pos_label, curve='PR'),
+			MulticlassMetric('Precision',  name='precision', pos_label=pos_label),
+			MulticlassMetric('Recall', name='sensitivity', pos_label=pos_label),
+			]
 		if USE_CONFUSION_METRICS:
 			metrics.extend([
 				MulticlassMetric('TruePositives', name='conf_TP', pos_label=pos_label),
