@@ -33,12 +33,14 @@ def init(args):
 
 def get_data():
 	# Background is training set
-	bg_data = dataset.FastaTfDataset(wandb.config.train_data_paths, wandb.config.train_labels)
+	bg_data = dataset.SequenceTfDataset(wandb.config.train_data_paths, wandb.config.train_targets,
+		targets_are_classes=True)
 	# Foreground is positive examples from validation set
-	fg_idx = np.array(wandb.config.val_labels) == wandb.config.shap_pos_label
-	fg_data = dataset.FastaTfDataset(
+	fg_idx = np.array(wandb.config.val_targets) == wandb.config.shap_pos_label
+	fg_data = dataset.SequenceTfDataset(
 		list(np.array(wandb.config.val_data_paths)[fg_idx]),
-		list(np.array(wandb.config.val_labels)[fg_idx]))
+		list(np.array(wandb.config.val_targets)[fg_idx]),
+		targets_are_classes=True)
 
 	bg, _ = bg_data.get_subset_as_arrays(wandb.config.shap_num_bg)
 	fg, _ = fg_data.get_subset_as_arrays(wandb.config.shap_num_fg)
@@ -116,53 +118,6 @@ class ModiscoNormalization:
 		normed_impscores = normed_hyp_impscores * sequences
 		return normed_impscores, normed_hyp_impscores
 
-def _test_gkm_explain_normalization():
-	# test case inputs
-	hyp_impscores = np.array([[ 1, -2,  3, -4], [ -5,  6,  -7,  8], [-9,  1,   2, -3]])
-	sequences     = np.array([[ 0,  1,  0,  0], [  0,  0,   0,  1], [ 1,  0,   0,  0]])
-
-	# expected values (computed by hand)
-	numerator     = np.array([[-2,  4, -6,  8], [-40, 48, -56, 64], [81, -9, -18, 27]])
-	denominator   = np.array([[ 0, -2,  0, -4], [  0,  6,   0,  8], [-9,  0,   0, -3]])
-	denominator   = np.sum(denominator, axis=-1)[:, np.newaxis]
-	expected_hyp_imp = numerator / denominator
-	expected_imp = expected_hyp_imp * sequences
-
-	# computed values
-	normed_impscores, normed_hyp_impscores = ModiscoNormalization('gkm_explain')(hyp_impscores, sequences)
-
-	for arr in [expected_hyp_imp, expected_imp, normed_impscores, normed_hyp_impscores]:
-		assert arr.shape == (3, 4)
-	assert np.allclose(expected_hyp_imp, normed_hyp_impscores)
-	assert np.allclose(expected_imp, normed_impscores)
-
-	# test that it works when the batch dimension is added
-	# shape = (1, 3, 4)
-	hyp_impscores = hyp_impscores[np.newaxis, :]
-	sequences = sequences[np.newaxis, :]
-	numerator = numerator[np.newaxis, :]
-	denominator = denominator[np.newaxis, :]
-	expected_hyp_imp = numerator / denominator
-	expected_imp = expected_hyp_imp * sequences
-	normed_impscores, normed_hyp_impscores = ModiscoNormalization('gkm_explain')(hyp_impscores, sequences)
-	for arr in [expected_hyp_imp, expected_imp, normed_impscores, normed_hyp_impscores]:
-		assert arr.shape == (1, 3, 4)	
-	assert np.allclose(expected_hyp_imp, normed_hyp_impscores)
-	assert np.allclose(expected_imp, normed_impscores)
-
-	# test that it works with batch size of 2
-	# shape = (2, 3, 4)
-	hyp_impscores = np.repeat(hyp_impscores, 2, axis=0)
-	sequences = np.repeat(sequences, 2, axis=0)
-	numerator = np.repeat(numerator, 2, axis=0)
-	denominator = np.repeat(denominator, 2, axis=0)
-	expected_hyp_imp = numerator / denominator
-	expected_imp = expected_hyp_imp * sequences
-	normed_impscores, normed_hyp_impscores = ModiscoNormalization('gkm_explain')(hyp_impscores, sequences)
-	for arr in [expected_hyp_imp, expected_imp, normed_impscores, normed_hyp_impscores]:
-		assert arr.shape == (2, 3, 4)	
-	assert np.allclose(expected_hyp_imp, normed_hyp_impscores)
-	assert np.allclose(expected_imp, normed_impscores)
 
 def get_modisco_results(shap_values, fg):
 	# Get normalized importance scores

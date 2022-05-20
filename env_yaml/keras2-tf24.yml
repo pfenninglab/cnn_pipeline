@@ -1,11 +1,16 @@
 channels:
   - conda-forge
+  - bioconda
   - defaults
 dependencies:
+  - python=3.9 # python 3.9 needed for pybedtools
   - biopython
   - pip
   - tensorflow-gpu=2.4.1
   - wandb
+  - pybedtools
+  - tqdm
+  # SHAP and TF-MoDISco
   - shap
   - cmake
   - leidenalg
