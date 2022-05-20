@@ -14,9 +14,7 @@ train_data_paths:
   #     intervals: <path to interval .bed or .narrowPeak>
   value:
     - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_TRAIN.bed
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_TRAIN.bed
+      intervals: <path to interval .narrowPeak file>
 
 train_targets:
   desc: Targets corresponding to each training data path.
@@ -24,26 +22,22 @@ train_targets:
   # To extract the value from each line of a BED or NarrowPeak file, put:
   #     column: <column number>
   value:
-    - 0
-    - 1
+    - column: 6
 
 val_data_paths:
   desc: Paths to FASTA, BED, or NarrowPeak files for validation data.
   value:
     - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_VAL.bed
+      intervals: <path to interval .narrowPeak file>
 
 val_targets:
   desc: Targets corresponding to each validation data path.
   value:
-    - 0
-    - 1
+    - column: 6
 
 targets_are_classes:
   desc: Whether to treat targets as a set of discrete classes (classification) or as continuous values (regression).
-  value: true
+  value: false
 
 # Training
 
