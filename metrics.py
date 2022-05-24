@@ -77,7 +77,7 @@ class MulticlassMetric(tensorflow.keras.metrics.Metric):
     def __init__(self, k_metric_name, pos_label, from_logits=False, sparse=True, **kwargs):
         super().__init__(name=kwargs['name'])
         self.k_metric_name = k_metric_name
-        self.k_metric = getattr(tensorflow.keras.metrics, self.k_metric_name)(**kwargs)
+        self.k_metric = self._get_k_metric(**kwargs)
         self.pos_label = pos_label
         self.from_logits = from_logits
         self.sparse = sparse
@@ -126,3 +126,54 @@ class MulticlassMetric(tensorflow.keras.metrics.Metric):
             "sparse": self.sparse
         })
         return config
+
+    def _get_k_metric(self, **kwargs):
+        # Try to get metric as keras builtin metric
+        k_metric = getattr(tensorflow.keras.metrics, self.k_metric_name, None)
+        if k_metric is None:
+            # Try to get metric as custom metric from this module
+            current_module = __import__(__name__)
+            k_metric = getattr(current_module, self.k_metric_name, None)
+
+        if k_metric is None:
+            raise ValueError(f"Could not find keras metric {self.k_metric_name}")
+        return k_metric(**kwargs)
+
+class Specificity(tensorflow.keras.metrics.Metric):
+    def __init__(self, **kwargs):
+        super(Specificity, self).__init__(**kwargs)
+
+        self.tn = self.add_weight(name='tn', initializer='zeros')
+        self.fp = self.add_weight(name='fp', initializer='zeros')
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        y_true = tf.cast(y_true, tf.bool)
+        y_pred = tf.cast(y_pred, tf.bool)
+
+        batch_tn = tf.logical_and(tf.equal(y_true, False), tf.equal(y_pred, False))
+        batch_tn = tf.cast(batch_tn, self.dtype)
+        if sample_weight is not None:
+            sample_weight = tf.cast(sample_weight, self.dtype)
+            sample_weight = tf.broadcast_to(sample_weight, batch_tn.shape)
+            batch_tn = tf.multiply(batch_tn, sample_weight)
+        self.tn.assign_add(tf.reduce_sum(batch_tn))
+
+        batch_fp = tf.logical_and(tf.equal(y_true, False), tf.equal(y_pred, True))
+        batch_fp = tf.cast(batch_fp, self.dtype)
+        if sample_weight is not None:
+            sample_weight = tf.cast(sample_weight, self.dtype)
+            sample_weight = tf.broadcast_to(sample_weight, batch_fp.shape)
+            batch_fp = tf.multiply(batch_fp, sample_weight)
+        self.fp.assign_add(tf.reduce_sum(batch_fp))
+
+        return self.tn
+
+    def result(self):
+        return self.tn / (self.tn + self.fp)
+
+    def reset_state(self):
+        self.tn.assign(0)
+        self.fp.assign(0)
+
+class MultiClassSpecificity(tensorflow.keras.metrics.Metric):
+    pass

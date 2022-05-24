@@ -78,7 +78,8 @@ def get_metrics(num_classes, class_to_idx_mapping, config):
 			MulticlassMetric('AUC', name='auroc', pos_label=pos_label, curve='ROC'),
 			MulticlassMetric('AUC', name='auprc', pos_label=pos_label, curve='PR'),
 			MulticlassMetric('Precision',  name='precision', pos_label=pos_label),
-			MulticlassMetric('Recall', name='sensitivity', pos_label=pos_label)]
+			MulticlassMetric('Recall', name='sensitivity', pos_label=pos_label),
+			MulticlassMetric('Specificity', name='specificity', pos_label=pos_label)]
 		if USE_CONFUSION_METRICS:
 			metrics.extend([
 				MulticlassMetric('TruePositives', name='conf_TP', pos_label=pos_label),
@@ -100,7 +101,7 @@ def load_model(model_path):
 	# changing it so that each object knows its own `custom_objects` entries,
 	# and construct this dict dynamically before load.
 	custom_objects = {
-		"MulticlassMetric": metrics.MulticlassMetric,
+		"MulticlassMetric": MulticlassMetric,
 		"scale_fn": lr_schedules.ClrScaleFn.scale_fn
 	}
 	return tf.keras.models.load_model(model_path, custom_objects=custom_objects)
