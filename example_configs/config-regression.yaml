@@ -56,10 +56,10 @@ metric_pos_label:
 early_stopping_callbacks:
   desc: Callbacks to use for early stopping. Use arguments as in tf.keras.callbacks.EarlyStopping.
   value:
-    - monitor: val_auprc
+    - monitor: val_loss
       patience: 5
       verbose: 1
-      mode: max
+      mode: min
 
 use_exact_val_metrics:
   desc: If true, use exact validation metrics during training (requires loading whole validation set into RAM). If false, use a close approximation (+/- ~2%) that streams the validation set without loading into RAM.
