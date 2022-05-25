@@ -18,6 +18,9 @@ OPTIMIZER_MAPPING = {
 }
 USE_CONFUSION_METRICS = False
 
+LAYERWISE_PARAMS_CONV = ['conv_filters', 'conv_width', 'conv_stride']
+LAYERWISE_PARAMS_DENSE = ['dense_filters']
+
 
 def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config):
 	model = get_model_architecture(input_shape, num_classes, config)
@@ -34,9 +37,13 @@ def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, confi
 def get_model_architecture(input_shape, num_classes, config):
 	inputs = keras.Input(shape=input_shape)
 	x = inputs
+
+	config = _get_layerwise_params(config, 'num_conv_layers', LAYERWISE_PARAMS_CONV)
+	config = _get_layerwise_params(config, 'num_dense_layers', LAYERWISE_PARAMS_DENSE)
 	
-	for _ in range(config['num_conv_layers']):
-		x = layers.Conv1D(filters=config['conv_filters'], kernel_size=config['conv_width'], activation='relu', strides=config['conv_stride'], kernel_regularizer=l2(l=config['l2_reg']))(x)
+	for (conv_filters, conv_width, conv_stride, _) in zip(
+		config['conv_filters'], config['conv_width'], config['conv_stride'], range(config['num_conv_layers'])):
+		x = layers.Conv1D(filters=conv_filters, kernel_size=conv_width, activation='relu', strides=conv_stride, kernel_regularizer=l2(l=config['l2_reg']))(x)
 		x = layers.Dropout(rate=config['dropout_rate'])(x)
 
 	x = layers.MaxPooling1D(
@@ -46,8 +53,8 @@ def get_model_architecture(input_shape, num_classes, config):
 			padding='same')(x)
 	x = layers.Flatten()(x)
 
-	for _ in range(config['num_dense_layers']):
-		x = layers.Dense(units=config['dense_filters'], activation='relu', kernel_regularizer=l2(l=config['l2_reg']))(x)
+	for (dense_filters, _) in zip(config['dense_filters'], range(config['num_dense_layers'])):
+		x = layers.Dense(units=dense_filters, activation='relu', kernel_regularizer=l2(l=config['l2_reg']))(x)
 		x = layers.Dropout(rate=config['dropout_rate'])(x)
 
 	if num_classes is None:
@@ -62,6 +69,15 @@ def get_model_architecture(input_shape, num_classes, config):
 		kernel_regularizer=l2(l=config['l2_reg']))(x)
 
 	return keras.Model(inputs=inputs, outputs=outputs)
+
+def _get_layerwise_params(config, num_layer_key, params):
+	for param in params:
+		if not isinstance(config[param], list):
+			#config[param] = [config[param]] * config[num_layer_key]
+			config.update({param: [config[param]] * config[num_layer_key]}, allow_val_change=True)
+		elif len(config[param]) < config[num_layer_key]:
+			raise ValueError(f"Not enough layer-wise params for parameter {param}: need at least {num_layer_key} = {config[num_layer_key]}, got {config_dict[param]}")
+	return config
 
 def get_optimizer(lr_schedule, config):
 	return OPTIMIZER_MAPPING[config['optimizer'].lower()](learning_rate=lr_schedule)
