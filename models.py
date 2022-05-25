@@ -100,7 +100,7 @@ def load_model(model_path):
 	# changing it so that each object knows its own `custom_objects` entries,
 	# and construct this dict dynamically before load.
 	custom_objects = {
-		"MulticlassMetric": metrics.MulticlassMetric,
+		"MulticlassMetric": MulticlassMetric,
 		"scale_fn": lr_schedules.ClrScaleFn.scale_fn
 	}
 	return tf.keras.models.load_model(model_path, custom_objects=custom_objects)
