@@ -77,7 +77,7 @@ class MulticlassMetric(tensorflow.keras.metrics.Metric):
     def __init__(self, k_metric_name, pos_label, from_logits=False, sparse=True, **kwargs):
         super().__init__(name=kwargs['name'])
         self.k_metric_name = k_metric_name
-        self.k_metric = getattr(tensorflow.keras.metrics, self.k_metric_name)(**kwargs)
+        self.k_metric = self._get_k_metric(**kwargs)
         self.pos_label = pos_label
         self.from_logits = from_logits
         self.sparse = sparse
@@ -126,3 +126,15 @@ class MulticlassMetric(tensorflow.keras.metrics.Metric):
             "sparse": self.sparse
         })
         return config
+
+    def _get_k_metric(self, **kwargs):
+        # Try to get metric as keras builtin metric
+        k_metric = getattr(tensorflow.keras.metrics, self.k_metric_name, None)
+        if k_metric is None:
+            # Try to get metric as custom metric from this module
+            current_module = __import__(__name__)
+            k_metric = getattr(current_module, self.k_metric_name, None)
+
+        if k_metric is None:
+            raise ValueError(f"Could not find keras metric {self.k_metric_name}")
+        return k_metric(**kwargs)
