@@ -82,8 +82,6 @@ def get_metrics(num_classes, class_to_idx_mapping, config):
 		if num_classes == 2:
 			# This is a binary classification problem, so "negative" metrics apply
 			neg_label = [idx for idx in class_to_idx_mapping.values() if idx != pos_label][0]
-			print(f"pos_label: {pos_label}")
-			print(f"neg_label: {neg_label}")
 			metrics.extend([
 				MulticlassMetric('Precision', name='npv', pos_label=neg_label),
 				MulticlassMetric('Recall', name='specificity', pos_label=neg_label),
