@@ -1,6 +1,7 @@
 import tensorflow as tf
 import wandb
 
+import dataset
 
 class LRLogger(tf.keras.callbacks.Callback):
     """Log learning rate at the end of each epoch.
@@ -24,3 +25,36 @@ def get_early_stopping_callbacks(config):
     return [
         tf.keras.callbacks.EarlyStopping(**kwargs)
         for kwargs in config.early_stopping_callbacks]
+
+class AdditionalValidation(tf.keras.callbacks.Callback):
+    """Validate on additional validation sets.
+    Adapted from https://stackoverflow.com/a/62902854
+    """
+    def __init__(self, val_datasets, metrics=None, batch_size=512):
+        super(AdditionalValidation, self).__init__()
+        self.val_datasets = val_datasets
+        self.metrics = metrics or ['acc']
+        self.batch_size = batch_size
+
+    def on_epoch_end(self, epoch, logs):
+        results = {}
+        for idx, val_data in enumerate(self.val_datasets):
+            values = self.model.evaluate(
+                x=val_data.dataset[0], y=val_data.dataset[1],
+                batch_size=self.batch_size, return_dict=True, verbose=0)
+            for metric in self.metrics:
+                results[f'val_{idx + 1}_{metric}'] = values[metric]
+        wandb.log(results)
+
+def get_additional_validation_callback(config):
+    if not hasattr(config, 'additional_val_data_paths'):
+        return None
+
+    val_datasets = [
+        dataset.SequenceTfDataset(paths, targets, targets_are_classes=config.targets_are_classes,
+            # Use map_targets=False in case some datasets have only positive label
+            endless=False, map_targets=False)
+        for paths, targets in zip(config.additional_val_data_paths, config.additional_val_targets)
+    ]
+    metrics = ['acc'] if config.targets_are_classes else ['mean_squared_error']
+    return AdditionalValidation(val_datasets, metrics=metrics, batch_size=config.batch_size)
