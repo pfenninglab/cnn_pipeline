@@ -188,13 +188,14 @@ class SequenceCollection:
     See SequenceTfDataset for a description of args.
     """
 
-    def __init__(self, source_files, targets, targets_are_classes: bool, endless: bool=True):
+    def __init__(self, source_files, targets, targets_are_classes: bool, endless: bool=True, map_targets: bool=True):
         if len(source_files) != len(targets):
             raise ValueError("Number of source_files and number of targets must be equal")
 
         self.source_files = source_files
         self.targets = targets
         self.targets_are_classes = targets_are_classes
+        self.map_targets = map_targets
         self.endless = endless
         self.sources = self._get_sources()
         self.num_sources = len(self.sources)
@@ -306,7 +307,7 @@ class SequenceCollection:
             seq = data
             target_val = target_spec
 
-        if self.targets_are_classes:
+        if self.targets_are_classes and self.map_targets:
             target_val = self.class_to_idx_mapping[target_val]
 
         return seq, target_val
@@ -475,6 +476,12 @@ class SequenceTfDataset:
                 epoch is 1. Useful for training.
         batch_size (int): Batch size to yield when dataset is an iterator. Only has effect when
             endless == True.
+        map_targets (bool):
+            if True, then map target values to their class index before yielding.
+            if False, then yield target values directly.
+            For example, if you create a dataset where the only label is 1, then
+                map_targets == True => yielded value is 0 (because 1 is the 0-th class)
+                map-targets == False => yielded value is 1
 
     Sampling Logic: When endless == True, each example is randomly sampled from the set of
     data sources, proportionally to the size of each source. That is, if we have:
@@ -514,9 +521,9 @@ class SequenceTfDataset:
     train_data = SequenceTfDataset(paths, [1, 1, 0], True)
     """
     def __init__(self, source_files, targets, targets_are_classes: bool,
-                    endless: bool=True, batch_size: int=512):
+                    endless: bool=True, batch_size: int=512, map_targets: bool=True):
         import tensorflow as tf
-        self.sc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless)
+        self.sc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless, map_targets=map_targets)
         self.targets_are_classes = targets_are_classes
         self.class_to_idx_mapping = self.sc.class_to_idx_mapping
         self.idx_to_class_mapping = self.sc.idx_to_class_mapping
