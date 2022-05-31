@@ -45,6 +45,9 @@ def train(args):
 	# Get callbacks
 	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config)
 	callback_fns.extend([WandbCallback(), callbacks.LRLogger(model.optimizer)])
+	additional_validation_callback = callbacks.get_additional_validation_callback(wandb.config)
+	if additional_validation_callback is not None:
+		callback_fns.append(additional_validation_callback)
 
 	# Train
 	model.fit(

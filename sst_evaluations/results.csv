@@ -1,0 +1,21 @@
+desc,model_path,acc
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.7325
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.7195
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.5556
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.8889
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.7634
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.7076
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.8376
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.6867
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.7946
+best auprc,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_113317-pzz35myd/files/model-best.h5,0.942
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,0.423
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,0.8734
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,0.2778
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,1.0
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,0.3978
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,0.4286
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,0.9508
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,0.383
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,0.6061
+best sensitivity with precision > 0.5,/home/csestili/repos/mouse_sst_clean/wandb/run-20220525_080410-dho6horg/files/model-best.h5,0.9893
