@@ -6,6 +6,7 @@ import os.path
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import tensorflow as tf
 
 import dataset, models
 
@@ -32,25 +33,25 @@ out_path = "/home/csestili/repos/mouse_sst/sst_evaluations/results.csv"
 
 def do_all_evals():
 	results = []
-	for model_path, desc in tqdm(model_paths):
+	for model_path, desc in tqdm(model_paths, desc="model"):
 		row = {
 			'model_path': model_path,
 			'desc': desc
 		}
-		for idx, (eval_file, expected_label) in tqdm(enumerate(eval_files)):
+		model = models.load_model(model_path)
+		for idx, (eval_file, expected_label) in tqdm(enumerate(eval_files), desc="eval set"):
 			eval_fa_path = os.path.join(eval_dir, eval_file)
-			res = validate(model_path, eval_fa_path, expected_label)
+			res = validate(model, eval_fa_path, expected_label)
 
 			row[f'eval_{idx + 1}'] = res['acc']
 
 		results.append(row)
 
 	results = pd.DataFrame(results).round(4)
-	columns = ['desc', 'model_path'] + [f'eval_{idx + 1}' for idx in range(10)]
+	columns = [f'eval_{idx + 1}' for idx in range(10)] + ['model_path', 'desc']
 	results.to_csv(out_path, index=False, columns=columns)
 
-def validate(model_path, eval_fa, expected_label):
-	model = models.load_model(model_path)
+def validate(model, eval_fa, expected_label):
 	# TODO more elegant way to get correct labels
 	val_data = dataset.SequenceTfDataset([eval_fa], [expected_label], targets_are_classes=True, endless=False)
 	y = np.ones_like(val_data.dataset[1]) * expected_label
