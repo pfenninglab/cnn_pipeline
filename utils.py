@@ -60,11 +60,11 @@ def get_config(yaml_path):
 	project = config['project']
 	return config, project
 
-def get_step_size(wandb_config, train_data, val_data):
-	batch_size = wandb_config.batch_size
+def get_step_size(config, train_data, val_data):
+	batch_size = config.batch_size
 	steps_per_epoch_train = len(train_data) // batch_size
 	steps_per_epoch_val = len(val_data) // batch_size
-	return batch_size, steps_per_epoch_train, steps_per_epoch_val
+	return steps_per_epoch_train, steps_per_epoch_val
 
 def validate_datasets(datasets):
 	"""
