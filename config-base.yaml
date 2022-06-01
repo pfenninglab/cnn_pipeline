@@ -4,6 +4,10 @@ project:
   desc: Name of `wandb` project for tracking.
   value: mouse-sst
 
+entity:
+  desc: Name of `wandb` account for tracking.
+  value: cmu-cbd-pfenninglab
+
 # Data
 
 train_data_paths:
