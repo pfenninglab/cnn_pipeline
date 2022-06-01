@@ -36,7 +36,7 @@ def train(args):
 	utils.validate_datasets([train_data, val_data])
 
 	# Get model
-	batch_size, steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
+	steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
 		wandb.config, train_data, val_data)
 	lr_schedule = lr_schedules.get_lr_schedule(steps_per_epoch_train, wandb.config)
 	model = models.get_model(

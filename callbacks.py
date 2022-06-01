@@ -22,6 +22,8 @@ class LRLogger(tf.keras.callbacks.Callback):
         wandb.log({"lr": self.optimizer.learning_rate(self.optimizer.iterations)}, commit=False)
 
 def get_early_stopping_callbacks(config):
+    if config.get('early_stopping_callbacks') is None:
+        return []
     return [
         tf.keras.callbacks.EarlyStopping(**kwargs)
         for kwargs in config.early_stopping_callbacks]
@@ -47,7 +49,7 @@ class AdditionalValidation(tf.keras.callbacks.Callback):
         wandb.log(results)
 
 def get_additional_validation_callback(config):
-    if not hasattr(config, 'additional_val_data_paths'):
+    if config.get('additional_val_data_paths') is None:
         return None
 
     val_datasets = [
