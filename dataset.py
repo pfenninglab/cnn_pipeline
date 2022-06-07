@@ -3,6 +3,8 @@ from Bio import SeqIO
 import pybedtools
 from tqdm import tqdm
 
+import constants
+
 # A, C, G, T
 NUM_BASES = 4
 
@@ -521,7 +523,7 @@ class SequenceTfDataset:
     train_data = SequenceTfDataset(paths, [1, 1, 0], True)
     """
     def __init__(self, source_files, targets, targets_are_classes: bool,
-                    endless: bool=True, batch_size: int=512, map_targets: bool=True):
+                    endless: bool=True, batch_size: int=constants.DEFAULT_BATCH_SIZE, map_targets: bool=True):
         import tensorflow as tf
         self.sc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless, map_targets=map_targets)
         self.targets_are_classes = targets_are_classes
@@ -569,7 +571,7 @@ class SequenceTfDataset:
 
     def _get_dataset(self, endless):
         if endless:
-            return self.ds.batch(self.batch_size)
+            return self.ds.shuffle(self.batch_size * 16).batch(self.batch_size)
         else:
             return self.get_subset_as_arrays(len(self))
 

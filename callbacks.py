@@ -1,6 +1,7 @@
 import tensorflow as tf
 import wandb
 
+import constants
 import dataset
 
 class LRLogger(tf.keras.callbacks.Callback):
@@ -32,7 +33,7 @@ class AdditionalValidation(tf.keras.callbacks.Callback):
     """Validate on additional validation sets.
     Adapted from https://stackoverflow.com/a/62902854
     """
-    def __init__(self, val_datasets, metrics=None, batch_size=512):
+    def __init__(self, val_datasets, metrics=None, batch_size=constants.DEFAULT_BATCH_SIZE):
         super(AdditionalValidation, self).__init__()
         self.val_datasets = val_datasets
         self.metrics = metrics or ['acc']
