@@ -26,7 +26,8 @@ def train(args):
 	train_data = dataset.SequenceTfDataset(
 		wandb.config.train_data_paths, wandb.config.train_targets,
 		targets_are_classes=wandb.config.targets_are_classes, endless=True,
-		batch_size=wandb.config.batch_size)
+		batch_size=wandb.config.batch_size,
+		reverse_complement=wandb.config.use_reverse_complement)
 	val_data = dataset.SequenceTfDataset(
 		wandb.config.val_data_paths, wandb.config.val_targets,
 		targets_are_classes=wandb.config.targets_are_classes,
@@ -36,7 +37,7 @@ def train(args):
 	utils.validate_datasets([train_data, val_data])
 
 	# Get model
-	batch_size, steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
+	steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
 		wandb.config, train_data, val_data)
 	lr_schedule = lr_schedules.get_lr_schedule(steps_per_epoch_train, wandb.config)
 	model = models.get_model(
@@ -45,6 +46,9 @@ def train(args):
 	# Get callbacks
 	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config)
 	callback_fns.extend([WandbCallback(), callbacks.LRLogger(model.optimizer)])
+	additional_validation_callback = callbacks.get_additional_validation_callback(wandb.config)
+	if additional_validation_callback is not None:
+		callback_fns.append(additional_validation_callback)
 
 	# Train
 	model.fit(

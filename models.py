@@ -16,6 +16,7 @@ OPTIMIZER_MAPPING = {
 	'sgd': SGD,
 	'adam': Adam
 }
+# TN, TP, FN, and FP, mainly for debugging
 USE_CONFUSION_METRICS = False
 
 LAYERWISE_PARAMS_CONV = ['conv_filters', 'conv_width', 'conv_stride']
@@ -89,12 +90,18 @@ def get_metrics(num_classes, class_to_idx_mapping, config):
 	else:
 		# classification
 		pos_label = class_to_idx_mapping[config.metric_pos_label]
-
 		metrics = [SparseCategoricalAccuracy(name='acc'),
 			MulticlassMetric('AUC', name='auroc', pos_label=pos_label, curve='ROC'),
 			MulticlassMetric('AUC', name='auprc', pos_label=pos_label, curve='PR'),
 			MulticlassMetric('Precision',  name='precision', pos_label=pos_label),
 			MulticlassMetric('Recall', name='sensitivity', pos_label=pos_label)]
+		if num_classes == 2:
+			# This is a binary classification problem, so "negative" metrics apply
+			neg_label = [idx for idx in class_to_idx_mapping.values() if idx != pos_label][0]
+			metrics.extend([
+				MulticlassMetric('Precision', name='npv', pos_label=neg_label),
+				MulticlassMetric('Recall', name='specificity', pos_label=neg_label),
+				MulticlassMetric('AUC', name='npvsc', pos_label=neg_label, curve='PR')])
 		if USE_CONFUSION_METRICS:
 			metrics.extend([
 				MulticlassMetric('TruePositives', name='conf_TP', pos_label=pos_label),

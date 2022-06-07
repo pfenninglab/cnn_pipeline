@@ -4,6 +4,10 @@ project:
   desc: Name of `wandb` project for tracking.
   value: mouse-sst
 
+entity:
+  desc: Name of `wandb` account for tracking.
+  value: cmu-cbd-pfenninglab
+
 # Data
 
 train_data_paths:
@@ -45,6 +49,34 @@ targets_are_classes:
   desc: Whether to treat targets as a set of discrete classes (classification) or as continuous values (regression).
   value: true
 
+additional_val_data_paths:
+  desc: Paths to additional validation datasets. Metrics will be reported for each set separately.
+  value:
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval1_mm10_VAL.fa]
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval2_hg38_VAL.fa]
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval3_hg38_VAL.fa]
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval4_mm10_VAL.fa]
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval5_mm10_VAL.fa]
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval6_mm10_VAL.fa]
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval7_mm10_VAL.fa]
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval8_mm10_VAL.fa]
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval9_mm10_VAL.fa]
+    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval10_mm10_VAL.fa]
+
+additional_val_targets:
+  desc: Targets corresponding to additional validation paths.
+  value:
+    - [1]
+    - [0]
+    - [1]
+    - [0]
+    - [1]
+    - [1]
+    - [0]
+    - [1]
+    - [1]
+    - [0]
+
 # Training
 
 batch_size:
@@ -69,6 +101,10 @@ early_stopping_callbacks:
 
 use_exact_val_metrics:
   desc: If true, use exact validation metrics during training (requires loading whole validation set into RAM). If false, use a close approximation (+/- ~2%) that streams the validation set without loading into RAM.
+  value: true
+
+use_reverse_complement:
+  desc: If true, add reverse complement sequences to the training set, doubling the training set size.
   value: true
 
 # Optimization

@@ -4,6 +4,10 @@ project:
   desc: Name of `wandb` project for tracking.
   value: mouse-sst
 
+entity:
+  desc: Name of `wandb` account for tracking.
+  value: cmu-cbd-pfenninglab
+
 # Data
 
 train_data_paths:
@@ -63,6 +67,10 @@ early_stopping_callbacks:
 
 use_exact_val_metrics:
   desc: If true, use exact validation metrics during training (requires loading whole validation set into RAM). If false, use a close approximation (+/- ~2%) that streams the validation set without loading into RAM.
+  value: true
+
+use_reverse_complement:
+  desc: If true, add reverse complement sequences to the training set, doubling the training set size.
   value: true
 
 # Optimization

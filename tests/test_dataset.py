@@ -10,7 +10,6 @@ from dataset import FastaSource, BedSource, SequenceCollection
 
 def test_bedsource():
     # No bed columns
-
     fa_source = FastaSource("/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.fa",
         endless=True)
     bed_source = BedSource(
@@ -57,6 +56,40 @@ def test_bedsource():
         for expected_values, (bed_seq, bed_values) in zip(expected_bed_values, bed_source):
             assert bed_seq.shape == bed_source.seq_shape
             assert bed_values == expected_values
+
+    # Reverse complement
+    bed_source = BedSource(
+        "/projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa",
+        "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed",
+        endless=True)
+    bed_source_revcomp = BedSource(
+        "/projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa",
+        "/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed",
+        endless=True, reverse_complement=True)
+
+    assert bed_source_revcomp.len == bed_source.len * 2
+    seq_a = next(bed_source_revcomp)
+    seq_b = next(bed_source_revcomp)
+    assert np.all(seq_b == _revcomp_onehot(seq_a))
+
+    # Reverse complement with columns
+    bed_source = BedSource(
+        "/projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa",
+        "../example_files/example.narrowPeak",
+        endless=True,
+        bedfile_columns=(0, 5, 6, 7))
+    bed_source_revcomp = BedSource(
+        "/projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa",
+        "../example_files/example.narrowPeak",
+        endless=True,
+        bedfile_columns=(0, 5, 6, 7),
+        reverse_complement=True)
+
+    assert bed_source_revcomp.len == bed_source.len * 2
+    seq_a, values_a = next(bed_source_revcomp)
+    seq_b, values_b = next(bed_source_revcomp)
+    assert np.all(seq_b == _revcomp_onehot(seq_a))
+    assert values_a == values_b
 
     return bed_source
 
@@ -205,7 +238,6 @@ def test_sequence_collection():
 
     #####################
     # Test source sampling
-
     seq_collection = SequenceCollection(
         [{'genome': genome_path, 'intervals': mouse_interval_path_neg},
         {'genome': genome_path, 'intervals': mouse_interval_path_pos}],
@@ -217,6 +249,28 @@ def test_sequence_collection():
     freqs = [np.sum(labels == i) / num_examples for i in [0, 1]]
     for i in [0, 1]:
         assert np.allclose(freqs[i], source_freqs[i], rtol=0.05)
+
+    #####################
+    # Test reverse complement
+    seq_collection = SequenceCollection([{'genome': genome_path, 'intervals': mouse_interval_path_pos}],
+        [1], True, endless=False)
+    seq_collection_revcomp = SequenceCollection([{'genome': genome_path, 'intervals': mouse_interval_path_pos}],
+        [1], True, endless=False, reverse_complement=True)
+
+    seqs_a = [seq for seq, _ in islice(seq_collection, 2)]
+    seqs_b = [seq for seq, _ in islice(seq_collection_revcomp, 4)]
+
+    assert len(seq_collection_revcomp) == len(seq_collection) * 2
+    assert np.all(seqs_a[0] == seqs_b[0])
+    assert np.all(seqs_a[1] == seqs_b[2])
+    assert np.all(seqs_b[0] == _revcomp_onehot(seqs_b[1]))
+    assert np.all(seqs_b[2] == _revcomp_onehot(seqs_b[3]))
+
+def _revcomp_onehot(seq_onehot):
+    # ::-1 means "reverse"
+    # ::-1 in the first coordinate reverses the base order
+    # ::-1 in the second coordinate takes the complement, since (A, C, G, T) = (1, 2, 3, 4)
+    return seq_onehot[::-1, ::-1]
 
 if __name__ == '__main__':
     test_bedsource()
