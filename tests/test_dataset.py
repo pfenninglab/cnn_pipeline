@@ -265,9 +265,6 @@ def test_sequence_collection():
     assert np.all(seqs_a[1] == seqs_b[2])
     assert np.all(seqs_b[0] == _revcomp_onehot(seqs_b[1]))
     assert np.all(seqs_b[2] == _revcomp_onehot(seqs_b[3]))
-    assert False
-
-
 
 def _revcomp_onehot(seq_onehot):
     # ::-1 means "reverse"

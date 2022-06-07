@@ -26,7 +26,8 @@ def train(args):
 	train_data = dataset.SequenceTfDataset(
 		wandb.config.train_data_paths, wandb.config.train_targets,
 		targets_are_classes=wandb.config.targets_are_classes, endless=True,
-		batch_size=wandb.config.batch_size)
+		batch_size=wandb.config.batch_size,
+		reverse_complement=wandb.config.use_reverse_complement)
 	val_data = dataset.SequenceTfDataset(
 		wandb.config.val_data_paths, wandb.config.val_targets,
 		targets_are_classes=wandb.config.targets_are_classes,
