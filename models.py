@@ -74,7 +74,6 @@ def get_model_architecture(input_shape, num_classes, config):
 def _get_layerwise_params(config, num_layer_key, params):
 	for param in params:
 		if not isinstance(config[param], list):
-			#config[param] = [config[param]] * config[num_layer_key]
 			config.update({param: [config[param]] * config[num_layer_key]}, allow_val_change=True)
 		elif len(config[param]) < config[num_layer_key]:
 			raise ValueError(f"Not enough layer-wise params for parameter {param}: need at least {num_layer_key} = {config[num_layer_key]}, got {config_dict[param]}")
