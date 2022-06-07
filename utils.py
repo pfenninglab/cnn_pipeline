@@ -3,6 +3,8 @@ import os
 import wandb
 import yaml
 
+from models import LAYERWISE_PARAMS_CONV, LAYERWISE_PARAMS_DENSE
+
 CONFIG_EXPECTED_KEYS = {
 	'project': str,
 	'train_data_paths': list,
@@ -22,13 +24,13 @@ CONFIG_EXPECTED_KEYS = {
 	'lr_cyc_num_cycles': float,
 	'dropout_rate': float,
 	'num_conv_layers': int,
-	'conv_filters': int,
-	'conv_width': int,
-	'conv_stride': int,
+	'conv_filters': [int, list],
+	'conv_width': [int, list],
+	'conv_stride': [int, list],
 	'max_pool_size': int,
 	'max_pool_stride': int,
 	'num_dense_layers': int,
-	'dense_filters': int,
+	'dense_filters': [int, list],
 	'shap_num_bg': int,
 	'shap_num_fg': int,
 	'shap_pos_label': int,
@@ -52,6 +54,19 @@ def validate_config(config_dict):
 		(config_dict['train_data_paths'], config_dict['train_targets']),
 		(config_dict['val_data_paths'], config_dict['val_targets'])]:
 		assert len(paths) == len(targets)
+
+	# check layer-wise parameters
+	check_layerwise_params(config_dict, 'num_conv_layers', LAYERWISE_PARAMS_CONV)
+	check_layerwise_params(config_dict, 'num_dense_layers', LAYERWISE_PARAMS_DENSE)
+
+def check_layerwise_params(config_dict, layer_key, layerwise_params):
+	"""For each parameter that is set per-layer, check that enough values are passed.
+	E.g. if num_conv_layers == 3, then conv_filters needs to have at least 3 values.
+	"""
+	num_layers = config_dict[layer_key]
+	for param in layerwise_params:
+		if isinstance(config_dict[param], list) and len(config_dict[param]) < num_layers:
+			raise ValueError(f"Not enough layer-wise params for parameter {param}: need at least {layer_key} = {num_layers}, got {config_dict[param]}")
 
 def get_config(yaml_path):
 	with open(yaml_path, "r") as f:
