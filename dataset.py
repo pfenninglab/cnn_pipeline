@@ -3,6 +3,8 @@ from Bio import SeqIO
 import pybedtools
 from tqdm import tqdm
 
+import constants
+
 # A, C, G, T
 NUM_BASES = 4
 
@@ -25,11 +27,12 @@ class BedSource:
                     'G':2, 'g':2,
                     'T':3, 't':3}
 
-    def __init__(self, genome_file: str, bed_file: str, endless: bool=False, bedfile_columns=None):
+    def __init__(self, genome_file: str, bed_file: str, endless: bool=False, bedfile_columns=None, reverse_complement: bool=False):
         self.genome_file = genome_file
         self.bed_file = bed_file
         self.endless = endless
         self.bedfile_columns = bedfile_columns
+        self.reverse_complement = reverse_complement
         self.intervals = self.get_intervals(self.bed_file, self.genome_file)
         self.len = self._get_len()
         self.seq_len = self._get_seq_len()
@@ -53,7 +56,10 @@ class BedSource:
         return self.len
 
     def _get_len(self):
-        return len(self.intervals)
+        length = len(self.intervals)
+        if self.reverse_complement:
+            length *= 2
+        return length
 
     def _get_seq_len(self):
         seq_len = None
@@ -66,7 +72,14 @@ class BedSource:
         return seq_len
 
     def _load_gen(self):
-        seq_gen = (self._onehot(seq) for seq in SeqIO.parse(self.intervals.seqfn, "fasta"))
+        def seq_gen():
+            for seq in SeqIO.parse(self.intervals.seqfn, "fasta"):
+                yield self._onehot(seq)
+                if self.reverse_complement:
+                    yield self._onehot(seq.reverse_complement())
+        seq_gen = seq_gen()
+        # TODO remove
+        #seq_gen = (self._onehot(seq) for seq in SeqIO.parse(self.intervals.seqfn, "fasta"))
         if not self.bedfile_columns:
             # Only yield sequences
             self.gen = seq_gen
@@ -89,7 +102,12 @@ class BedSource:
             def column_gen():
                 """Yield tuples of selected columns"""
                 for interval in self.intervals:
-                    yield tuple(convert(interval.fields[i]) for i in self.bedfile_columns)
+                    data = tuple(convert(interval.fields[i]) for i in self.bedfile_columns)
+                    yield data
+                    if self.reverse_complement:
+                        yield data
+                    # TODO remove
+                    #yield tuple(convert(interval.fields[i]) for i in self.bedfile_columns)
             column_gen = column_gen()
 
             self.gen = zip(seq_gen, column_gen)
@@ -131,9 +149,10 @@ class FastaSource:
                     'G':2, 'g':2,
                     'T':3, 't':3}
 
-    def __init__(self, fa_file: str, endless: bool=False):
+    def __init__(self, fa_file: str, endless: bool=False, reverse_complement: bool=False):
         self.fa_file = fa_file
         self.endless = endless
+        self.reverse_complement = reverse_complement
         self.len = self._get_len()
         self.seq_len = self._get_seq_len()
         self._load_gen()
@@ -159,6 +178,8 @@ class FastaSource:
         fa_len = sum(1 for _ in SeqIO.parse(self.fa_file, "fasta"))
         if fa_len < 1:
             raise ValueError("No sequences in FASTA file: {self.fa_file}")
+        if self.reverse_complement:
+            fa_len *= 2
         return fa_len
 
     def _get_seq_len(self):
@@ -172,7 +193,14 @@ class FastaSource:
         return seq_len
 
     def _load_gen(self):
-        self.fa_gen = SeqIO.parse(self.fa_file, "fasta")
+        def gen():
+            for seq in SeqIO.parse(self.fa_file, "fasta"):
+                yield seq
+                if self.reverse_complement:
+                    yield seq.reverse_complement()
+        self.fa_gen = gen()
+        # TODO remove
+        #self.fa_gen = SeqIO.parse(self.fa_file, "fasta")
 
     def _onehot(self, seq):
         res = np.zeros(self.seq_shape, dtype='int8')
@@ -188,7 +216,8 @@ class SequenceCollection:
     See SequenceTfDataset for a description of args.
     """
 
-    def __init__(self, source_files, targets, targets_are_classes: bool, endless: bool=True, map_targets: bool=True):
+    def __init__(self, source_files, targets, targets_are_classes: bool, endless: bool=True,
+        map_targets: bool=True, reverse_complement: bool=False):
         if len(source_files) != len(targets):
             raise ValueError("Number of source_files and number of targets must be equal")
 
@@ -197,6 +226,7 @@ class SequenceCollection:
         self.targets_are_classes = targets_are_classes
         self.map_targets = map_targets
         self.endless = endless
+        self.reverse_complement = reverse_complement
         self.sources = self._get_sources()
         self.num_sources = len(self.sources)
         self.seq_shape = self._get_seq_shape()
@@ -209,7 +239,7 @@ class SequenceCollection:
         for source, target_spec in zip(self.source_files, self.targets):
             if isinstance(source, str):
                 # path to FASTA file of sequences
-                source_obj = FastaSource(source, endless=self.endless)
+                source_obj = FastaSource(source, endless=self.endless, reverse_complement=self.reverse_complement)
             elif isinstance(source, dict):
                 # genome FA file and interval BED file
                 for key in ['genome', 'intervals']:
@@ -222,7 +252,7 @@ class SequenceCollection:
                     bedfile_columns = (target_spec['column'],)
                 source_obj = BedSource(
                     source['genome'], source['intervals'], endless=self.endless,
-                    bedfile_columns=bedfile_columns)
+                    bedfile_columns=bedfile_columns, reverse_complement=self.reverse_complement)
             else:
                 raise ValueError(f"Invalid source specification: {source}")
             sources.append(source_obj)
@@ -333,7 +363,9 @@ class SequenceCollection:
         return self.len
 
 class FastaCollection:
-    """Collection of FASTA sources and labels that allows sampling.
+    """DEPRECATED: Use SequenceCollection instead.
+
+    Collection of FASTA sources and labels that allows sampling.
     Multiple FASTA files can be combined to the same class.
 
     Assumes: Each FA file has examples with all the same label.
@@ -482,6 +514,7 @@ class SequenceTfDataset:
             For example, if you create a dataset where the only label is 1, then
                 map_targets == True => yielded value is 0 (because 1 is the 0-th class)
                 map-targets == False => yielded value is 1
+        reverse_complement (bool): if True, then add the reverse complement of each sequence.
 
     Sampling Logic: When endless == True, each example is randomly sampled from the set of
     data sources, proportionally to the size of each source. That is, if we have:
@@ -521,9 +554,11 @@ class SequenceTfDataset:
     train_data = SequenceTfDataset(paths, [1, 1, 0], True)
     """
     def __init__(self, source_files, targets, targets_are_classes: bool,
-                    endless: bool=True, batch_size: int=512, map_targets: bool=True):
+                    endless: bool=True, batch_size: int=constants.DEFAULT_BATCH_SIZE,
+                    map_targets: bool=True, reverse_complement: bool=False):
         import tensorflow as tf
-        self.sc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless, map_targets=map_targets)
+        self.sc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless,
+            map_targets=map_targets, reverse_complement=reverse_complement)
         self.targets_are_classes = targets_are_classes
         self.class_to_idx_mapping = self.sc.class_to_idx_mapping
         self.idx_to_class_mapping = self.sc.idx_to_class_mapping
@@ -569,7 +604,7 @@ class SequenceTfDataset:
 
     def _get_dataset(self, endless):
         if endless:
-            return self.ds.batch(self.batch_size)
+            return self.ds.shuffle(self.batch_size * 16).batch(self.batch_size)
         else:
             return self.get_subset_as_arrays(len(self))
 
