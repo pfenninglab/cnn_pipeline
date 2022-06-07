@@ -238,7 +238,6 @@ def test_sequence_collection():
 
     #####################
     # Test source sampling
-
     seq_collection = SequenceCollection(
         [{'genome': genome_path, 'intervals': mouse_interval_path_neg},
         {'genome': genome_path, 'intervals': mouse_interval_path_pos}],
@@ -251,7 +250,24 @@ def test_sequence_collection():
     for i in [0, 1]:
         assert np.allclose(freqs[i], source_freqs[i], rtol=0.05)
 
-    # TODO add reverse complement tests
+    #####################
+    # Test reverse complement
+    seq_collection = SequenceCollection([{'genome': genome_path, 'intervals': mouse_interval_path_pos}],
+        [1], True, endless=False)
+    seq_collection_revcomp = SequenceCollection([{'genome': genome_path, 'intervals': mouse_interval_path_pos}],
+        [1], True, endless=False, reverse_complement=True)
+
+    seqs_a = [seq for seq, _ in islice(seq_collection, 2)]
+    seqs_b = [seq for seq, _ in islice(seq_collection_revcomp, 4)]
+
+    assert len(seq_collection_revcomp) == len(seq_collection) * 2
+    assert np.all(seqs_a[0] == seqs_b[0])
+    assert np.all(seqs_a[1] == seqs_b[2])
+    assert np.all(seqs_b[0] == _revcomp_onehot(seqs_b[1]))
+    assert np.all(seqs_b[2] == _revcomp_onehot(seqs_b[3]))
+    assert False
+
+
 
 def _revcomp_onehot(seq_onehot):
     # ::-1 means "reverse"
