@@ -5,7 +5,6 @@
 #SBATCH -n 1
 #SBATCH -o /home/%u/outputs/out.txt
 #SBATCH -e /home/%u/outputs/err.txt
-#SBATCH --exclude compute-4-20
 #SBATCH --mem 8000
 
 conda update -y -n base -c defaults conda
