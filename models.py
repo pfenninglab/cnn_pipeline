@@ -126,3 +126,39 @@ def load_model(model_path):
 		"scale_fn": lr_schedules.ClrScaleFn.scale_fn
 	}
 	return tf.keras.models.load_model(model_path, custom_objects=custom_objects)
+
+def get_bagged_ensemble(models):
+	# Load models from paths, if necessary
+	models = [load_model(model) if isinstance(model, str) else model for model in models]
+
+	# Check that shapes are compatible
+	input_shape = models[0].input_shape
+	output_shape = models[0].output_shape
+	for model in models:
+		if model.input_shape != input_shape:
+			raise ValueError(f"Not all models had the same input shape! Found {input_shape} and {model.input_shape}")
+		if model.output_shape != output_shape:
+			raise ValueError(f"Not all models had the same output shape! Found {output_shape} and {model.output_shape}")
+
+	#loss, optimizer, metrics = models[0].loss, models[0].optimizer, models[0].metrics
+	loss = 'sparse_categorical_crossentropy'
+	optimizer = 'adam'
+	metrics = models[0].metrics
+
+	# Make names unique
+	models = [keras.Model(inputs=model.inputs, outputs=model.outputs, name=f"model_{idx}")
+		for idx, model in enumerate(models)]
+
+	# Define ensemble model
+	# Strip the batch dimension off the input shape
+	inputs = keras.Input(shape=input_shape[1:])
+	outputs = [model(inputs) for model in models]
+	outputs = layers.Average()([model(inputs) for model in models])
+	model = keras.Model(inputs=inputs, outputs=outputs)
+	print(loss, optimizer, metrics)
+	# BUG the metrics aren't making it in to the compiled model, need to figure out why
+	model.compile(loss=loss, optimizer=optimizer, metrics=metrics)
+	print(model.metrics)
+
+	return model, metrics
+
