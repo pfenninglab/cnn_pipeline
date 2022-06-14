@@ -50,6 +50,9 @@ def train(args):
 	if additional_validation_callback is not None:
 		callback_fns.append(additional_validation_callback)
 
+	# Get class weights
+	class_weight = utils.get_class_weight(wandb.config, train_data)
+
 	# Train
 	model.fit(
 		train_data.dataset,
@@ -57,7 +60,8 @@ def train(args):
 		steps_per_epoch=steps_per_epoch_train,
 		validation_data=val_data.dataset,
 		validation_steps=steps_per_epoch_val,
-		callbacks=callback_fns)
+		callbacks=callback_fns,
+		class_weight=class_weight)
 
 def validate(model):
 	"""Run trained model on full validation set.

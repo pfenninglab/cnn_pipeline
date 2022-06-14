@@ -1,3 +1,5 @@
+from collections import Counter
+
 import numpy as np
 from Bio import SeqIO
 import pybedtools
@@ -264,7 +266,7 @@ class SequenceCollection:
         if self.targets_are_classes:
             # Check that classes are all the same type
             class_types = set()
-            for label in unique_values:
+            for label in unique_values.keys():
                 # Only allow int and str class values
                 if not any(isinstance(label, t) for t in [int, str]):
                     raise ValueError(f"Invalid type for classification target, value {label}, type {type(label)}")
@@ -272,47 +274,55 @@ class SequenceCollection:
             if len(class_types) > 1:
                 raise NotImplementedError(f"Class values must all be the same type. Found types: {class_types}")
 
-            self.idx_to_class_mapping = {idx: v for idx, v in enumerate(sorted(unique_values))}
+            self.idx_to_class_mapping = {idx: v for idx, v in enumerate(sorted(unique_values.keys()))}
             self.class_to_idx_mapping = {v: k for k, v in self.idx_to_class_mapping.items()}
             self.num_classes = len(unique_values)
+
+            class_counts = dict()
+            for k, v in unique_values.items():
+                if self.map_targets:
+                    class_counts[self.class_to_idx_mapping[k]] = v
+                else:
+                    class_counts[k] = v
+            self.class_counts = class_counts
         else:
             # targets are regression values
 
             # Only allow int and float regression targets
             print("Checking target values...")
-            for value in tqdm(unique_values):
+            for value in tqdm(unique_values.keys()):
                 if not any(isinstance(value, t) for t in [int, float]):
                     raise ValueError(f"Invalid type for regression target, value {value}, type {type(value)}")
 
             self.idx_to_class_mapping = None
             self.class_to_idx_mapping = None
             self.num_classes = None
+            self.class_counts = None
 
     def _get_unique_values(self):
-        unique_values = set()
-        for source, target_spec in zip(self.source_files, self.targets):
+        unique_values = Counter()
+        for source, source_file, target_spec in zip(self.sources, self.source_files, self.targets):
             if isinstance(target_spec, dict):
-                # scan the target column from the corresponding source
-                source_obj = BedSource(source['genome'], source['intervals'],
+                # Get a new source object, so we can scan it without exhausting the original
+                source_obj = BedSource(source_file['genome'], source_file['intervals'],
                     endless=False, bedfile_columns=(target_spec['column'],))
-                print(f"Getting target values from {source['intervals']}...")
+                # Scan the target column from the corresponding source
+                print(f"Getting target values from {source_file['intervals']}...")
                 for _, target_val in tqdm(source_obj):
                     # extract value from singleton tuple
                     target_val = target_val[0]
-                    unique_values.add(target_val)
+                    unique_values[target_val] += 1
             else:
-                unique_values.add(target_spec)
+                target_val = target_spec
+                unique_values[target_val] += len(source)
         return unique_values
 
     def _get_source_freqs(self):
-        """ Make a tree of counts and frequencies for each class and each of its data sources, e.g.
+        """Get counts and frequencies for each data source, e.g.
 
-
-        {'source_freqs': array([0.25, 0.75]),
-         'source_lens': [1000, 3000],
-         'sources': [   <FastaSource object at 0x7f137428c4a8>,
-                        <BedSource object at 0x7f137428cd30>],
-         'total_len': 4000},
+        {'source_lens': [378382, 61628],
+         'total_len': 440010,
+         'source_freqs': array([0.85993955, 0.14006045])}
         """
 
         freqs = {'source_lens': [len(source) for source in self.sources]}
@@ -571,6 +581,7 @@ class SequenceTfDataset:
         self.batch_size = batch_size
         self.endless = endless
         self.dataset = self._get_dataset(endless)
+        self.class_counts = self.sc.class_counts
 
     def get_subset_as_arrays(self, size):
         """Return a random subset as 2 numpy arrays.

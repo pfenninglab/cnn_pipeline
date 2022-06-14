@@ -98,11 +98,14 @@ def validate_datasets(datasets):
 			if dataset.idx_to_class_mapping != idx_to_class_mapping:
 				raise ValueError(f"Inconsistent idx_to_class_mapping: {idx_to_class_mapping}, {dataset.idx_to_class_mapping}")
 
+def get_class_weight(config, train_data):
+	if config.get('class_weight') in [None, 'none']:
+		return None
+	if config.get('targets_are_classes') == False:
+		raise ValueError("Targets are not classes (`targets_are_classes == False`), but a class_weight scheme is provided. Please check config.")
 
-
-
-
-
-
-
-
+	if config.get('class_weight') == 'balanced':
+		return {class_idx: 1 / count * len(train_data) / train_data.num_classes
+			for class_idx, count in train_data.class_counts.items()}
+	else:
+		raise ValueError(f"Unsupported class_weight: `{config.get('class_weight')}`")
