@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 import wandb
 
@@ -47,6 +48,11 @@ class AdditionalValidation(tf.keras.callbacks.Callback):
                 batch_size=self.batch_size, return_dict=True, verbose=0)
             for metric in self.metrics:
                 results[f'val_{idx + 1}_{metric}'] = values[metric]
+        # Aggregate metrics with geometric mean
+        for metric in self.metrics:
+            num_values = len(self.val_datasets)
+            values = [results[f'val_{idx + 1}_{metric}'] for idx in range(num_values)]
+            results[f'val_*_{metric}_gm'] = np.power(np.product(values), 1 / num_values)
         wandb.log(results)
 
 def get_additional_validation_callback(config):
