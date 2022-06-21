@@ -80,8 +80,7 @@ class BedSource:
                 if self.reverse_complement:
                     yield self._onehot(seq.reverse_complement())
         seq_gen = seq_gen()
-        # TODO remove
-        #seq_gen = (self._onehot(seq) for seq in SeqIO.parse(self.intervals.seqfn, "fasta"))
+
         if not self.bedfile_columns:
             # Only yield sequences
             self.gen = seq_gen
@@ -108,8 +107,7 @@ class BedSource:
                     yield data
                     if self.reverse_complement:
                         yield data
-                    # TODO remove
-                    #yield tuple(convert(interval.fields[i]) for i in self.bedfile_columns)
+
             column_gen = column_gen()
 
             self.gen = zip(seq_gen, column_gen)
@@ -201,8 +199,6 @@ class FastaSource:
                 if self.reverse_complement:
                     yield seq.reverse_complement()
         self.fa_gen = gen()
-        # TODO remove
-        #self.fa_gen = SeqIO.parse(self.fa_file, "fasta")
 
     def _onehot(self, seq):
         res = np.zeros(self.seq_shape, dtype='int8')
