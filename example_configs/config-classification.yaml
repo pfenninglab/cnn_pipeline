@@ -146,8 +146,12 @@ l2_reg:
   desc: Strength of L2 regularization.
   value: 1.e-4
 
-dropout_rate:
-  desc: Float in [0, 1]. Rate for each dropout layer.
+dropout_rate_conv:
+  desc: Float in [0, 1]. Rate for dropout after each convolutional layer.
+  value: 0.3
+
+dropout_rate_dense:
+  desc: Float in [0, 1]. Rate for dropout after each dense layer.
   value: 0.3
 
 # Architecture

@@ -19,8 +19,8 @@ OPTIMIZER_MAPPING = {
 # TN, TP, FN, and FP, mainly for debugging
 USE_CONFUSION_METRICS = False
 
-LAYERWISE_PARAMS_CONV = ['conv_filters', 'conv_width', 'conv_stride']
-LAYERWISE_PARAMS_DENSE = ['dense_filters']
+LAYERWISE_PARAMS_CONV = ['conv_filters', 'conv_width', 'conv_stride', 'dropout_rate_conv']
+LAYERWISE_PARAMS_DENSE = ['dense_filters', 'dropout_rate_dense']
 
 
 def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config):
@@ -42,10 +42,10 @@ def get_model_architecture(input_shape, num_classes, config):
 	config = _get_layerwise_params(config, 'num_conv_layers', LAYERWISE_PARAMS_CONV)
 	config = _get_layerwise_params(config, 'num_dense_layers', LAYERWISE_PARAMS_DENSE)
 	
-	for (conv_filters, conv_width, conv_stride, _) in zip(
-		config['conv_filters'], config['conv_width'], config['conv_stride'], range(config['num_conv_layers'])):
+	for (conv_filters, conv_width, conv_stride, dropout_rate_conv, _) in zip(
+		config['conv_filters'], config['conv_width'], config['conv_stride'], config['dropout_rate_conv'], range(config['num_conv_layers'])):
 		x = layers.Conv1D(filters=conv_filters, kernel_size=conv_width, activation='relu', strides=conv_stride, kernel_regularizer=l2(l=config['l2_reg']))(x)
-		x = layers.Dropout(rate=config['dropout_rate'])(x)
+		x = layers.Dropout(rate=dropout_rate_conv)(x)
 
 	x = layers.MaxPooling1D(
 			pool_size=config['max_pool_size'],
@@ -54,9 +54,9 @@ def get_model_architecture(input_shape, num_classes, config):
 			padding='same')(x)
 	x = layers.Flatten()(x)
 
-	for (dense_filters, _) in zip(config['dense_filters'], range(config['num_dense_layers'])):
+	for (dense_filters, dropout_rate_dense, _) in zip(config['dense_filters'], config['dropout_rate_dense'], range(config['num_dense_layers'])):
 		x = layers.Dense(units=dense_filters, activation='relu', kernel_regularizer=l2(l=config['l2_reg']))(x)
-		x = layers.Dropout(rate=config['dropout_rate'])(x)
+		x = layers.Dropout(rate=dropout_rate_dense)(x)
 
 	if num_classes is None:
 		num_output_units = 1
