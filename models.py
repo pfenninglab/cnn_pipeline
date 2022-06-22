@@ -93,7 +93,8 @@ def get_metrics(num_classes, class_to_idx_mapping, config):
 			MulticlassMetric('AUC', name='auroc', pos_label=pos_label, curve='ROC'),
 			MulticlassMetric('AUC', name='auprc', pos_label=pos_label, curve='PR'),
 			MulticlassMetric('Precision',  name='precision', pos_label=pos_label),
-			MulticlassMetric('Recall', name='sensitivity', pos_label=pos_label)]
+			MulticlassMetric('Recall', name='sensitivity', pos_label=pos_label),
+			MulticlassMetric('F1Score', name='f1', pos_label=pos_label, make_dense=True, num_classes=num_classes)]
 		if num_classes == 2:
 			# This is a binary classification problem, so "negative" metrics apply
 			neg_label = [idx for idx in class_to_idx_mapping.values() if idx != pos_label][0]

@@ -52,6 +52,7 @@ class AdditionalValidation(tf.keras.callbacks.Callback):
         for metric in self.metrics:
             num_values = len(self.val_datasets)
             values = [results[f'val_{idx + 1}_{metric}'] for idx in range(num_values)]
+            # https://en.wikipedia.org/wiki/Geometric_mean
             results[f'val_*_{metric}_gm'] = np.power(np.product(values), 1 / num_values)
         wandb.log(results)
 
