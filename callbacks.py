@@ -1,9 +1,13 @@
+import os.path
+
 import numpy as np
 import tensorflow as tf
 import wandb
 
 import constants
 import dataset
+
+WANDB_RUN_DIR_DISABLED = '/tmp'
 
 class LRLogger(tf.keras.callbacks.Callback):
     """Log learning rate at the end of each epoch.
@@ -68,3 +72,10 @@ def get_additional_validation_callback(config):
     ]
     metrics = ['acc'] if config.targets_are_classes else ['mean_squared_error']
     return AdditionalValidation(val_datasets, metrics=metrics, batch_size=config.batch_size)
+
+def get_model_checkpoint_callback():
+    run_dir = wandb.run.dir
+    if run_dir == WANDB_RUN_DIR_DISABLED:
+        return None
+    filepath = os.path.join(run_dir, 'model-latest.h5')
+    return tf.keras.callbacks.ModelCheckpoint(filepath)

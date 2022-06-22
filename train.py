@@ -46,9 +46,11 @@ def train(args):
 	# Get callbacks
 	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config)
 	callback_fns.extend([WandbCallback(), callbacks.LRLogger(model.optimizer)])
-	additional_validation_callback = callbacks.get_additional_validation_callback(wandb.config)
-	if additional_validation_callback is not None:
-		callback_fns.append(additional_validation_callback)
+	for cb in [
+		callbacks.get_additional_validation_callback(wandb.config),
+		callbacks.get_model_checkpoint_callback()]:
+		if cb is not None:
+			callback_fns.append(cb)
 
 	# Get class weights
 	class_weight = utils.get_class_weight(wandb.config, train_data)
