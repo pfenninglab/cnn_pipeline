@@ -124,6 +124,8 @@ class MulticlassMetric(tensorflow.keras.metrics.Metric):
     def result(self):
         res = self.k_metric.result()
         if self.make_dense:
+            # Assumes that this metric returns one value for each class.
+            # Return the value for the positive class.
             res = res[self.pos_label]
         return res
 
