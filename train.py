@@ -44,13 +44,13 @@ def train(args):
 		train_data.seq_shape, train_data.num_classes, train_data.class_to_idx_mapping, lr_schedule, wandb.config)
 
 	# Get callbacks
-	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config)
-	callback_fns.extend([WandbCallback(), callbacks.LRLogger(model.optimizer)])
-	for cb in [
-		callbacks.get_additional_validation_callback(wandb.config),
-		callbacks.get_model_checkpoint_callback()]:
-		if cb is not None:
-			callback_fns.append(cb)
+	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config) + [
+		WandbCallback(),
+		callbacks.LRLogger(model.optimizer),
+		callbacks.get_additional_validation_callback(wandb.config, model),
+		callbacks.get_model_checkpoint_callback()
+	]
+	callback_fns = [cb for cb in callback_fns if cb is not None]
 
 	# Get class weights
 	class_weight = utils.get_class_weight(wandb.config, train_data)
@@ -64,20 +64,6 @@ def train(args):
 		validation_steps=steps_per_epoch_val,
 		callbacks=callback_fns,
 		class_weight=class_weight)
-
-def validate(model):
-	"""Run trained model on full validation set.
-
-	Args:
-		model (str or keras model)
-	"""
-	if isinstance(model, str):
-		model = models.load_model(model)
-	val_data = dataset.SequenceTfDataset(
-		wandb.config.val_data_paths, wandb.config.val_targets,
-		targets_are_classes=wandb.config.targets_are_classes, endless=False)
-	model.evaluate(x=val_data.dataset[0], y=val_data.dataset[1],
-		batch_size=wandb.config.batch_size)
 
 def get_args():
 	import argparse

@@ -139,7 +139,8 @@ class MulticlassMetric(tensorflow.keras.metrics.Metric):
             "k_metric_name": self.k_metric_name,
             "pos_label": self.pos_label,
             "from_logits": self.from_logits,
-            "sparse": self.sparse
+            "sparse": self.sparse,
+            "make_dense": self.make_dense
         })
         return config
 
