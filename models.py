@@ -8,6 +8,8 @@ from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.metrics import MeanSquaredError, MeanAbsoluteError, MeanAbsolutePercentageError
 
+import constants
+import dataset
 from metrics import MulticlassMetric
 import lr_schedules
 
@@ -93,7 +95,8 @@ def get_metrics(num_classes, class_to_idx_mapping, config):
 			MulticlassMetric('AUC', name='auroc', pos_label=pos_label, curve='ROC'),
 			MulticlassMetric('AUC', name='auprc', pos_label=pos_label, curve='PR'),
 			MulticlassMetric('Precision',  name='precision', pos_label=pos_label),
-			MulticlassMetric('Recall', name='sensitivity', pos_label=pos_label)]
+			MulticlassMetric('Recall', name='sensitivity', pos_label=pos_label),
+			MulticlassMetric('F1Score', name='f1', pos_label=pos_label, make_dense=True, num_classes=num_classes)]
 		if num_classes == 2:
 			# This is a binary classification problem, so "negative" metrics apply
 			neg_label = [idx for idx in class_to_idx_mapping.values() if idx != pos_label][0]
@@ -126,3 +129,67 @@ def load_model(model_path):
 		"scale_fn": lr_schedules.ClrScaleFn.scale_fn
 	}
 	return tf.keras.models.load_model(model_path, custom_objects=custom_objects)
+
+def validate(config, model):
+	"""Evaluate model on main eval set, and any additional eval sets.
+
+	import models, wandb
+	wandb.init(config='config-base.yaml', mode='disabled')
+	res = models.validate(wandb.config, <path to model .h5>)
+	"""
+	# Load model from path, if necessary
+	if isinstance(model, str):
+		model = load_model(model)
+
+	# Evaluate on main validation set
+	val_data = dataset.SequenceTfDataset(
+		config.val_data_paths, config.val_targets,
+		targets_are_classes=config.targets_are_classes, endless=False)
+	res = model.evaluate(x=val_data.dataset[0], y=val_data.dataset[1],
+		batch_size=config.batch_size, return_dict=True, verbose=0)
+
+	# Evaluate on additional validation sets
+	additional_val = get_additional_validation(config, model)
+	if additional_val is not None:
+		res.update(additional_val.evaluate())
+
+	return res
+
+class AdditionalValidation:
+    """Validate on additional validation sets.
+    Adapted from https://stackoverflow.com/a/62902854
+    """
+    def __init__(self, model, val_datasets, metrics=None, batch_size=constants.DEFAULT_BATCH_SIZE):
+        self.model = model
+        self.val_datasets = val_datasets
+        self.metrics = metrics or ['acc']
+        self.batch_size = batch_size
+
+    def evaluate(self):
+        results = {}
+        for idx, val_data in enumerate(self.val_datasets):
+            values = self.model.evaluate(
+                x=val_data.dataset[0], y=val_data.dataset[1],
+                batch_size=self.batch_size, return_dict=True, verbose=0)
+            for metric in self.metrics:
+                results[f'val_{idx + 1}_{metric}'] = values[metric]
+        # Aggregate metrics with geometric mean
+        for metric in self.metrics:
+            num_values = len(self.val_datasets)
+            values = [results[f'val_{idx + 1}_{metric}'] for idx in range(num_values)]
+            # https://en.wikipedia.org/wiki/Geometric_mean
+            results[f'val_*_{metric}_gm'] = np.power(np.product(values), 1 / num_values)
+        return results
+
+def get_additional_validation(config, model):
+    if config.get('additional_val_data_paths') is None:
+        return None
+
+    val_datasets = [
+        dataset.SequenceTfDataset(paths, targets, targets_are_classes=config.targets_are_classes,
+            # Use map_targets=False in case some datasets have only positive label
+            endless=False, map_targets=False)
+        for paths, targets in zip(config.additional_val_data_paths, config.additional_val_targets)
+    ]
+    metrics = ['acc'] if config.targets_are_classes else ['mean_squared_error']
+    return AdditionalValidation(model, val_datasets, metrics=metrics, batch_size=config.batch_size)
