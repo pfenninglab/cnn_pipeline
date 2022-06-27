@@ -80,6 +80,12 @@ optimizer:
   allowed_values: ['sgd', 'adam']
   value: adam
 
+optimizer_args:
+  desc: Arguments for optimizer.
+  value:
+    beta_1: 0.9
+    beta_2: 0.999
+
 lr_schedule:
   desc: Learning rate schedule to use.
   allowed_values: ['cyclic', 'exponential']

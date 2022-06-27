@@ -82,7 +82,14 @@ def _get_layerwise_params(config, num_layer_key, params):
 	return config
 
 def get_optimizer(lr_schedule, config):
-	return OPTIMIZER_MAPPING[config['optimizer'].lower()](learning_rate=lr_schedule)
+	args = config.get('optimizer_args')
+	if args is None:
+		optimizer = OPTIMIZER_MAPPING[config['optimizer'].lower()](
+			learning_rate=lr_schedule)
+	else:
+		optimizer = OPTIMIZER_MAPPING[config['optimizer'].lower()](
+			learning_rate=lr_schedule, **args)
+	return optimizer
 
 def get_metrics(num_classes, class_to_idx_mapping, config):
 	if num_classes is None:
