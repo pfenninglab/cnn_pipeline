@@ -146,6 +146,19 @@ lr_cyc_num_cycles:
   desc: Float > 0. Number of cycles, for cyclic LR schedule.
   value: 1.0
 
+momentum_schedule:
+  desc: Momentum schedule to use.
+  allowed_values: ['constant', 'cyclic']
+  value: constant
+
+momentum_base:
+  desc: Minimum momentum for cyclic momentum schedule.
+  value: 0.875
+
+momentum_max:
+  desc: Maximum momentum for cyclic momentum schedule.
+  value: 0.99
+
 # Regularization
 
 l2_reg:
