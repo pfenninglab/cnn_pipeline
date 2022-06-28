@@ -1,6 +1,5 @@
 import tensorflow as tf
 
-
 def get_lr_schedule(steps_per_epoch, config):
 	if config.lr_schedule == 'exponential':
 		return get_exp_lr_schedule(steps_per_epoch, config)
@@ -60,4 +59,3 @@ def get_exp_lr_schedule(steps_per_epoch, config):
     	decay_steps=steps_per_epoch,
     	decay_rate=config.lr_exp_decay_per_epoch
 	)
-	

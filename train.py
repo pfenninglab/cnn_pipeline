@@ -46,9 +46,10 @@ def train(args):
 	# Get callbacks
 	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config) + [
 		WandbCallback(),
-		callbacks.LRLogger(model.optimizer),
+		callbacks.OptimizerLogger(model.optimizer),
 		callbacks.get_additional_validation_callback(wandb.config, model),
-		callbacks.get_model_checkpoint_callback()
+		callbacks.get_model_checkpoint_callback(),
+		callbacks.get_momentum_callback(steps_per_epoch_train, wandb.config)
 	]
 	callback_fns = [cb for cb in callback_fns if cb is not None]
 
