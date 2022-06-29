@@ -43,10 +43,15 @@ def get_model_architecture(input_shape, num_classes, config):
 
 	config = _get_layerwise_params(config, 'num_conv_layers', LAYERWISE_PARAMS_CONV)
 	config = _get_layerwise_params(config, 'num_dense_layers', LAYERWISE_PARAMS_DENSE)
-	
+	kernel_initializer_cfg = _get_initializer_cfg(config, 'kernel_initializer')
+	bias_initializer_cfg = _get_initializer_cfg(config, 'bias_initializer')
+
 	for (conv_filters, conv_width, conv_stride, dropout_rate_conv, _) in zip(
 		config['conv_filters'], config['conv_width'], config['conv_stride'], config['dropout_rate_conv'], range(config['num_conv_layers'])):
-		x = layers.Conv1D(filters=conv_filters, kernel_size=conv_width, activation='relu', strides=conv_stride, kernel_regularizer=l2(l=config['l2_reg']))(x)
+		x = layers.Conv1D(filters=conv_filters, kernel_size=conv_width, activation='relu',
+			strides=conv_stride, kernel_regularizer=l2(l=config['l2_reg']),
+			kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
+			bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
 		x = layers.Dropout(rate=dropout_rate_conv)(x)
 
 	x = layers.MaxPooling1D(
@@ -57,7 +62,9 @@ def get_model_architecture(input_shape, num_classes, config):
 	x = layers.Flatten()(x)
 
 	for (dense_filters, dropout_rate_dense, _) in zip(config['dense_filters'], config['dropout_rate_dense'], range(config['num_dense_layers'])):
-		x = layers.Dense(units=dense_filters, activation='relu', kernel_regularizer=l2(l=config['l2_reg']))(x)
+		x = layers.Dense(units=dense_filters, activation='relu', kernel_regularizer=l2(l=config['l2_reg']),
+			kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
+			bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
 		x = layers.Dropout(rate=dropout_rate_dense)(x)
 
 	if num_classes is None:
@@ -80,6 +87,24 @@ def _get_layerwise_params(config, num_layer_key, params):
 		elif len(config[param]) < config[num_layer_key]:
 			raise ValueError(f"Not enough layer-wise params for parameter {param}: need at least {num_layer_key} = {config[num_layer_key]}, got {config_dict[param]}")
 	return config
+
+def _get_initializer_cfg(config, key):
+	"""Create config dict for tf.keras.initializers.get()"""
+	# Default
+	init_cfg = {'class_name': 'glorot_uniform' if key == 'kernel_initializer' else 'zeros',
+				'config': {}}
+
+	data = config.get(key)
+	if not data:
+		return init_cfg
+
+	identifier = data.get('identifier')
+	if identifier:
+		init_cfg['class_name'] = identifier
+	args = data.get('args')
+	if args:
+		init_cfg['config'] = args
+	return init_cfg
 
 def get_optimizer(lr_schedule, config):
 	args = config.get('optimizer_args') or {}
