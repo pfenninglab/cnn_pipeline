@@ -125,6 +125,23 @@ momentum_max:
   desc: Maximum momentum for cyclic momentum schedule.
   value: 0.99
 
+# Initialization
+
+kernel_initializer:
+  desc: Initializer for kernel weights.
+  # `identifier` can be any Keras initializer string. See https://keras.io/api/layers/initializers/
+  # `args` is an optional mapping of keyword arguments and values for this identifier, e.g.
+  # identifier: he_normal
+  # args:
+  #   seed: 0
+  value:
+    identifier: glorot_uniform
+
+bias_initializer:
+  desc: Initializer for bias weights.
+  value:
+    identifier: zeros
+
 # Regularization
 
 l2_reg:
