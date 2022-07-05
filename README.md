@@ -48,9 +48,11 @@ This creates the environments `keras2-tf27` (for training) and `keras2-tf24` (fo
 
 3. Create a `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
 
- NOTE: `wandb` account usernames cannot be changed. I recommend creating a username like
- `<name>-cmu`, e.g. `csestili-cmu`, in case you want to have different accounts for personal
- use or for other future workplaces.
+NOTE: `wandb` account usernames cannot be changed. I recommend creating a username like
+`<name>-cmu`, e.g. `csestili-cmu`, in case you want to have different accounts for personal
+use or for other future workplaces.
+
+During account creation, you will be asked if you want to create a team. You do not need to do this.
 
 4. Log in to `wandb` on `lane`:
 ```
