@@ -10,20 +10,51 @@ from a text configuration file.
 Track experiments, visualize performance metrics, and search hyperparameters using
 the `wandb` framework.
 
+## Cloning this repo
+It is recommended that you use the SSH authentication method to clone this repo.
+
+1. Start an interactive session:
+
+```
+srun -n 1 -p interactive --pty bash
+```
+
+2. Create an SSH key and add it to your GitHub account, if you don't already have one:
+[Instructions](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/checking-for-existing-ssh-keys). You only need to do the 3 steps "Check for existing SSH key"
+through "Add a new SSH key".
+
+3. Clone the repo. It is recommended that you clone into a directory just for repositories:
+
+```
+mkdir ~/repos
+cd ~/repos
+git clone git@github.com:pfenninglab/mouse_sst.git
+```
+
 ## Setup
-1. Create conda environments `keras2-tf27` (for training) and `keras2-tf24` (for SHAP/TF-MoDISco interpretation):
+1. Create a directory for Slurm job outputs:
+
+```
+mkdir /home/$(whoami)/outputs
+```
+
+2. Create conda environments:
 
 ```
 sbatch setup.sb
 ```
 
-2. Create `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
+This creates the environments `keras2-tf27` (for training) and `keras2-tf24` (for SHAP/TF-MoDISco interpretation).
 
- NOTE: `wandb` account usernames cannot be changed. I recommend creating a username like
- `<name>-cmu`, e.g. `csestili-cmu`, in case you want to have different accounts for personal
- use or for other future workplaces.
+3. Create a `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
 
-3. Log in to `wandb` on `lane`:
+NOTE: `wandb` account usernames cannot be changed. I recommend creating a username like
+`<name>-cmu`, e.g. `csestili-cmu`, in case you want to have different accounts for personal
+use or for other future workplaces.
+
+During account creation, you will be asked if you want to create a team. You do not need to do this.
+
+4. Log in to `wandb` on `lane`:
 ```
 srun -n 1 -p interactive --pty bash
 conda activate keras2-tf27
