@@ -4,6 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH -o /home/%u/outputs/out.txt
 #SBATCH -e /home/%u/outputs/err.txt
+#SBATCH --mem 8000
 
 sweep_id=$1
 

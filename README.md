@@ -15,7 +15,7 @@ It is recommended that you use the SSH authentication method to clone this repo.
 
 1. Start an interactive session:
 
-```console
+```
 srun -n 1 -p interactive --pty bash
 ```
 
@@ -25,7 +25,7 @@ through "Add a new SSH key".
 
 3. Clone the repo. It is recommended that you clone into a directory just for repositories:
 
-```console
+```
 mkdir ~/repos
 cd ~/repos
 git clone git@github.com:pfenninglab/mouse_sst.git
@@ -34,7 +34,7 @@ git clone git@github.com:pfenninglab/mouse_sst.git
 ## Setup
 1. Create a directory for Slurm job outputs:
 
-```console
+```
 mkdir /home/$(whoami)/outputs
 ```
 
