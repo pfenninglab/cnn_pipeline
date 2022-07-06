@@ -3,8 +3,8 @@
 #SBATCH -p pfen3
 #SBATCH --gres gpu:1
 #SBATCH -n 1
-#SBATCH -o /home/%u/outputs/out.txt
-#SBATCH -e /home/%u/outputs/err.txt
+#SBATCH -o logs/out.txt
+#SBATCH -e logs/err.txt
 #SBATCH --mem 8000
 
 conda update -y -n base -c defaults conda

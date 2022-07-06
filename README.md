@@ -32,13 +32,7 @@ git clone git@github.com:pfenninglab/mouse_sst.git
 ```
 
 ## Setup
-1. Create a directory for Slurm job outputs:
-
-```
-mkdir /home/$(whoami)/outputs
-```
-
-2. Create conda environments:
+1. Create conda environments:
 
 ```
 sbatch setup.sb
@@ -46,7 +40,7 @@ sbatch setup.sb
 
 This creates the environments `keras2-tf27` (for training) and `keras2-tf24` (for SHAP/TF-MoDISco interpretation).
 
-3. Create a `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
+2. Create a `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
 
 NOTE: `wandb` account usernames cannot be changed. I recommend creating a username like
 `<name>-cmu`, e.g. `csestili-cmu`, in case you want to have different accounts for personal
@@ -54,7 +48,7 @@ use or for other future workplaces.
 
 During account creation, you will be asked if you want to create a team. You do not need to do this.
 
-4. Log in to `wandb` on `lane`:
+3. Log in to `wandb` on `lane`:
 ```
 srun -n 1 -p interactive --pty bash
 conda activate keras2-tf27
