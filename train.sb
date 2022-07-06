@@ -8,7 +8,6 @@
 #SBATCH --mem 8000
 
 # cuda module and corresponding conda env
-module load cuda-11.5
 source activate keras2-tf27
 
-python train.py -config $1 > /home/$(whoami)/outputs/result.txt
+python train.py -config $1

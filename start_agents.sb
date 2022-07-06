@@ -9,7 +9,6 @@
 
 sweep_id=$1
 
-module load cuda-11.5
 source activate keras2-tf27
 
 wandb login
