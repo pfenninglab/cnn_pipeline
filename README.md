@@ -32,7 +32,26 @@ git clone git@github.com:pfenninglab/mouse_sst.git
 ```
 
 ## Setup
-1. Create conda environments:
+1. Install Miniconda:
+    1. Download the latest Miniconda installer. This is the correct installer for `lane` and `bridges`:
+    
+    ```
+    cd /tmp
+    curl -O https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+    ```
+    
+    If you're not on `lane` or `bridges`, check your system's architecture and download the correct
+    installer from [Latest Miniconda Installer Links](https://docs.conda.io/en/latest/miniconda.html#latest-miniconda-installer-links).
+
+    2. Run the installer:
+    
+    ```
+    bash Miniconda3-latest-Linux-x86_64.sh
+    ```
+    
+    You will need to answer a few questions when prompted. The default values for each question should work.
+
+2. Create conda environments:
 
 ```
 sbatch setup.sb
@@ -40,15 +59,15 @@ sbatch setup.sb
 
 This creates the environments `keras2-tf27` (for training) and `keras2-tf24` (for SHAP/TF-MoDISco interpretation).
 
-2. Create a `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
-
-NOTE: `wandb` account usernames cannot be changed. I recommend creating a username like
-`<name>-cmu`, e.g. `csestili-cmu`, in case you want to have different accounts for personal
-use or for other future workplaces.
+3. Create a `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
+ 
+ NOTE: `wandb` account usernames cannot be changed. I recommend creating a username like
+ `<name>-cmu`, e.g. `csestili-cmu`, in case you want to have different accounts for personal
+ use or for other future workplaces.
 
 During account creation, you will be asked if you want to create a team. You do not need to do this.
 
-3. Log in to `wandb` on `lane`:
+4. Log in to `wandb` on `lane`:
 ```
 srun -n 1 -p interactive --pty bash
 conda activate keras2-tf27
