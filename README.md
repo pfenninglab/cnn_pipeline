@@ -18,6 +18,7 @@ It is recommended that you use the SSH authentication method to clone this repo.
 ```
 srun -n 1 -p interactive --pty bash
 ```
+On `bridges`, use `-p RM-shared` instead.
 
 2. Create an SSH key and add it to your GitHub account, if you don't already have one:
 [Instructions](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/checking-for-existing-ssh-keys). You only need to do the 3 steps "Check for existing SSH key"
@@ -51,13 +52,20 @@ git clone git@github.com:pfenninglab/mouse_sst.git
     
     You will need to answer a few questions when prompted. The default values for each question should work.
 
+    3. Cleanup and go back to this repo:
+    ```
+    rm Miniconda3-latest-Linux-x86_64.sh
+    cd ~/repos/mouse_sst
+    ```
+
 2. Create conda environments:
 
 ```
-sbatch setup.sb
+bash setup.sh <cluster_name>
 ```
+where `<cluster_name>` is `lane` or `bridges`.
 
-This creates the environments `keras2-tf27` (for training) and `keras2-tf24` (for SHAP/TF-MoDISco interpretation).
+This creates the environments `keras2-tf27` (for training) and `keras2-tf24` (for SHAP/TF-MoDISco interpretation). This should take about 20 minutes.
 
 3. Create a `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
  
@@ -73,6 +81,7 @@ srun -n 1 -p interactive --pty bash
 conda activate keras2-tf27
 wandb login
 ```
+On `bridges`, use `-p RM-shared` instead.
 
 ## Usage
 
@@ -89,13 +98,11 @@ To train a single model:
 - training details
 - SHAP details
 
-Save the new config as `<my-config>.yaml`.
-
 For example training config files, see `config-classification.yaml` and `config-regression.yaml` in the `example_configs/` directory.
 
 2. Start training:
 ```
-sbatch train.sb <my-config>.yaml
+bash train.sh config-base.yaml
 ```
 
 3. Check experiment results in-browser at [https://wandb.ai/](https://wandb.ai/).
@@ -105,25 +112,26 @@ Trained models are saved in the `wandb/` directory.
 ### Hyperparameter sweep
 To initiate a hyperparameter sweep, training many models with different hyperparameters:
 
-1. Edit `config-base.yaml` as above, for all the parameters that should remain *fixed* during training.
+1. Edit `config-base.yaml` as above, for all the parameters that should remain **fixed** during training.
 
-2. Edit `sweep-config.yaml`, specifying all the parameters that should vary during the search, as well as the ranges to search over. 
+2. Edit `sweep-config.yaml`, specifying all the parameters that should **vary** during the search, as well as the ranges to search over.
+
 If you saved your copy of `config-base.yaml` under a different name in step 1, be sure to change the base config name in the `command` section of `sweep-config.yaml`.
 
 3. Start the sweep:
 ```
-srun -n 1 -p pool1 --pty ./start_sweep.sh sweep-config.yaml
+bash start_sweep.sh sweep-config.yaml
 ```
-This will output a sweep id, e.g. `<your wandb id>/<project name>/kztk7ceb`. Make note of it for the next step.
+This will output a sweep id, e.g. `<your wandb id>/<project name>/kztk7ceb`. Copy it for the next step.
 
 4. Start the sweep agents in parallel:
 ```
-sbatch --array=1-<num_agents>%<throttle> start_agents.sb <sweep_id>
+bash start_agents.sh <num_agents> <throttle> <sweep_id>
 ```
 where
-- `<sweep_id>` is the sweep id you got in step 3
-- `<num_agents>` is the total number of agents you want to run in the sweep
-- `<throttle>` is the maximum number of agents to run simultaneously. Please use this to keep resources free for other users!
+- `<num_agents>` is the total number of agents you want to run in the sweep.
+- `<throttle>` is the maximum number of agents to run simultaneously. It is recommended to set this to `4` or less. Please use this to keep resources free for other users!
+- `<sweep_id>` is the sweep id you got in step 3.
 
 5. Check sweep results in-browser at [https://wandb.ai/](https://wandb.ai/).
 
@@ -139,7 +147,7 @@ the following preprocessing is applied:
 
 **Input:** `length`, the desired standardized length.
 1. Duplicate intervals are removed.
-2. Each interval is replaced with another interval that has the same center point, but is `length` bases long.
+2. Each interval is replaced with another interval that has the same summit center, but is `length` bases long.
 
 Usage:
 ```

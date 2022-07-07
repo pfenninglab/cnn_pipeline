@@ -2,6 +2,9 @@
 #
 # Usage: bash start_agents.sh <num_agents> <throttle> <sweep_id>
 
+# Activate environment
+source activate keras2-tf27
+
 # Check environment variables
 if [[ -z $PARTITION_GPU ]]
 then

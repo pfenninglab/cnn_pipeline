@@ -6,7 +6,4 @@
 #SBATCH -e logs/err.txt
 #SBATCH --mem 8000
 
-# cuda module and corresponding conda env
-source activate keras2-tf27
-
 python train.py -config $1

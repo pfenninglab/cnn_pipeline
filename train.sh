@@ -2,6 +2,9 @@
 #
 # Usage: bash train.sh <path to config>
 
+# Activate environment
+source activate keras2-tf27
+
 # Check environment variables
 if [[ -z $PARTITION_GPU ]]
 then

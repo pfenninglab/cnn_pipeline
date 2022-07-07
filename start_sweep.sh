@@ -2,6 +2,9 @@
 #
 # Usage: bash start_sweep.sh <path to sweep config>
 
+# Activate environment
+source activate keras2-tf27
+
 # Check environment variables
 if [[ -z $PARTITION_NO_GPU ]]
 then

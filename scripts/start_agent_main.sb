@@ -8,7 +8,5 @@
 
 sweep_id=$1
 
-source activate keras2-tf27
-
 wandb login
 wandb agent --count 1 $sweep_id
