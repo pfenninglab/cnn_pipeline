@@ -2,7 +2,7 @@
 
 project:
   desc: Name of `wandb` project for tracking.
-  value: mouse-sst
+  value: default-project
 
 entity:
   desc: Name of `wandb` account for tracking.

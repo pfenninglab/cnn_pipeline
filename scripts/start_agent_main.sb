@@ -1,16 +1,14 @@
 #!/bin/bash
 
-#SBATCH --partition=pfen3
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH -o logs/out.txt
 #SBATCH -e logs/err.txt
 #SBATCH --mem 8000
 
-sweep_id=$1
-
-module load cuda-11.5
 source activate keras2-tf27
+
+sweep_id=$1
 
 wandb login
 wandb agent --count 1 $sweep_id

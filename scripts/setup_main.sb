@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# We use a GPU partition so that conda knows to install the gpu version of tensorflow
+#SBATCH --gres gpu:1
+#SBATCH -n 1
+#SBATCH -o logs/out.txt
+#SBATCH -e logs/err.txt
+#SBATCH --mem 8000
+
+# Check arguments
+cluster_name=$1
+if [ "$cluster_name" = "lane" ]; then
+	cluster_env_path="env_yaml/env-lane.yml"
+elif [ "$cluster_name" = "bridges" ]; then
+	cluster_env_path="env_yaml/env-bridges.yml"
+else
+	echo "Invalid cluster name: $cluster_name"
+	exit 1
+fi
+
+# Update conda for safety
+conda update -y -n base -c defaults conda
+
+# Create base environments
+conda env create -n keras2-tf27 --file=env_yaml/keras2-tf27.yml
+conda env create -n keras2-tf24 --file=env_yaml/keras2-tf24.yml
+
+# Update environments with cluster-specific environment variables
+conda env update -n keras2-tf27 --file $cluster_env_path
+conda env update -n keras2-tf24 --file $cluster_env_path

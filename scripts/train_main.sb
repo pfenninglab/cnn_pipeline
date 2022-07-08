@@ -1,0 +1,11 @@
+#!/bin/bash
+
+#SBATCH --gres gpu:1
+#SBATCH -n 1
+#SBATCH -o logs/out.txt
+#SBATCH -e logs/err.txt
+#SBATCH --mem 8000
+
+source activate keras2-tf27
+
+python train.py -config $1

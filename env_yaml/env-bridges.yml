@@ -1,0 +1,3 @@
+variables:
+  PARTITION_GPU: GPU-shared
+  PARTITION_NO_GPU: RM-shared

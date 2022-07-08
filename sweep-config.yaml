@@ -15,7 +15,7 @@ command:
   - "config-base.yaml"
   - ${args}
 
-project: test-sweep
+project: default-project
 
 method: random
 
