@@ -6,6 +6,8 @@
 #SBATCH -e logs/err.txt
 #SBATCH --mem 8000
 
+source activate keras2-tf27
+
 sweep_id=$1
 
 wandb login
