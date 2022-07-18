@@ -21,8 +21,8 @@ OPTIMIZER_MAPPING = {
 # TN, TP, FN, and FP, mainly for debugging
 USE_CONFUSION_METRICS = False
 
-LAYERWISE_PARAMS_CONV = ['conv_filters', 'conv_width', 'conv_stride', 'dropout_rate_conv']
-LAYERWISE_PARAMS_DENSE = ['dense_filters', 'dropout_rate_dense']
+LAYERWISE_PARAMS_CONV = ['conv_filters', 'conv_width', 'conv_stride', 'dropout_rate_conv', 'l2_reg_conv']
+LAYERWISE_PARAMS_DENSE = ['dense_filters', 'dropout_rate_dense', 'l2_reg_dense']
 
 
 def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config):
@@ -46,10 +46,11 @@ def get_model_architecture(input_shape, num_classes, config):
 	kernel_initializer_cfg = _get_initializer_cfg(config, 'kernel_initializer')
 	bias_initializer_cfg = _get_initializer_cfg(config, 'bias_initializer')
 
-	for (conv_filters, conv_width, conv_stride, dropout_rate_conv, _) in zip(
-		config['conv_filters'], config['conv_width'], config['conv_stride'], config['dropout_rate_conv'], range(config['num_conv_layers'])):
+	# Convolutional stack
+	for (conv_filters, conv_width, conv_stride, dropout_rate_conv, l2_reg_conv, _) in zip(
+		config['conv_filters'], config['conv_width'], config['conv_stride'], config['dropout_rate_conv'], config['l2_reg_conv'], range(config['num_conv_layers'])):
 		x = layers.Conv1D(filters=conv_filters, kernel_size=conv_width, activation='relu',
-			strides=conv_stride, kernel_regularizer=l2(l=config['l2_reg']),
+			strides=conv_stride, kernel_regularizer=l2(l=l2_reg_conv),
 			kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
 			bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
 		x = layers.Dropout(rate=dropout_rate_conv)(x)
@@ -61,12 +62,14 @@ def get_model_architecture(input_shape, num_classes, config):
 			padding='same')(x)
 	x = layers.Flatten()(x)
 
-	for (dense_filters, dropout_rate_dense, _) in zip(config['dense_filters'], config['dropout_rate_dense'], range(config['num_dense_layers'])):
-		x = layers.Dense(units=dense_filters, activation='relu', kernel_regularizer=l2(l=config['l2_reg']),
+	# Dense stack
+	for (dense_filters, dropout_rate_dense, l2_reg_dense, _) in zip(config['dense_filters'], config['dropout_rate_dense'], config['l2_reg_dense'], range(config['num_dense_layers'])):
+		x = layers.Dense(units=dense_filters, activation='relu', kernel_regularizer=l2(l=l2_reg_dense),
 			kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
 			bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
 		x = layers.Dropout(rate=dropout_rate_dense)(x)
 
+	# Final (output) layer
 	if num_classes is None:
 		num_output_units = 1
 		activation = None
@@ -76,7 +79,7 @@ def get_model_architecture(input_shape, num_classes, config):
 	else:
 		raise ValueError(f"Invalid num_classes: {num_classes}")
 	outputs = layers.Dense(num_output_units, activation=activation,
-		kernel_regularizer=l2(l=config['l2_reg']))(x)
+		kernel_regularizer=l2(l=config['l2_reg_final']))(x)
 
 	return keras.Model(inputs=inputs, outputs=outputs)
 
