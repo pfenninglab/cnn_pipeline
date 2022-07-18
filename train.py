@@ -32,7 +32,8 @@ def train(args):
 		wandb.config.val_data_paths, wandb.config.val_targets,
 		targets_are_classes=wandb.config.targets_are_classes,
 		endless=not wandb.config.use_exact_val_metrics,
-		batch_size=wandb.config.batch_size)
+		batch_size=wandb.config.batch_size,
+		reverse_complement=wandb.config.use_reverse_complement)
 
 	utils.validate_datasets([train_data, val_data])
 
