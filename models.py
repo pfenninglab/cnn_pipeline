@@ -173,7 +173,8 @@ def validate(config, model):
 	# Evaluate on main validation set
 	val_data = dataset.SequenceTfDataset(
 		config.val_data_paths, config.val_targets,
-		targets_are_classes=config.targets_are_classes, endless=False)
+		targets_are_classes=config.targets_are_classes, endless=False,
+		reverse_complement=config.use_reverse_complement)
 	res = model.evaluate(x=val_data.dataset[0], y=val_data.dataset[1],
 		batch_size=config.batch_size, return_dict=True, verbose=0)
 
@@ -217,7 +218,7 @@ def get_additional_validation(config, model):
     val_datasets = [
         dataset.SequenceTfDataset(paths, targets, targets_are_classes=config.targets_are_classes,
             # Use map_targets=False in case some datasets have only positive label
-            endless=False, map_targets=False)
+            endless=False, map_targets=False, reverse_complement=config.use_reverse_complement)
         for paths, targets in zip(config.additional_val_data_paths, config.additional_val_targets)
     ]
     metrics = ['acc'] if config.targets_are_classes else ['mean_squared_error']
