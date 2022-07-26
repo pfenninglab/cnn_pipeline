@@ -1,7 +1,7 @@
-"""validate.py: Evaluate a trained model on a collection of validation sets."""
-# allow importing from one directory up
-import sys
-sys.path.append('..')
+"""validate.py: Evaluate a trained model on a collection of validation sets.
+
+Usage: python -m scripts.validate -config <path to config .yaml> -model <path to model .h5>
+"""
 import pprint
 
 import wandb
@@ -23,9 +23,9 @@ def validate(config_path, model_path, out_csv):
 def get_args():
 	import argparse
 	parser = argparse.ArgumentParser()
-	parser.add_argument('-config', type=str, default='config-base.yaml')
-	parser.add_argument('-model', type=str, required=True)
-	parser.add_argument('-csv', type=str)
+	parser.add_argument('-config', type=str, required=True, help='Path to config .yaml file')
+	parser.add_argument('-model', type=str, required=True, help='Path to trained model .h5 file')
+	parser.add_argument('-csv', type=str, help='(Optional) Path to save results as a .csv file')
 	return parser.parse_args()
 
 
