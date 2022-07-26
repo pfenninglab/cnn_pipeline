@@ -7,6 +7,7 @@ from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.metrics import MeanSquaredError, MeanAbsoluteError, MeanAbsolutePercentageError
+from tqdm import tqdm
 
 import constants
 import dataset
@@ -200,7 +201,7 @@ class AdditionalValidation:
 
     def evaluate(self):
         results = {}
-        for idx, val_data in enumerate(self.val_datasets):
+        for idx, val_data in tqdm(enumerate(self.val_datasets), total=len(self.val_datasets)):
             values = self.model.evaluate(
                 x=val_data.dataset[0], y=val_data.dataset[1],
                 batch_size=self.batch_size, return_dict=True, verbose=0)
@@ -224,5 +225,8 @@ def get_additional_validation(config, model):
             endless=False, map_targets=False, reverse_complement=config.use_reverse_complement)
         for paths, targets in zip(config.additional_val_data_paths, config.additional_val_targets)
     ]
-    metrics = ['acc'] if config.targets_are_classes else ['mean_squared_error']
+    if config.targets_are_classes:
+    	metrics = ['acc', 'auroc', 'auprc', 'precision', 'sensitivity', 'f1', 'npv', 'specificity', 'npvsc']
+    else:
+    	metrics = ['mean_squared_error']
     return AdditionalValidation(model, val_datasets, metrics=metrics, batch_size=config.batch_size)
