@@ -10,11 +10,9 @@
 # Check arguments
 cluster_name=$1
 if [ "$cluster_name" = "lane" ]; then
-	#cluster_env_path="env_yaml/env-lane.yml"
-	env_vars="TEST1=foo TEST2=bar"
+	env_vars="PARTITION_GPU=pfen3 PARTITION_NO_GPU=pool1"
 elif [ "$cluster_name" = "bridges" ]; then
-	#cluster_env_path="env_yaml/env-bridges.yml"
-	env_vars="TEST1=baz TEST2=bang"
+	env_vars="PARTITION_GPU=GPU-shared PARTITION_NO_GPU=RM-shared"
 else
 	echo "Invalid cluster name: $cluster_name"
 	exit 1
@@ -24,11 +22,9 @@ fi
 conda update -y -n base -c defaults conda
 
 # Create base environments
-#conda env create -n keras2-tf27 --file=env_yaml/keras2-tf27.yml
-#conda env create -n keras2-tf24 --file=env_yaml/keras2-tf24.yml
-conda env create -n testenv --file=env_yaml/test.yml
+conda env create -n keras2-tf27 --file=env_yaml/keras2-tf27.yml
+conda env create -n keras2-tf24 --file=env_yaml/keras2-tf24.yml
 
 # Update environments with cluster-specific environment variables
-#conda env update -n keras2-tf27 --file $cluster_env_path
-#conda env update -n keras2-tf24 --file $cluster_env_path
-conda env config vars set $env_vars -n testenv
+conda env config vars set $env_vars -n keras2-tf27
+conda env config vars set $env_vars -n keras2-tf24
