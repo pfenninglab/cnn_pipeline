@@ -1,3 +1,0 @@
-variables:
-  PARTITION_GPU: pfen3
-  PARTITION_NO_GPU: pool1

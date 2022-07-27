@@ -14,5 +14,5 @@ else
 	exit 1
 fi
 
-# Launch sweep
+# Run setup on a GPU cluster, so that conda knows to install the gpu version of tensorflow
 sbatch -p $PARTITION_GPU scripts/setup_main.sb ${cluster_name}
