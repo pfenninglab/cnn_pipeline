@@ -39,23 +39,36 @@ def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, confi
 	return model
 
 def get_model_architecture(input_shape, num_classes, config):
-	inputs = keras.Input(shape=input_shape)
-	x = inputs
-
-	config = _get_layerwise_params(config, 'num_conv_layers', LAYERWISE_PARAMS_CONV)
-	config = _get_layerwise_params(config, 'num_dense_layers', LAYERWISE_PARAMS_DENSE)
+	"""Get 1-dimensional CNN model architecture.
+	Properties:
+		- Inputs are 1-hot encoded sequences of shape [sequence_len, encoding_dim]
+			- encoding_dim = 4 for DNA sequences (A, C, G, T)
+		- Outputs are either:
+			- float tensor of shape [num_classes], non-negative and summing to 1, if num_classes >= 2 (classification)
+			- float tensor of shape [1], taking values in (-inf, inf), if num_classes is None (regression)
+	"""
+	# Get config dicts for kernel and bias initializers
 	kernel_initializer_cfg = _get_initializer_cfg(config, 'kernel_initializer')
 	bias_initializer_cfg = _get_initializer_cfg(config, 'bias_initializer')
 
-	# Convolutional stack
-	for (conv_filters, conv_width, conv_stride, dropout_rate_conv, l2_reg_conv, _) in zip(
-		config['conv_filters'], config['conv_width'], config['conv_stride'], config['dropout_rate_conv'], config['l2_reg_conv'], range(config['num_conv_layers'])):
-		x = layers.Conv1D(filters=conv_filters, kernel_size=conv_width, activation='relu',
-			strides=conv_stride, kernel_regularizer=l2(l=l2_reg_conv),
-			kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
-			bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
-		x = layers.Dropout(rate=dropout_rate_conv)(x)
+	# Inputs
+	inputs = keras.Input(shape=input_shape)
+	x = inputs
 
+	# Convolutional stack
+	for layer_num in range(config['num_conv_layers']):
+		layer_config = _get_layer_config(config, layer_num, LAYERWISE_PARAMS_CONV)
+		x = layers.Conv1D(
+				filters=layer_config['conv_filters'],
+				kernel_size=layer_config['conv_width'],
+				activation='relu',
+				strides=layer_config['conv_stride'],
+				kernel_regularizer=l2(l=layer_config['l2_reg_conv']),
+				kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
+				bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
+		x = layers.Dropout(rate=layer_config['dropout_rate_conv'])(x)
+
+	# Max-pooling layer
 	x = layers.MaxPooling1D(
 			pool_size=config['max_pool_size'],
 			strides=config['max_pool_stride'],
@@ -64,11 +77,15 @@ def get_model_architecture(input_shape, num_classes, config):
 	x = layers.Flatten()(x)
 
 	# Dense stack
-	for (dense_filters, dropout_rate_dense, l2_reg_dense, _) in zip(config['dense_filters'], config['dropout_rate_dense'], config['l2_reg_dense'], range(config['num_dense_layers'])):
-		x = layers.Dense(units=dense_filters, activation='relu', kernel_regularizer=l2(l=l2_reg_dense),
-			kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
-			bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
-		x = layers.Dropout(rate=dropout_rate_dense)(x)
+	for layer_num in range(config['num_dense_layers']):
+		layer_config = _get_layer_config(config, layer_num, LAYERWISE_PARAMS_DENSE)
+		x = layers.Dense(
+				units=layer_config['dense_filters'],
+				activation='relu',
+				kernel_regularizer=l2(l=layer_config['l2_reg_dense']),
+				kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
+				bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
+		x = layers.Dropout(rate=layer_config['dropout_rate_dense'])(x)
 
 	# Final (output) layer
 	if num_classes is None:
@@ -84,13 +101,35 @@ def get_model_architecture(input_shape, num_classes, config):
 
 	return keras.Model(inputs=inputs, outputs=outputs)
 
-def _get_layerwise_params(config, num_layer_key, params):
-	for param in params:
-		if not isinstance(config[param], list):
-			config.update({param: [config[param]] * config[num_layer_key]}, allow_val_change=True)
-		elif len(config[param]) < config[num_layer_key]:
-			raise ValueError(f"Not enough layer-wise params for parameter {param}: need at least {num_layer_key} = {config[num_layer_key]}, got {config_dict[param]}")
-	return config
+def _get_layer_config(config, layer_num, keys):
+	"""Get the config values that apply at this layer.
+	If a config value is set as a list, then this returns the element from that list at this layer.
+	If a config value is set as a single value, then this returns that value.
+
+	E.g. if config contains {
+		'conv_filters': [300, 400, 500],
+		'conv_width': 7
+	}
+	then _get_layer_config(config, 1) contains {
+		'conv_filters': 400, # because the 1-th element of [300, 400, 500] is 400
+		'conv_width': 7      # because 7 is a constant config value
+	}
+
+	Args:
+	    config (wandb.config)
+	    layer_num (int)
+	    keys (list of str): only get config for these keys
+	"""
+	layer_config = {}
+	for k in keys:
+		v = config[k]
+		if isinstance(v, list):
+			if layer_num >= len(v):
+				raise ValueError(f"Not enough layer-wise params for parameter {k}, got {v}. Please check that this parameter has enough values for the number of layers, or use a constant value.")
+			layer_config[k] = v[layer_num]
+		else:
+			layer_config[k] = v
+	return layer_config
 
 def _get_initializer_cfg(config, key):
 	"""Create config dict for tf.keras.initializers.get()"""
@@ -216,6 +255,7 @@ class AdditionalValidation:
         return results
 
 def get_additional_validation(config, model):
+    """Get AdditionalValidation with datasets and metrics based on config."""
     if config.get('additional_val_data_paths') is None:
         return None
 
