@@ -228,6 +228,72 @@ def validate(config, model):
 
 	return res
 
+def get_activations(model, in_file, out_file=None, layer_name=None, use_reverse_complement=True,
+	write_csv=False, score_column=None, batch_size=constants.DEFAULT_BATCH_SIZE):
+	"""Use the model to predict on all sequences, and save the activations.
+
+	Args:
+		model (keras model or str)
+		in_file (str): path to input .fa, .bed, or .narrowPeak
+		out_file (str): path to output file, .npy or .csv
+		layer_name (str): layer of model to get activations from. Default is the output layer.
+		use_reverse_complement (bool): if True, then evaluate on reverse complement sequences as well.
+			The order of the output predictions is then:
+			pred(example_1), pred(revcomp(example_1)), ..., pred(example_n), pred(revcomp(example_n))
+		write_csv (bool): whether to write activations to csv
+			if False, then activations will be saved as a numpy array, dimension [num_examples, dim_1, ..., dim_n]
+			if True, then activations will be saved as rows in a csv. This can only be used with
+			a layer whose output shape is rank 2, i.e. a layer with output shape (None, N).
+		score_column (int): index of rank-1 activations to write to csv rows.
+			For example, if you want the predicted probabilities out of a binary classifier, use
+			layer_name=None (get activations of output layer) and
+			score_column=1 (get score from output unit for class 1).
+			if score_column is None, then all units of activation will be written as a row.
+	"""
+	# Load model from path, if necessary
+	if isinstance(model, str):
+		model = load_model(model)
+
+	# Check layer shape
+	if layer_name is None:
+		out_layer = model.layers[-1]
+	else:
+		out_layer = model.get_layer(layer_name)
+	out_shape = out_layer.output_shape
+	if write_csv and len(out_shape) != 2:
+		raise ValueError(f"Wrong layer shape for write_csv. Required shape is rank 2, i.e. [None, N], got layer {layer_name} with shape {out_shape}")
+	if (score_column is not None):
+		if not isinstance(score_column, int):
+			raise ValueError(f"Invalid type for score_column, expected int, got {type(score_column)}")
+		if score_column >= out_shape[1]:
+			raise ValueError(f"Invalid score_column, got {score_column} but layer shape is {out_shape}")
+
+	# Get model to evaluate
+	if layer_name is not None:
+		model = keras.Model(inputs=model.inputs, outputs=out_layer.output)
+
+	# Dataset, only the inputs will be used, target is fake
+	data = dataset.SequenceTfDataset(
+		[in_file], [0], targets_are_classes=True, endless=False, reverse_complement=use_reverse_complement)
+
+	# Generate predictions
+	predictions = model.predict(data.dataset[0], batch_size=batch_size)
+
+	# Write to file
+	if out_file is not None:
+		if write_csv:
+			if score_column is None:
+				# Write entire activation as row
+				lines = predictions
+			else:
+				# Extract single value
+				lines = predictions[:, score_column]
+			np.savetxt(out_file, lines, delimiter='\t')
+		else:
+			np.save(out_file, predictions)
+
+	return predictions
+
 class AdditionalValidation:
     """Validate on additional validation sets.
     Adapted from https://stackoverflow.com/a/62902854
