@@ -1,6 +1,6 @@
 """validate.py: Evaluate a trained model on a collection of validation sets.
 
-Usage: python -m scripts.validate -config <path to config .yaml> -model <path to model .h5>
+Usage: python scripts/validate.py -config <path to config .yaml> -model <path to model .h5>
 """
 import pprint
 

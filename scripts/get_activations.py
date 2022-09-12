@@ -10,7 +10,7 @@ Usage: python scripts/get_activations.py \
 	[--write_csv, write activations as .csv file instead of .npy] \
 	[-score_column <output unit to extract score in the csv, e.g. 1>. default writes whole activation as a row]
 
-To get a numpy array of activations for an intermediate layer:
+To get a numpy array of activations from an intermediate layer:
 	-layer_name <layer_name>
 	[don't pass --write_csv]
 
