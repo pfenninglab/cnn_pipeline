@@ -170,7 +170,7 @@ To evaluate a trained model on one or more validation sets:
 cd mouse_sst/ (this repo)
 srun -p pfen3 -n 1 --gres gpu:1 --pty bash
 conda activate keras2-tf27
-python -m scripts.validate -config config-base.yaml -model <path to model .h5 file>
+python scripts/validate.py -config config-base.yaml -model <path to model .h5 file>
 ```
 This prints validation set metrics directly to your console.
 To export the results to a .csv file, you can also use the flag `-csv <path to output .csv file>`.
@@ -190,6 +190,46 @@ additional_val_targets:
     - [0]
     - [0, 1]
 ```
+
+### Get activations from a trained model
+
+You can get the activations from a trained model, either at the output layer or at an intermediate layer, using `scripts/get_activations.py`:
+```
+cd mouse_sst/ (this repo)
+srun -p pfen3 -n 1 --gres gpu:1 --pty bash
+conda activate keras2-tf27
+
+python scripts/get_activations.py \
+  -model <path to model .h5>
+  -in_file <path to input .fa, .bed, or .narrowPeak file> \
+  [-in_genome <path to genome .fa file, if in_file is .bed or .narrowPeak>] \
+  -out_file <path to output file, .npy or .csv> \
+  [-layer_name <layer name to get activations from, e.g. 'flatten'>. default is output layer] \
+  [--no_reverse_complement, don't evaluate on reverse complement sequences] \
+  [--write_csv, write activations as .csv file instead of .npy] \
+  [-score_column <output unit to extract score in the csv, e.g. 1>. default writes whole activation as a row]
+```
+To get a numpy array of activations from an intermediate layer:
+```
+  -layer_name <layer_name>
+  [don't pass --write_csv]
+```
+To get a csv of probabilities for the positive class from a binary classifier:
+```
+  [don't pass -layer_name]
+  --write_csv
+  -score_column 1
+```
+
+**NOTE:** By default, reverse complement sequences are included. The output file will have twice as many activations as the input file has sequences. The order of results is:
+```
+pred(example_1)
+pred(revcomp(example_1))
+...
+pred(example_n)
+pred(revcomp(example_n))
+```
+To exclude reverse complement sequences, pass `--no_reverse_complement`.
 
 ## Preprocessing
 Currently, models expect all input sequences to be the same length, and will fail with a `ValueError`
