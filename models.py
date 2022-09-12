@@ -228,13 +228,14 @@ def validate(config, model):
 
 	return res
 
-def get_activations(model, in_file, out_file=None, layer_name=None, use_reverse_complement=True,
+def get_activations(model, in_file, in_genome=None, out_file=None, layer_name=None, use_reverse_complement=True,
 	write_csv=False, score_column=None, batch_size=constants.DEFAULT_BATCH_SIZE):
 	"""Use the model to predict on all sequences, and save the activations.
 
 	Args:
 		model (keras model or str)
 		in_file (str): path to input .fa, .bed, or .narrowPeak
+		in_genome (str): path to input genome .fa, if in_file is .bed or .narrowPeak
 		out_file (str): path to output file, .npy or .csv
 		layer_name (str): layer of model to get activations from. Default is the output layer.
 		use_reverse_complement (bool): if True, then evaluate on reverse complement sequences as well.
@@ -272,15 +273,23 @@ def get_activations(model, in_file, out_file=None, layer_name=None, use_reverse_
 	if layer_name is not None:
 		model = keras.Model(inputs=model.inputs, outputs=out_layer.output)
 
-	# Dataset, only the inputs will be used, target is fake
+	# Get dataset
+	if in_genome is not None:
+		source_files = [{"genome": in_genome, "intervals": in_file}]
+	else:
+		# in_file is an .fa file
+		source_files = [in_file]
+	# Only the input sequences will be used, target is fake
 	data = dataset.SequenceTfDataset(
-		[in_file], [0], targets_are_classes=True, endless=False, reverse_complement=use_reverse_complement)
+		source_files, [0], targets_are_classes=True, endless=False, reverse_complement=use_reverse_complement)
 
 	# Generate predictions
-	predictions = model.predict(data.dataset[0], batch_size=batch_size)
+	print("Predicting...")
+	predictions = model.predict(data.dataset[0], batch_size=batch_size, verbose=1)
 
 	# Write to file
 	if out_file is not None:
+		print("Saving...")
 		if write_csv:
 			if score_column is None:
 				# Write entire activation as row
@@ -288,7 +297,7 @@ def get_activations(model, in_file, out_file=None, layer_name=None, use_reverse_
 			else:
 				# Extract single value
 				lines = predictions[:, score_column]
-			np.savetxt(out_file, lines, delimiter='\t')
+			np.savetxt(out_file, lines, delimiter='\t', fmt='%.8e')
 		else:
 			np.save(out_file, predictions)
 
