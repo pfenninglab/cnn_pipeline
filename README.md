@@ -223,7 +223,11 @@ To get a csv of probabilities for the positive class from a binary classifier:
 
 **NOTE:** By default, reverse complement sequences are included. The output file will have twice as many activations as the input file has sequences. The order of results is:
 ```
-pred(example_1), pred(revcomp(example_1)), ..., pred(example_n), pred(revcomp(example_n))
+pred(example_1)
+pred(revcomp(example_1))
+...
+pred(example_n)
+pred(revcomp(example_n))
 ```
 To exclude reverse complement sequences, pass `--no_reverse_complement`.
 
