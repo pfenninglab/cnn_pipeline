@@ -211,11 +211,11 @@ num_conv_layers:
 
 conv_filters:
   desc: Number of filters in each convolutional layer.
-  value: 300
+  value: 500
 
 conv_width:
   desc: Width of 1D convolutional kernels.
-  value: 7
+  value: 11
 
 conv_stride:
   desc: Stride of convolutional layers.
