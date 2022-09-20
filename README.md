@@ -52,15 +52,18 @@ git clone git@github.com:pfenninglab/mouse_sst.git
     
     You will need to answer a few questions when prompted. The default values for each question should work.
 
-    3. Cleanup and go back to this repo:
+    3. Cleanup and exit the interactive node:
     ```
     rm Miniconda3-latest-Linux-x86_64.sh
-    cd ~/repos/mouse_sst
+    exit
     ```
+    This will return you to the head node on the cluster.
 
 2. Create conda environments:
 
+Ensure that you are on the head node. Go to this repo and run the setup script:
 ```
+cd ~/repos/mouse_sst
 bash setup.sh <cluster_name>
 ```
 where `<cluster_name>` is `lane` or `bridges`.
@@ -82,6 +85,11 @@ conda activate keras2-tf27
 wandb login
 ```
 On `bridges`, use `-p RM-shared` instead.
+
+Once you have logged in to `wandb`, you can leave the interactive session and return to the head node:
+```
+exit
+```
 
 ## Model training
 
