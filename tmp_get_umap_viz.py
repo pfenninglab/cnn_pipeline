@@ -84,10 +84,15 @@ def main():
 		transform_data, transform_labels = combined[:, :-1], combined[:, -1]
 
 		# Transform and visualize
+		transform_outfile = os.path.join(ACTIVATIONS_DIR, f"{name}.npy")
 		plot_outfile = os.path.join(ACTIVATIONS_DIR, f"{name}.png")
 		label_mapping = {0: 'mouse PV +', 1: 'mouse PV - (neoe)', 2: 'human PV +', 3: 'human PV - (neoe)'}
-		visualization.umap_transform(reducer, transform_data, transform_labels=transform_labels,
-			label_mapping=label_mapping, plot_outfile=plot_outfile, scatter_kwargs={"s": 1.5})
+		if not os.path.exists(transform_outfile):
+			transformed = visualization.umap_transform(reducer, transform_data, transform_outfile=transform_outfile)
+		else:
+			transformed = np.load(transform_outfile)
+		visualization.scatter(transformed, plot_outfile, transform_labels=transform_labels,
+			label_mapping=label_mapping, scatter_kwargs={"s": 1.5})
 
 if __name__ == '__main__':
 	main()

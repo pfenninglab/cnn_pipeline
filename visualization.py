@@ -69,33 +69,32 @@ def umap_fit(fit_data, fit_labels=None, umap_kwargs=None, reducer_outfile=None):
 
 	return reducer
 
-def umap_transform(reducer, transform_data, transform_labels=None, label_mapping=None, transform_outfile=None, plot_outfile=None, scatter_kwargs=None):
+def umap_transform(reducer, transform_data, transform_outfile=None):
 	# Transform data
 	print("Transforming data...")
 	transformed = reducer.transform(transform_data)
 	if transform_outfile is not None:
 		np.save(transform_outfile, transformed)
 
-	# Plot transformed data
-	if plot_outfile is not None:
-		print("Plotting...")
-		# Create default scatter_kwargs as an empty dict
-		scatter_kwargs = scatter_kwargs or {}
-		if transform_labels is not None:
-			# Color the samples by their label
-			scatter_kwargs['c'] = transform_labels
-			scatter_kwargs['cmap'] = 'cool'
-		plt.clf()
-		plot = plt.scatter(transformed[:, 0], transformed[:, 1], **scatter_kwargs)
-		if transform_labels is not None:
-			# Convert numerical labels to string in the legend
-			lines, labels = plot.legend_elements()
-			if label_mapping is not None:
-				# Assumes labels is sorted unique transform labels
-				labels = [label_mapping[itm] for itm in sorted(set(transform_labels))]
-			# Add color legend and format figure
-			plt.legend(lines, labels, loc='lower right', prop={'size': 5})
-			plt.tick_params(labelbottom=False, bottom=False, labelleft=False, left=False)
-		plt.savefig(plot_outfile, dpi=300)
-
 	return transformed
+
+def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, scatter_kwargs=None):
+	print("Plotting...")
+	# Create default scatter_kwargs as an empty dict
+	scatter_kwargs = scatter_kwargs or {}
+	if transform_labels is not None:
+		# Color the samples by their label
+		scatter_kwargs['c'] = transform_labels
+		scatter_kwargs['cmap'] = 'cool'
+	plt.clf()
+	plot = plt.scatter(points[:, 0], points[:, 1], **scatter_kwargs)
+	if transform_labels is not None:
+		# Convert numerical labels to string in the legend
+		lines, labels = plot.legend_elements()
+		if label_mapping is not None:
+			# Assumes labels is sorted unique transform labels
+			labels = [label_mapping[itm] for itm in sorted(set(transform_labels))]
+		# Add color legend and format figure
+		plt.legend(lines, labels, loc='lower right', prop={'size': 5})
+		plt.tick_params(labelbottom=False, bottom=False, labelleft=False, left=False)
+	plt.savefig(plot_outfile, dpi=300)
