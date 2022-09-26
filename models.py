@@ -320,13 +320,18 @@ class AdditionalValidation:
                 x=val_data.dataset[0], y=val_data.dataset[1],
                 batch_size=self.batch_size, return_dict=True, verbose=0)
             for metric in self.metrics:
-                results[f'val_{idx + 1}_{metric}'] = values[metric]
+                if metric in values:
+                    results[f'val_{idx + 1}_{metric}'] = values[metric]
         # Aggregate metrics with geometric mean
         for metric in self.metrics:
             num_values = len(self.val_datasets)
-            values = [results[f'val_{idx + 1}_{metric}'] for idx in range(num_values)]
-            # https://en.wikipedia.org/wiki/Geometric_mean
-            results[f'val_*_{metric}_gm'] = np.power(np.product(values), 1 / num_values)
+            try:
+	            values = [results[f'val_{idx + 1}_{metric}'] for idx in range(num_values)]
+	            # https://en.wikipedia.org/wiki/Geometric_mean
+	            results[f'val_*_{metric}_gm'] = np.power(np.product(values), 1 / num_values)
+            except KeyError as e:
+            	# this metric was not calculated, skip it
+	            pass
         return results
 
 def get_additional_validation(config, model):
