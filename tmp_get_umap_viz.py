@@ -29,6 +29,10 @@ BG_NEG_PATH_FIT = os.path.join(DATA_DIR, 'human_PV_neg_VAL.fa')
 BG_NEG_PATH_TX = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/PV/Eval2_hg38.fa'
 ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mouse_pv/'
 
+REDUCER_TYPE = 'pca' # 'pca' or 'umap'
+if REDUCER_TYPE not in ['pca', 'umap']:
+	raise NotImplementedError()
+
 def main():
 	# Get activations
 	print("Getting activations...")
@@ -48,13 +52,14 @@ def main():
 		else:
 			activations[name] = np.load(activations_path)
 
-	# Fit UMAP on the val data seen during training
-	reducer_path = os.path.join(ACTIVATIONS_DIR, f"umap_reducer.pkl")
+	# Fit reducer on the val data seen during training
+	reducer_path = os.path.join(ACTIVATIONS_DIR, f"{REDUCER_TYPE}_reducer.pkl")
 	if not os.path.exists(reducer_path):
 		fit_data = np.concatenate((
 			activations['fg_pos'], activations['fg_neg_fit'],
 			activations['bg_pos'], activations['bg_neg_fit']), axis=0)
-		reducer = visualization.umap_fit(fit_data, reducer_outfile=reducer_path)
+		fit_fn = visualization.umap_fit if REDUCER_TYPE == 'umap' else visualization.pca_fit
+		reducer = fit_fn(fit_data, reducer_outfile=reducer_path)
 	else:
 		with open(reducer_path, 'rb') as f:
 			reducer = pickle.load(f)
@@ -62,9 +67,9 @@ def main():
 	# Transform and visualize
 	# labels for all plots
 	for (set_a, label_a, set_b, label_b, name) in [
-		('fg_pos', 0, 'bg_pos', 2, 'umap_positives'),
-		('fg_pos', 0, 'fg_neg_tx', 1, 'umap_fg'),
-		('bg_pos', 2, 'bg_neg_tx', 3, 'umap_bg')]:
+		('fg_pos', 0, 'bg_pos', 2, f'{REDUCER_TYPE}_positives'),
+		('fg_pos', 0, 'fg_neg_tx', 1, f'{REDUCER_TYPE}_fg'),
+		('bg_pos', 2, 'bg_neg_tx', 3, f'{REDUCER_TYPE}_bg')]:
 
 		# Get the relevant activations
 		transform_data = np.concatenate((activations[set_a], activations[set_b]), axis=0)
@@ -88,7 +93,7 @@ def main():
 		plot_outfile = os.path.join(ACTIVATIONS_DIR, f"{name}.png")
 		label_mapping = {0: 'mouse PV +', 1: 'mouse PV - (neoe)', 2: 'human PV +', 3: 'human PV - (neoe)'}
 		if not os.path.exists(transform_outfile):
-			transformed = visualization.umap_transform(reducer, transform_data, transform_outfile=transform_outfile)
+			transformed = visualization.transform(reducer, transform_data, transform_outfile=transform_outfile)
 		else:
 			transformed = np.load(transform_outfile)
 		visualization.scatter(transformed, plot_outfile, transform_labels=transform_labels,

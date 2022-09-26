@@ -3,6 +3,7 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
+import sklearn
 import umap
 
 def get_umap(fit_data, fit_labels=None, transform_data=None, transform_labels=None, transform_outfile=None, plot_outfile=None, umap_kwargs=None, scatter_kwargs=None):
@@ -69,14 +70,29 @@ def umap_fit(fit_data, fit_labels=None, umap_kwargs=None, reducer_outfile=None):
 
 	return reducer
 
-def umap_transform(reducer, transform_data, transform_outfile=None):
-	# Transform data
+def transform(reducer, transform_data, transform_outfile=None):
 	print("Transforming data...")
 	transformed = reducer.transform(transform_data)
 	if transform_outfile is not None:
 		np.save(transform_outfile, transformed)
 
 	return transformed
+
+def pca_fit(fit_data, pca_kwargs=None, reducer_outfile=None):
+	# TODO DRY
+	# Fit PCA transform
+	pca_kwargs = pca_kwargs or {}
+	reducer = sklearn.decomposition.PCA(**pca_kwargs)
+	print("Fitting PCA transform...")
+	reducer.fit(fit_data)
+	print(f"PCA variance explained: {reducer.explained_variance_}")
+
+	# Save fit reducer object
+	if reducer_outfile is not None:
+		with open(reducer_outfile, 'wb') as f:
+			pickle.dump(reducer, f)
+
+	return reducer
 
 def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, scatter_kwargs=None):
 	print("Plotting...")
