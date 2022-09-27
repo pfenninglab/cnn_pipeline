@@ -94,16 +94,22 @@ def pca_fit(fit_data, pca_kwargs=None, reducer_outfile=None):
 
 	return reducer
 
-def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, scatter_kwargs=None):
+def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, scatter_kwargs=None, add_histogram=False):
 	print("Plotting...")
 	# Create default scatter_kwargs as an empty dict
 	scatter_kwargs = scatter_kwargs or {}
+	cmap = plt.cm.get_cmap('cool')
 	if transform_labels is not None:
 		# Color the samples by their label
 		scatter_kwargs['c'] = transform_labels
-		scatter_kwargs['cmap'] = 'cool'
+		scatter_kwargs['cmap'] = cmap
+
 	plt.clf()
-	plot = plt.scatter(points[:, 0], points[:, 1], **scatter_kwargs)
+	nrows = 2 if add_histogram else 1 
+	fig, axs = plt.subplots(nrows=nrows, sharex=True)
+
+	# Scatter plot
+	plot = axs[0].scatter(points[:, 0], points[:, 1], **scatter_kwargs)
 	if transform_labels is not None:
 		# Convert numerical labels to string in the legend
 		lines, labels = plot.legend_elements()
@@ -111,6 +117,18 @@ def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, sca
 			# Assumes labels is sorted unique transform labels
 			labels = [label_mapping[itm] for itm in sorted(set(transform_labels))]
 		# Add color legend and format figure
-		plt.legend(lines, labels, loc='lower right', prop={'size': 5})
-		plt.tick_params(labelbottom=False, bottom=False, labelleft=False, left=False)
+		axs[0].legend(lines, labels, loc='lower right', prop={'size': 5})
+		axs[0].tick_params(labelbottom=False, bottom=False, labelleft=False, left=False)
+
+	# Histogram
+	if add_histogram:
+		bins = np.linspace(np.min(points[:, 0]), np.max(points[:, 0]), num=32)
+		values = np.unique(transform_labels)
+		for value in values:
+			hist_points = points[np.where(transform_labels == value)]
+			color = cmap((value - np.min(values))/(np.max(values) - np.min(values)))
+			axs[1].hist(hist_points[:, 0], label=label_mapping[value], alpha=0.5, density=True, bins=bins, color=color)
+			axs[1].legend(loc='lower right', prop={'size': 5})
+			axs[1].tick_params(labelleft=False, left=False)
+
 	plt.savefig(plot_outfile, dpi=300)

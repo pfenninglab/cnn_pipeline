@@ -76,11 +76,11 @@ def main():
 		transform_labels = np.array(
 			[label_a] * len(activations[set_a]) +
 			[label_b] * len(activations[set_b]))
-		# Add 1 instance from each class for legend colors
-		extra_points = np.stack(tuple(activations[set_name][0] for set_name in ['fg_pos', 'fg_neg_tx', 'bg_pos', 'bg_neg_tx']))
-		extra_labels = np.array([0, 1, 2, 3])
-		transform_data = np.concatenate((transform_data, extra_points), axis=0)
-		transform_labels = np.concatenate((transform_labels, extra_labels), axis=0)
+		# # Add 1 instance from each class for legend colors
+		# extra_points = np.stack(tuple(activations[set_name][0] for set_name in ['fg_pos', 'fg_neg_tx', 'bg_pos', 'bg_neg_tx']))
+		# extra_labels = np.array([0, 1, 2, 3])
+		# transform_data = np.concatenate((transform_data, extra_points), axis=0)
+		# transform_labels = np.concatenate((transform_labels, extra_labels), axis=0)
 
 		# Shuffle for visibility of all classes
 		rng = np.random.default_rng()
@@ -97,7 +97,7 @@ def main():
 		else:
 			transformed = np.load(transform_outfile)
 		visualization.scatter(transformed, plot_outfile, transform_labels=transform_labels,
-			label_mapping=label_mapping, scatter_kwargs={"s": 1.5})
+			label_mapping=label_mapping, scatter_kwargs={"s": 1.5}, add_histogram=True)
 
 if __name__ == '__main__':
 	main()
