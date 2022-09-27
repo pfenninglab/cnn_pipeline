@@ -29,53 +29,97 @@ BG_NEG_PATH_FIT = os.path.join(DATA_DIR, 'human_PV_neg_VAL.fa')
 BG_NEG_PATH_TX = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/PV/Eval2_hg38.fa'
 ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mouse_pv/'
 
-REDUCER_TYPE = 'pca' # 'pca' or 'umap'
+REDUCER_TYPE = 'umap' # 'pca' or 'umap'
 if REDUCER_TYPE not in ['pca', 'umap']:
 	raise NotImplementedError()
 
+PV_DATA_DIR = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/multispecies_PV/FinalModelData'
+PV_EVAL_DIR = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/PV/'
+DATA_MAPPING = {
+	'combined_pos_val': os.path.join(PV_DATA_DIR, 'combined_PV_pos_VAL.fa'),
+	'combined_neg_val': os.path.join(PV_DATA_DIR, 'combined_PV_neg_VAL.fa'),
+	'human_pos_train': os.path.join(PV_DATA_DIR, 'human_PV_pos_TRAIN.fa'),
+	'human_pos_val': os.path.join(PV_DATA_DIR, 'human_PV_pos_VAL.fa'),
+	'human_pos_test': os.path.join(PV_DATA_DIR, 'human_PV_pos_TEST.fa'),
+	'mouse_pos_train': os.path.join(PV_DATA_DIR, 'mouse_PV_pos_TRAIN.fa'),
+	'mouse_pos_val': os.path.join(PV_DATA_DIR, 'mouse_PV_pos_VAL.fa'),
+	'mouse_pos_test': os.path.join(PV_DATA_DIR, 'mouse_PV_pos_TEST.fa'),
+	'human_neg_neoe_all': os.path.join(PV_EVAL_DIR, 'Eval4_mm10.fa'),
+	'mouse_neg_neoe_all': os.path.join(PV_EVAL_DIR, 'Eval2_hg38.fa')
+}
+VISUALIZATION_MAPPING = {
+	'fit_data': ['combined_pos_val', 'combined_neg_val'],
+	'plot_data': [
+		{
+			'title': 'Positives',
+			'groups': [
+				{'id': 0, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
+				{'id': 1, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
+			]
+		},
+		{
+			'title': 'Human',
+			'groups': [
+				{'id': 0, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
+				{'id': 2, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']}
+			]
+		},
+		{
+			'title': 'Mouse',
+			'groups': [
+				{'id': 1, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']},
+				{'id': 3, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']}
+			]
+		}
+	]
+}
+
 def main():
-	# Get activations
+
+	# Compile list of datasets that need activations
+	datasets = VISUALIZATION_MAPPING['fit_data'] + [name for plot_spec in VISUALIZATION_MAPPING['plot_data'] for group in plot_spec['groups'] for name in group['sets']]
+	datasets = list(set(datasets))
+
+	# Get activations for each dataset
 	print("Getting activations...")
 	activations = {}
 	if not os.path.exists(ACTIVATIONS_DIR):
 		os.makedirs(ACTIVATIONS_DIR)
 	model = None
-	for (path, name) in tqdm([
-		(FG_POS_PATH, 'fg_pos'), (FG_NEG_PATH_FIT, 'fg_neg_fit'), (FG_NEG_PATH_TX, 'fg_neg_tx'),
-		(BG_POS_PATH, 'bg_pos'), (BG_NEG_PATH_FIT, 'bg_neg_fit'), (BG_NEG_PATH_TX, 'bg_neg_tx')]):
-		activations_path = os.path.join(ACTIVATIONS_DIR, f"{name}.npy")
+	for name in datasets:
+		activations_path = os.path.join(ACTIVATIONS_DIR, f"{name}_activations.npy")
 		if not os.path.exists(activations_path):
 			if model is None:
 				model = models.load_model(MODEL_PATH)
+			path = DATA_MAPPING[name]
 			activations[name] = models.get_activations(
 				model, path, out_file=activations_path, layer_name=LAYER_NAME)
 		else:
 			activations[name] = np.load(activations_path)
 
-	# Fit reducer on the val data seen during training
+	# Fit reducer
 	reducer_path = os.path.join(ACTIVATIONS_DIR, f"{REDUCER_TYPE}_reducer.pkl")
 	if not os.path.exists(reducer_path):
-		fit_data = np.concatenate((
-			activations['fg_pos'], activations['fg_neg_fit'],
-			activations['bg_pos'], activations['bg_neg_fit']), axis=0)
+		fit_data = np.concatenate(
+			[activations[name] for name in VISUALIZATION_MAPPING['fit_data']],
+			axis=0)
 		fit_fn = visualization.umap_fit if REDUCER_TYPE == 'umap' else visualization.pca_fit
 		reducer = fit_fn(fit_data, reducer_outfile=reducer_path)
 	else:
 		with open(reducer_path, 'rb') as f:
 			reducer = pickle.load(f)
 
-	# Transform and visualize
-	# labels for all plots
-	for (set_a, label_a, set_b, label_b, name) in [
-		('fg_pos', 0, 'bg_pos', 2, f'{REDUCER_TYPE}_positives'),
-		('fg_pos', 0, 'fg_neg_tx', 1, f'{REDUCER_TYPE}_fg'),
-		('bg_pos', 2, 'bg_neg_tx', 3, f'{REDUCER_TYPE}_bg')]:
-
+	# Transform and plot
+	for plot_spec in VISUALIZATION_MAPPING['plot_data']:
 		# Get the relevant activations
-		transform_data = np.concatenate((activations[set_a], activations[set_b]), axis=0)
-		transform_labels = np.array(
-			[label_a] * len(activations[set_a]) +
-			[label_b] * len(activations[set_b]))
+		transform_data = [activations[name] for group in plot_spec['groups'] for name in group['sets']]
+		transform_data = np.concatenate(transform_data, axis=0)
+		transform_labels = [
+			group['id'] for group in plot_spec['groups']
+			for name in group['sets']
+			for _ in range(len(activations[name]))]
+		transform_labels = np.array(transform_labels)
+
 		# # Add 1 instance from each class for legend colors
 		# extra_points = np.stack(tuple(activations[set_name][0] for set_name in ['fg_pos', 'fg_neg_tx', 'bg_pos', 'bg_neg_tx']))
 		# extra_labels = np.array([0, 1, 2, 3])
@@ -88,14 +132,17 @@ def main():
 		rng.shuffle(combined)
 		transform_data, transform_labels = combined[:, :-1], combined[:, -1]
 
-		# Transform and visualize
-		transform_outfile = os.path.join(ACTIVATIONS_DIR, f"{name}.npy")
-		plot_outfile = os.path.join(ACTIVATIONS_DIR, f"{name}.png")
-		label_mapping = {0: 'mouse PV +', 1: 'mouse PV - (neoe)', 2: 'human PV +', 3: 'human PV - (neoe)'}
+		# Transform
+		title = plot_spec['title']
+		transform_outfile = os.path.join(ACTIVATIONS_DIR, f"{title}_{REDUCER_TYPE}.npy")
 		if not os.path.exists(transform_outfile):
 			transformed = visualization.transform(reducer, transform_data, transform_outfile=transform_outfile)
 		else:
 			transformed = np.load(transform_outfile)
+
+		# Visualize
+		plot_outfile = os.path.join(ACTIVATIONS_DIR, f"{title}_{REDUCER_TYPE}.png")
+		label_mapping = {group['id']: group['name'] for group in plot_spec['groups']}
 		visualization.scatter(transformed, plot_outfile, transform_labels=transform_labels,
 			label_mapping=label_mapping, scatter_kwargs={"s": 1.5}, add_histogram=True)
 
