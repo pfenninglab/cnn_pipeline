@@ -1,7 +1,9 @@
 import os
 import pickle
 
+import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 from tqdm import tqdm
 
 import visualization
@@ -11,10 +13,10 @@ import models
 # multispecies PV model
 MODEL_PATH = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/multispecies_PV/models/FINAL_modelmultiPVi.h5'
 LAYER_NAME = 'activation_1'
-# mouse-only PV model
+# # mouse-only PV model
 # MODEL_PATH = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_PV/models/FINAL_modelPV3e.h5'
-# [...] -> maxpool -> flatten -> dense(300) -> activation_9 -> [...]
-#LAYER_NAME = 'activation_9'
+# # [...] -> maxpool -> flatten -> dense(300) -> activation_9 -> [...]
+# LAYER_NAME = 'activation_9'
 
 
 
@@ -29,13 +31,14 @@ BG_NEG_PATH_FIT = os.path.join(DATA_DIR, 'human_PV_neg_VAL.fa')
 BG_NEG_PATH_TX = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/PV/Eval2_hg38.fa'
 ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mouse_pv/'
 
-REDUCER_TYPE = 'umap' # 'pca' or 'umap'
+REDUCER_TYPE = 'pca' # 'pca' or 'umap'
 if REDUCER_TYPE not in ['pca', 'umap']:
 	raise NotImplementedError()
 
 PV_DATA_DIR = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/multispecies_PV/FinalModelData'
 PV_EVAL_DIR = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/PV/'
 DATA_MAPPING = {
+	'mouse_neg_val': os.path.join(PV_DATA_DIR, 'mouse_PV_neg_VAL.fa'),
 	'combined_pos_val': os.path.join(PV_DATA_DIR, 'combined_PV_pos_VAL.fa'),
 	'combined_neg_val': os.path.join(PV_DATA_DIR, 'combined_PV_neg_VAL.fa'),
 	'human_pos_train': os.path.join(PV_DATA_DIR, 'human_PV_pos_TRAIN.fa'),
@@ -48,7 +51,10 @@ DATA_MAPPING = {
 	'mouse_neg_neoe_all': os.path.join(PV_EVAL_DIR, 'Eval2_hg38.fa')
 }
 VISUALIZATION_MAPPING = {
+	#multispecies
 	'fit_data': ['combined_pos_val', 'combined_neg_val'],
+	# #mouse-only
+	# 'fit_data': ['mouse_pos_val', 'mouse_neg_val'],
 	'plot_data': [
 		{
 			'title': 'Positives',
@@ -133,18 +139,36 @@ def main():
 		transform_data, transform_labels = combined[:, :-1], combined[:, -1]
 
 		# Transform
+		print("Getting transformed samples...")
 		title = plot_spec['title']
 		transform_outfile = os.path.join(ACTIVATIONS_DIR, f"{title}_{REDUCER_TYPE}.npy")
+		transform_label_outfile = os.path.join(ACTIVATIONS_DIR, f"{title}_{REDUCER_TYPE}_labels.npy")
 		if not os.path.exists(transform_outfile):
 			transformed = visualization.transform(reducer, transform_data, transform_outfile=transform_outfile)
+			np.save(transform_label_outfile, transform_labels)
 		else:
 			transformed = np.load(transform_outfile)
+			transform_labels = np.load(transform_label_outfile)
+
+		# Rank-Sum test on whether the first PC separates
+		sample1 = (transform_labels == plot_spec['groups'][0]['id']).nonzero()[0]
+		sample2 = (transform_labels == plot_spec['groups'][1]['id']).nonzero()[0]
+		ranksum_result = scipy.stats.ranksums(transformed[sample1, 0], transformed[sample2, 0])
+		print(f"{title}: {ranksum_result}")
 
 		# Visualize
 		plot_outfile = os.path.join(ACTIVATIONS_DIR, f"{title}_{REDUCER_TYPE}.png")
 		label_mapping = {group['id']: group['name'] for group in plot_spec['groups']}
-		visualization.scatter(transformed, plot_outfile, transform_labels=transform_labels,
-			label_mapping=label_mapping, scatter_kwargs={"s": 1.5}, add_histogram=True)
+		fig, axs = visualization.scatter(transformed, plot_outfile, transform_labels=transform_labels,
+			label_mapping=label_mapping, scatter_kwargs={"s": 1.5, "alpha": 0.7}, add_histogram=True)
+		fig.suptitle(f"{title}")
+		axs[0].set_title("First 2 PCs")
+		axs[0].set_xlabel("PC 1")
+		axs[0].set_ylabel("PC 2")
+		axs[1].set_title("First PC")
+		axs[1].set_xlabel(f"PC 1\nstatistic = {ranksum_result.statistic}\np = {ranksum_result.pvalue}")
+		axs[1].set_ylabel("Density")
+		plt.savefig(plot_outfile, dpi=300)
 
 if __name__ == '__main__':
 	main()
