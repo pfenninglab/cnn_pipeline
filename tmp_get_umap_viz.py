@@ -62,21 +62,24 @@ VISUALIZATION_MAPPING = {
 			'groups': [
 				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
 				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
-			]
+			],
+			'add_histogram': True
 		},
 		{
 			'title': 'Human',
 			'groups': [
 				{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']},
 				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']}
-			]
+			],
+			'add_histogram': True
 		},
 		{
 			'title': 'Mouse',
 			'groups': [
 				{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
 				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
-			]
+			],
+			'add_histogram': True
 		},
 		{
 			'title': 'Mammals',
@@ -87,7 +90,8 @@ VISUALIZATION_MAPPING = {
 				{'id': 2, 'name': 'Dolphin', 'sets': ['dolphin']},
 				{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
 				{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']}
-			]
+			],
+			'add_violinplot': True
 		}
 	]
 }
@@ -166,20 +170,30 @@ def main():
 		sample1 = (transform_labels == plot_spec['groups'][0]['id']).nonzero()[0]
 		sample2 = (transform_labels == plot_spec['groups'][1]['id']).nonzero()[0]
 		ranksum_result = scipy.stats.ranksums(transformed[sample1, 0], transformed[sample2, 0])
-		print(f"{title}: {ranksum_result}")
 
 		# Visualize
 		plot_outfile = os.path.join(ACTIVATIONS_DIR, f"{title}_{REDUCER_TYPE}.png")
 		label_mapping = {group['id']: group['name'] for group in plot_spec['groups']}
+		add_histogram = plot_spec.get('add_histogram', False)
+		add_violinplot = plot_spec.get('add_violinplot', False)
 		fig, axs = visualization.scatter(transformed, plot_outfile, transform_labels=transform_labels,
-			label_mapping=label_mapping, scatter_kwargs={"s": 1.5, "alpha": 0.7}, add_histogram=True)
+			label_mapping=label_mapping, scatter_kwargs={"s": 0.7, "alpha": 0.7},
+			add_histogram=add_histogram,
+			add_violinplot=add_violinplot)
 		fig.suptitle(f"{title}")
-		axs[0].set_title("First 2 PCs")
-		axs[0].set_xlabel("PC 1")
-		axs[0].set_ylabel("PC 2")
-		axs[1].set_title("First PC")
-		axs[1].set_xlabel(f"PC 1\nstatistic = {ranksum_result.statistic}\np = {ranksum_result.pvalue}")
-		axs[1].set_ylabel("Density")
+		ax_num = 0
+		axs[ax_num].set_title("First 2 PCs")
+		axs[ax_num].set_xlabel("PC 1")
+		axs[ax_num].set_ylabel("PC 2")
+		if add_histogram:
+			ax_num += 1
+			axs[ax_num].set_title("First PC")
+			axs[ax_num].set_xlabel(f"PC 1\nstatistic = {ranksum_result.statistic}\np = {ranksum_result.pvalue}")
+			axs[ax_num].set_ylabel("Density")
+		if add_violinplot:
+			ax_num += 1
+			axs[ax_num].set_title("First PC")
+			axs[ax_num].set_ylabel("PC 1")
 		plt.savefig(plot_outfile, dpi=300)
 
 if __name__ == '__main__':

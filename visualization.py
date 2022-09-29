@@ -94,22 +94,27 @@ def pca_fit(fit_data, pca_kwargs=None, reducer_outfile=None):
 
 	return reducer
 
-def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, scatter_kwargs=None, add_histogram=False):
+def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, scatter_kwargs=None, add_histogram=False, add_violinplot=False):
 	print("Plotting...")
 	# Create default scatter_kwargs as an empty dict
 	scatter_kwargs = scatter_kwargs or {}
-	cmap = plt.cm.get_cmap('cool')
 	if transform_labels is not None:
+		unique_labels = np.unique(transform_labels)
+		cmap = 'cool' if len(unique_labels) <= 2 else 'tab10'
+		cmap = plt.cm.get_cmap(cmap)
 		# Color the samples by their label
 		scatter_kwargs['c'] = transform_labels
 		scatter_kwargs['cmap'] = cmap
 
 	plt.clf()
-	nrows = 2 if add_histogram else 1 
-	fig, axs = plt.subplots(nrows=nrows, sharex=True)
+	nrows = sum([True, add_histogram, add_violinplot])
+	fig, axs = plt.subplots(nrows=nrows)
+	ax_num = 0
+	size = fig.get_size_inches()
+	fig.set_size_inches(size[0], size[1] * nrows)
 
 	# Scatter plot
-	plot = axs[0].scatter(points[:, 0], points[:, 1], **scatter_kwargs)
+	plot = axs[ax_num].scatter(points[:, 0], points[:, 1], **scatter_kwargs)
 	if transform_labels is not None:
 		# Convert numerical labels to string in the legend
 		lines, labels = plot.legend_elements()
@@ -117,19 +122,40 @@ def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, sca
 			# Assumes labels is sorted unique transform labels
 			labels = [label_mapping[itm] for itm in sorted(set(transform_labels))]
 		# Add color legend and format figure
-		axs[0].legend(lines, labels, loc='lower right', prop={'size': 5})
-		axs[0].tick_params(labelbottom=False, bottom=False, labelleft=False, left=False)
+		axs[ax_num].legend(lines, labels, loc='lower right', prop={'size': 5})
+		axs[ax_num].tick_params(labelbottom=False, bottom=False, labelleft=False, left=False)
 
 	# Histogram
 	if add_histogram:
+		ax_num += 1
 		bins = np.linspace(np.min(points[:, 0]), np.max(points[:, 0]), num=32)
-		values = np.unique(transform_labels)
-		for value in values:
+		for value in unique_labels:
 			hist_points = points[np.where(transform_labels == value)]
-			color = cmap((value - np.min(values))/(np.max(values) - np.min(values)))
-			axs[1].hist(hist_points[:, 0], label=label_mapping[value], alpha=0.5, density=True, bins=bins, color=color)
-			axs[1].legend(loc='lower right', prop={'size': 5})
-			axs[1].tick_params(labelleft=False, left=False)
+			color = cmap((value - np.min(unique_labels))/(np.max(unique_labels) - np.min(unique_labels)))
+			# Dataset is just PC 1 for each group
+			axs[ax_num].hist(hist_points[:, 0], label=label_mapping[value], alpha=0.5, density=True, bins=bins, color=color)
+			axs[ax_num].legend(loc='lower right', prop={'size': 5})
+			axs[ax_num].tick_params(labelleft=False, left=False)
+		# Share x-axis with scatterplot
+		axs[ax_num].get_shared_x_axes().join(axs[0], axs[ax_num])
+
+	# Violin plot
+	if add_violinplot:
+		ax_num += 1
+		# Reverse sort so that we go from highest (positive) to lowest (negative)
+		labels = sorted(unique_labels, reverse=True)
+		# Dataset is just PC 1 for each group
+		dataset = [points[np.where(transform_labels == value)] for value in labels]
+		dataset = [group[:, 0] for group in dataset]
+		violins = axs[ax_num].violinplot(dataset, showmeans=True)
+		# We use the reversed label order for the xticks
+		axs[ax_num].set_xticks(np.array(labels) + 1)
+		# Don't need to reverse the labels, because they get mapped to the xticks in order
+		axs[ax_num].set_xticklabels([label_mapping[itm] for itm in unique_labels], rotation=-70)
+		# Color the violins
+		for vp, value in zip(violins['bodies'], labels):
+			color = cmap((value - np.min(unique_labels))/(np.max(unique_labels) - np.min(unique_labels)))
+			vp.set_facecolor(color)
 
 	# Arrange plots so that they don't squeeze into each other
 	plt.tight_layout(pad=5)
