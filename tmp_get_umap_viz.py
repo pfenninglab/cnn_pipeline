@@ -13,10 +13,12 @@ import models
 # multispecies PV model
 MODEL_PATH = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/multispecies_PV/models/FINAL_modelmultiPVi.h5'
 LAYER_NAME = 'activation_1'
+FIT_DATA_KEYS = ['combined_pos_val', 'combined_neg_val']
 # # mouse-only PV model
 # MODEL_PATH = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_PV/models/FINAL_modelPV3e.h5'
 # # [...] -> maxpool -> flatten -> dense(300) -> activation_9 -> [...]
 # LAYER_NAME = 'activation_9'
+# FIT_DATA_KEYS = ['mouse_pos_val', 'mouse_neg_val']
 
 
 
@@ -48,33 +50,43 @@ DATA_MAPPING = {
 	'mouse_pos_val': os.path.join(PV_DATA_DIR, 'mouse_PV_pos_VAL.fa'),
 	'mouse_pos_test': os.path.join(PV_DATA_DIR, 'mouse_PV_pos_TEST.fa'),
 	'human_neg_neoe_all': os.path.join(PV_EVAL_DIR, 'Eval4_mm10.fa'),
-	'mouse_neg_neoe_all': os.path.join(PV_EVAL_DIR, 'Eval2_hg38.fa')
+	'mouse_neg_neoe_all': os.path.join(PV_EVAL_DIR, 'Eval2_hg38.fa'),
+	'dolphin': '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/predictions/mousePV_per_species/fasta/mouseReproduciblePV_mm10_Tursiops_truncatus.fa',
+	'rabbit': '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/predictions/mousePV_per_species/fasta/glires/mouseReproduciblePV_mm10_Oryctolagus_cuniculus.fa'
 }
 VISUALIZATION_MAPPING = {
-	#multispecies
-	'fit_data': ['combined_pos_val', 'combined_neg_val'],
-	# #mouse-only
-	# 'fit_data': ['mouse_pos_val', 'mouse_neg_val'],
+	'fit_data': FIT_DATA_KEYS,
 	'plot_data': [
 		{
 			'title': 'Positives',
 			'groups': [
-				{'id': 2, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
-				{'id': 3, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
+				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
+				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
 			]
 		},
 		{
 			'title': 'Human',
 			'groups': [
 				{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']},
-				{'id': 2, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']}
+				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']}
 			]
 		},
 		{
 			'title': 'Mouse',
 			'groups': [
 				{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
-				{'id': 3, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
+				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
+			]
+		},
+		{
+			'title': 'Mammals',
+			'groups': [
+				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']},
+				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
+				{'id': 3, 'name': 'Rabbit', 'sets': ['rabbit']},
+				{'id': 2, 'name': 'Dolphin', 'sets': ['dolphin']},
+				{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
+				{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']}
 			]
 		}
 	]
