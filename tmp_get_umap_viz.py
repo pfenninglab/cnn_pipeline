@@ -59,22 +59,22 @@ VISUALIZATION_MAPPING = {
 		{
 			'title': 'Positives',
 			'groups': [
-				{'id': 0, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
-				{'id': 1, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
+				{'id': 2, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
+				{'id': 3, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
 			]
 		},
 		{
 			'title': 'Human',
 			'groups': [
-				{'id': 0, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
-				{'id': 2, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']}
+				{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']},
+				{'id': 2, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']}
 			]
 		},
 		{
 			'title': 'Mouse',
 			'groups': [
-				{'id': 1, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']},
-				{'id': 3, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']}
+				{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
+				{'id': 3, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
 			]
 		}
 	]

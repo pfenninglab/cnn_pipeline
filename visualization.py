@@ -124,7 +124,7 @@ def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, sca
 	if add_histogram:
 		bins = np.linspace(np.min(points[:, 0]), np.max(points[:, 0]), num=32)
 		values = np.unique(transform_labels)
-		for value in sorted(values, reverse=True):
+		for value in values:
 			hist_points = points[np.where(transform_labels == value)]
 			color = cmap((value - np.min(values))/(np.max(values) - np.min(values)))
 			axs[1].hist(hist_points[:, 0], label=label_mapping[value], alpha=0.5, density=True, bins=bins, color=color)
