@@ -14,11 +14,13 @@ import models
 MODEL_PATH = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/multispecies_PV/models/FINAL_modelmultiPVi.h5'
 LAYER_NAME = 'activation_1'
 FIT_DATA_KEYS = ['combined_pos_val', 'combined_neg_val']
+ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mouse_pv/'
 # # mouse-only PV model
 # MODEL_PATH = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_PV/models/FINAL_modelPV3e.h5'
 # # [...] -> maxpool -> flatten -> dense(300) -> activation_9 -> [...]
 # LAYER_NAME = 'activation_9'
 # FIT_DATA_KEYS = ['mouse_pos_val', 'mouse_neg_val']
+# ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mouse_pv_mouseonly/'
 
 
 
@@ -31,7 +33,6 @@ BG_POS_PATH = os.path.join(DATA_DIR, 'human_PV_pos_VAL.fa')
 BG_NEG_PATH_FIT = os.path.join(DATA_DIR, 'human_PV_neg_VAL.fa')
 # human non-enhancer orthologs of mouse enhancers
 BG_NEG_PATH_TX = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/PV/Eval2_hg38.fa'
-ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mouse_pv/'
 
 REDUCER_TYPE = 'pca' # 'pca' or 'umap'
 if REDUCER_TYPE not in ['pca', 'umap']:
@@ -91,7 +92,8 @@ VISUALIZATION_MAPPING = {
 				{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
 				{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']}
 			],
-			'add_violinplot': True
+			'add_violinplot': True,
+			'add_ranksum_table': True
 		}
 	]
 }
@@ -142,12 +144,6 @@ def main():
 			for _ in range(len(activations[name]))]
 		transform_labels = np.array(transform_labels)
 
-		# # Add 1 instance from each class for legend colors
-		# extra_points = np.stack(tuple(activations[set_name][0] for set_name in ['fg_pos', 'fg_neg_tx', 'bg_pos', 'bg_neg_tx']))
-		# extra_labels = np.array([0, 1, 2, 3])
-		# transform_data = np.concatenate((transform_data, extra_points), axis=0)
-		# transform_labels = np.concatenate((transform_labels, extra_labels), axis=0)
-
 		# Shuffle for visibility of all classes
 		rng = np.random.default_rng()
 		combined = np.concatenate((transform_data, np.expand_dims(transform_labels, axis=1)), axis=1)
@@ -166,20 +162,16 @@ def main():
 			transformed = np.load(transform_outfile)
 			transform_labels = np.load(transform_label_outfile)
 
-		# Rank-Sum test on whether the first PC separates
-		sample1 = (transform_labels == plot_spec['groups'][0]['id']).nonzero()[0]
-		sample2 = (transform_labels == plot_spec['groups'][1]['id']).nonzero()[0]
-		ranksum_result = scipy.stats.ranksums(transformed[sample1, 0], transformed[sample2, 0])
-
 		# Visualize
 		plot_outfile = os.path.join(ACTIVATIONS_DIR, f"{title}_{REDUCER_TYPE}.png")
 		label_mapping = {group['id']: group['name'] for group in plot_spec['groups']}
 		add_histogram = plot_spec.get('add_histogram', False)
 		add_violinplot = plot_spec.get('add_violinplot', False)
+		add_ranksum_table = plot_spec.get('add_ranksum_table', True)
 		fig, axs = visualization.scatter(transformed, plot_outfile, transform_labels=transform_labels,
 			label_mapping=label_mapping, scatter_kwargs={"s": 0.7, "alpha": 0.7},
 			add_histogram=add_histogram,
-			add_violinplot=add_violinplot)
+			add_violinplot=add_violinplot, add_ranksum_table=add_ranksum_table)
 		fig.suptitle(f"{title}")
 		ax_num = 0
 		axs[ax_num].set_title("First 2 PCs")
@@ -188,12 +180,15 @@ def main():
 		if add_histogram:
 			ax_num += 1
 			axs[ax_num].set_title("First PC")
-			axs[ax_num].set_xlabel(f"PC 1\nstatistic = {ranksum_result.statistic}\np = {ranksum_result.pvalue}")
+			axs[ax_num].set_xlabel(f"PC 1")
 			axs[ax_num].set_ylabel("Density")
 		if add_violinplot:
 			ax_num += 1
 			axs[ax_num].set_title("First PC")
 			axs[ax_num].set_ylabel("PC 1")
+		if add_ranksum_table:
+			ax_num += 1
+			axs[ax_num].set_title("Rank-sum statistics, Mouse + vs. all other groups")
 		plt.savefig(plot_outfile, dpi=300)
 
 if __name__ == '__main__':

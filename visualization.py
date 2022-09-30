@@ -3,6 +3,7 @@ import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 import sklearn
 import umap
 
@@ -94,7 +95,7 @@ def pca_fit(fit_data, pca_kwargs=None, reducer_outfile=None):
 
 	return reducer
 
-def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, scatter_kwargs=None, add_histogram=False, add_violinplot=False):
+def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, scatter_kwargs=None, add_histogram=False, add_violinplot=False, add_ranksum_table=False):
 	print("Plotting...")
 	# Create default scatter_kwargs as an empty dict
 	scatter_kwargs = scatter_kwargs or {}
@@ -107,7 +108,7 @@ def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, sca
 		scatter_kwargs['cmap'] = cmap
 
 	plt.clf()
-	nrows = sum([True, add_histogram, add_violinplot])
+	nrows = sum([True, add_histogram, add_violinplot, add_ranksum_table])
 	fig, axs = plt.subplots(nrows=nrows)
 	ax_num = 0
 	size = fig.get_size_inches()
@@ -156,6 +157,21 @@ def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, sca
 		for vp, value in zip(violins['bodies'], labels):
 			color = cmap((value - np.min(unique_labels))/(np.max(unique_labels) - np.min(unique_labels)))
 			vp.set_facecolor(color)
+
+	if add_ranksum_table:
+		# Do rank-sum test between the group with the largest label, and every other group
+		ax_num += 1
+		# Reverse sort so that we go from highest (positive) to lowest (negative)
+		labels = sorted(unique_labels, reverse=True)
+		sample2 = points[np.where(transform_labels == labels[0])]
+		table_data = [['Group', 'Statistic', 'P']]
+		for label in labels[1:]:
+			sample1 = points[np.where(transform_labels == label)]
+			ranksum_result = scipy.stats.ranksums(sample1[:, 0], sample2[:, 0])
+			table_data.append([label_mapping[label], ranksum_result.statistic, ranksum_result.pvalue])
+		axs[ax_num].table(cellText=table_data, loc='center')
+		axs[ax_num].axis('off')
+		axs[ax_num].axis('tight')
 
 	# Arrange plots so that they don't squeeze into each other
 	plt.tight_layout(pad=5)
