@@ -164,16 +164,19 @@ def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, sca
 		# Reverse sort so that we go from highest (positive) to lowest (negative)
 		labels = sorted(unique_labels, reverse=True)
 		sample2 = points[np.where(transform_labels == labels[0])]
-		table_data = [['Group', 'Statistic', 'P']]
+		table_data = [['Group', 'Statistic', 'P', 'N']]
+		# Bonferroni correction, number of tests
+		bonferroni_multiplier = len(labels) - 1
 		for label in labels[1:]:
 			sample1 = points[np.where(transform_labels == label)]
 			ranksum_result = scipy.stats.ranksums(sample1[:, 0], sample2[:, 0])
-			table_data.append([label_mapping[label], ranksum_result.statistic, ranksum_result.pvalue])
+			pvalue = ranksum_result.pvalue * bonferroni_multiplier
+			table_data.append([label_mapping[label], ranksum_result.statistic, pvalue, len(sample1)])
 		axs[ax_num].table(cellText=table_data, loc='center')
 		axs[ax_num].axis('off')
 		axs[ax_num].axis('tight')
 
 	# Arrange plots so that they don't squeeze into each other
 	plt.tight_layout(pad=5)
-	plt.savefig(plot_outfile, dpi=300)
+	plt.savefig(plot_outfile, dpi=250)
 	return fig, axs

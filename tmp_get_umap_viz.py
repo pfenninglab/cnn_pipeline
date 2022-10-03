@@ -10,33 +10,29 @@ import visualization
 import models
 
 
+# Global constants
+
+REDUCER_TYPE = 'pca' # 'pca' or 'umap'
+if REDUCER_TYPE not in ['pca', 'umap']:
+	raise NotImplementedError()
+PLOT_EXTENSION = 'png'
+
+# Model-specific constants
+
+# PV models
+
 # multispecies PV model
 MODEL_PATH = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/multispecies_PV/models/FINAL_modelmultiPVi.h5'
 LAYER_NAME = 'activation_1'
 FIT_DATA_KEYS = ['combined_pos_val', 'combined_neg_val']
 ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mouse_pv/'
+
 # # mouse-only PV model
 # MODEL_PATH = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_PV/models/FINAL_modelPV3e.h5'
 # # [...] -> maxpool -> flatten -> dense(300) -> activation_9 -> [...]
 # LAYER_NAME = 'activation_9'
 # FIT_DATA_KEYS = ['mouse_pos_val', 'mouse_neg_val']
 # ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mouse_pv_mouseonly/'
-
-
-
-DATA_DIR = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/multispecies_PV/FinalModelData'
-FG_POS_PATH = os.path.join(DATA_DIR, 'mouse_PV_pos_VAL.fa')
-FG_NEG_PATH_FIT = os.path.join(DATA_DIR, 'mouse_PV_neg_VAL.fa')
-# mouse non-enhancer orthologs of human enhancers
-FG_NEG_PATH_TX = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/PV/Eval4_mm10.fa'
-BG_POS_PATH = os.path.join(DATA_DIR, 'human_PV_pos_VAL.fa')
-BG_NEG_PATH_FIT = os.path.join(DATA_DIR, 'human_PV_neg_VAL.fa')
-# human non-enhancer orthologs of mouse enhancers
-BG_NEG_PATH_TX = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/PV/Eval2_hg38.fa'
-
-REDUCER_TYPE = 'pca' # 'pca' or 'umap'
-if REDUCER_TYPE not in ['pca', 'umap']:
-	raise NotImplementedError()
 
 PV_DATA_DIR = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/multispecies_PV/FinalModelData'
 PV_EVAL_DIR = '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/PV/'
@@ -55,33 +51,35 @@ DATA_MAPPING = {
 	'dolphin': '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/predictions/mousePV_per_species/fasta/mouseReproduciblePV_mm10_Tursiops_truncatus.fa',
 	'rabbit': '/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/predictions/mousePV_per_species/fasta/glires/mouseReproduciblePV_mm10_Oryctolagus_cuniculus.fa'
 }
+
 VISUALIZATION_MAPPING = {
 	'fit_data': FIT_DATA_KEYS,
 	'plot_data': [
-		{
-			'title': 'Positives',
-			'groups': [
-				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
-				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
-			],
-			'add_histogram': True
-		},
-		{
-			'title': 'Human',
-			'groups': [
-				{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']},
-				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']}
-			],
-			'add_histogram': True
-		},
-		{
-			'title': 'Mouse',
-			'groups': [
-				{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
-				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
-			],
-			'add_histogram': True
-		},
+		# {
+		# 	'title': 'Positives',
+		# 	'groups': [
+		# 		{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
+		# 		{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
+		# 	],
+		# 	'add_histogram': True
+		# },
+		# {
+		# 	'title': 'Human',
+		# 	'groups': [
+		# 		{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']},
+		# 		{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']}
+		# 	],
+		# 	'add_histogram': True
+		# },
+		# {
+		# 	'title': 'Mouse',
+		# 	'groups': [
+		# 		{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
+		# 		{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
+		# 	],
+		# 	'add_histogram': True
+		# },
+		# plot order 1
 		{
 			'title': 'Mammals',
 			'groups': [
@@ -94,14 +92,117 @@ VISUALIZATION_MAPPING = {
 			],
 			'add_violinplot': True,
 			'add_ranksum_table': True
+		},
+		# plot order 2
+		{
+			'title': 'Mammals (order 2)',
+			'groups': [
+				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']},
+				{'id': 4, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
+				{'id': 3, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
+				{'id': 2, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']},
+				{'id': 1, 'name': 'Rabbit', 'sets': ['rabbit']},
+				{'id': 0, 'name': 'Dolphin', 'sets': ['dolphin']}
+			],
+			'add_violinplot': True,
+			'add_ranksum_table': True
 		}
 	]
 }
 
-def main():
+# Motor Cortex models
+
+# # multispecies MC model
+# MODEL_PATH = '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/cortexEnhancerVsOtherSpeciesEnhLoosePeakLessThan1kb500bp_data_train.KerasModels/hybrid_cortexEnhancerShort_enhLooseNeg_500bp_conv5MuchMuchMoreFiltNoInterPoolTwoDenseLargeDenseVeryHighMomLowDropL2SmallBatchPretrainBal.hdf5'
+# LAYER_NAME = '...'
+# FIT_DATA_KEYS = ['...', '...']
+# ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mc_multispecies/'
+
+# # # mouse-only MC model
+# # MODEL_PATH = '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/cortexEnhancerVsOtherSpeciesEnhMouseMacaqueRatBatPeakLessThan1kb_data_train.KerasModels/cortexEnhancerShort_multiSpecies_enhLooseNeg_500bp_conv5TotalTotalFiltNoInterPoolVeryHighMomL2SmallBatchPretrainBal.hdf5'
+# # # [...] -> maxpool -> flatten -> dense(300) -> activation_9 -> [...]
+# # LAYER_NAME = '...'
+# # FIT_DATA_KEYS = ['...', '...']
+# # ACTIVATIONS_DIR = '/home/csestili/data/tacit_viz/mc_mouseonly/'
+
+# DATA_MAPPING = {
+# 	'mouse_pos': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_unique_summitPlusMinus250bp.fa',
+# 	'mac_pos_train': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MacaqueAtac/OfM/peak/idr_reproducibility/idr.optimal_peak.inM1_nonCDS_enhancerShort_train_summitPlusMinus250bp.fa', 
+# 	'mac_pos_val': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MacaqueAtac/OfM/peak/idr_reproducibility/idr.optimal_peak.inM1_nonCDS_enhancerShort_valid_summitPlusMinus250bp.fa,',
+# 	'mac_pos_test': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MacaqueAtac/OfM/peak/idr_reproducibility/idr.optimal_peak.inM1_nonCDS_enhancerShort_test_summitPlusMinus250bp.fa',
+# 	'rat_pos_train': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/RatAtac/M1_AllReps/peak/idr_reproducibility/idr.optimal_peak_nonCDS_enhancerShort_train_summitPlusMinus250bp.fa',
+# 	'rat_pos_val': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/RatAtac/M1_AllReps/peak/idr_reproducibility/idr.optimal_peak_nonCDS_enhancerShort_valid_summitPlusMinus250bp.fa',
+# 	'rat_pos_test': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/RatAtac/M1_AllReps/peak/idr_reproducibility/idr.optimal_peak_nonCDS_enhancerShort_test_summitPlusMinus250bp.fa',
+# 	'bat_pos_train': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/BatAtac/OfMBat1K/call-reproducibility_idr/execution/idr.optimal_peak.inM1_nonCDS_enhancerShort_train_summitPlusMinus250bp.fa',
+# 	'bat_pos_val': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/BatAtac/OfMBat1K/call-reproducibility_idr/execution/idr.optimal_peak.inM1_nonCDS_enhancerShort_valid_summitPlusMinus250bp.fa',
+# 	'bat_pos_test': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/BatAtac/OfMBat1K/call-reproducibility_idr/execution/idr.optimal_peak.inM1_nonCDS_enhancerShort_test_summitPlusMinus250bp.fa',
+# 	'mouse_neg': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MacaqueAtac/OfM/peak/idr_reproducibility/idr.optimal_peak.inM1Loose_nonCDS_enhancerShort_GenBankNames_mm10_summitExtendedMin50Max2XProtect5_nonMouseCortex_andRat_andBat.plusMinus250bp.fa',
+# 	'mac_neg_train': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_rheMac8_summitExtendedMin50Max2XProtect5_UCSCNames_nonMacaqueCortex_train_andRat_andBat_summitPlusMinus250bp.fa',
+# 	'mac_neg_val': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_rheMac8_summitExtendedMin50Max2XProtect5_UCSCNames_nonMacaqueCortex_valid_andRat_andBat_summitPlusMinus250bp.fa',
+# 	'mac_neg_test': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_rheMac8_summitExtendedMin50Max2XProtect5_UCSCNames_nonMacaqueCortex_test_andRat_andBat_summitPlusMinus250bp.fa',
+# 	'rat_neg_train': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_rn6_summitExtendedMin50Max2XProtect5_nonRatCortex_train_andMacaque_andBat_summitPlusMinus250bp.fa',
+# 	'rat_neg_val': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_rn6_summitExtendedMin50Max2XProtect5_nonRatCortex_valid_andMacaque_andBat_summitPlusMinus250bp.fa',
+# 	'rat_neg_test': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_rn6_summitExtendedMin50Max2XProtect5_nonRatCortex_test_andMacaque_andBat_summitPlusMinus250bp.fa',
+# 	'bat_neg_train': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_200MBat_summitExtendedMin50Max2XProtect5_HLrouAeg4_RefSeqNames_nonBatCortex_train_andMacaque_andRat_summitPlusMinus250bp.fa',
+# 	'bat_neg_val': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_200MBat_summitExtendedMin50Max2XProtect5_HLrouAeg4_RefSeqNames_nonBatCortex_valid_andMacaque_andRat_summitPlusMinus250bp.fa',
+# 	'bat_neg_test': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/Pfenning_bulk_Ctx_nonCDS_enhancerShort_200MBat_summitExtendedMin50Max2XProtect5_HLrouAeg4_RefSeqNames_nonBatCortex_test_andMacaque_andRat_summitPlusMinus250bp.fa',
+# 	'rabbit': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/LiftedPeaks/Pfenning_bulk_Ctx_nonCDS_enhancerShort_Oryctolagus_cuniculus_summitExtendedMin50Max2XProtect5_RefSeqNames.plusMinus250bp.fa',
+# 	'dolphin': '/projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseDNase/Cortex_All_ATAC_out/peak/macs2/idr/optimal_set/LiftedPeaks/Pfenning_bulk_Ctx_nonCDS_enhancerShort_Tursiops_truncatus_summitExtendedMin50Max2XProtect5_RefSeqNames.plusMinus250bp.fa'
+# }
+
+# VISUALIZATION_MAPPING = {
+# 	'fit_data': FIT_DATA_KEYS,
+# 	'plot_data': [
+# 		{
+# 			'title': 'Positives',
+# 			'groups': [
+# 				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
+# 				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
+# 			],
+# 			'add_histogram': True
+# 		},
+# 		{
+# 			'title': 'Human',
+# 			'groups': [
+# 				{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']},
+# 				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']}
+# 			],
+# 			'add_histogram': True
+# 		},
+# 		{
+# 			'title': 'Mouse',
+# 			'groups': [
+# 				{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
+# 				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']}
+# 			],
+# 			'add_histogram': True
+# 		},
+# 		{
+# 			'title': 'Mammals',
+# 			'groups': [
+# 				{'id': 5, 'name': 'Mouse +', 'sets': ['mouse_pos_train', 'mouse_pos_val', 'mouse_pos_test']},
+# 				{'id': 4, 'name': 'Human +', 'sets': ['human_pos_train', 'human_pos_val', 'human_pos_test']},
+# 				{'id': 3, 'name': 'Rabbit', 'sets': ['rabbit']},
+# 				{'id': 2, 'name': 'Dolphin', 'sets': ['dolphin']},
+# 				{'id': 1, 'name': 'Mouse - (neoe)', 'sets': ['mouse_neg_neoe_all']},
+# 				{'id': 0, 'name': 'Human - (neoe)', 'sets': ['human_neg_neoe_all']}
+# 			],
+# 			'add_violinplot': True,
+# 			'add_ranksum_table': True
+# 		}
+# 	]
+# }
+
+
+
+# liver model
+# TODO
+pass
+
+def main(visualization_mapping=VISUALIZATION_MAPPING):
 
 	# Compile list of datasets that need activations
-	datasets = VISUALIZATION_MAPPING['fit_data'] + [name for plot_spec in VISUALIZATION_MAPPING['plot_data'] for group in plot_spec['groups'] for name in group['sets']]
+	datasets = visualization_mapping['fit_data'] + [name for plot_spec in visualization_mapping['plot_data'] for group in plot_spec['groups'] for name in group['sets']]
 	datasets = list(set(datasets))
 
 	# Get activations for each dataset
@@ -125,7 +226,7 @@ def main():
 	reducer_path = os.path.join(ACTIVATIONS_DIR, f"{REDUCER_TYPE}_reducer.pkl")
 	if not os.path.exists(reducer_path):
 		fit_data = np.concatenate(
-			[activations[name] for name in VISUALIZATION_MAPPING['fit_data']],
+			[activations[name] for name in visualization_mapping['fit_data']],
 			axis=0)
 		fit_fn = visualization.umap_fit if REDUCER_TYPE == 'umap' else visualization.pca_fit
 		reducer = fit_fn(fit_data, reducer_outfile=reducer_path)
@@ -134,7 +235,7 @@ def main():
 			reducer = pickle.load(f)
 
 	# Transform and plot
-	for plot_spec in VISUALIZATION_MAPPING['plot_data']:
+	for plot_spec in visualization_mapping['plot_data']:
 		# Get the relevant activations
 		transform_data = [activations[name] for group in plot_spec['groups'] for name in group['sets']]
 		transform_data = np.concatenate(transform_data, axis=0)
@@ -163,7 +264,7 @@ def main():
 			transform_labels = np.load(transform_label_outfile)
 
 		# Visualize
-		plot_outfile = os.path.join(ACTIVATIONS_DIR, f"{title}_{REDUCER_TYPE}.png")
+		plot_outfile = os.path.join(ACTIVATIONS_DIR, f"{title}_{REDUCER_TYPE}.{PLOT_EXTENSION}")
 		label_mapping = {group['id']: group['name'] for group in plot_spec['groups']}
 		add_histogram = plot_spec.get('add_histogram', False)
 		add_violinplot = plot_spec.get('add_violinplot', False)
@@ -184,12 +285,15 @@ def main():
 			axs[ax_num].set_ylabel("Density")
 		if add_violinplot:
 			ax_num += 1
-			axs[ax_num].set_title("First PC")
+			axs[ax_num].set_title(f"First PC. Variance explained: {reducer.explained_variance_[0]:0.4}")
 			axs[ax_num].set_ylabel("PC 1")
 		if add_ranksum_table:
 			ax_num += 1
-			axs[ax_num].set_title("Rank-sum statistics, Mouse + vs. all other groups")
-		plt.savefig(plot_outfile, dpi=300)
+			# The group with the highest ID is the one that gets compared to all the other groups
+			group_names = sorted([(group['id'], group['name']) for group in plot_spec['groups']])
+			ranksum_common_group_name = group_names[-1][1]
+			axs[ax_num].set_title(f"Rank-sum statistics, {ranksum_common_group_name} vs. rest")
+		plt.savefig(plot_outfile, dpi=250)
 
 if __name__ == '__main__':
 	main()
