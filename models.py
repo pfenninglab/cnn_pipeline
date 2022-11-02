@@ -228,14 +228,16 @@ def validate(config, model):
 
 	return res
 
-def get_activations(model, in_file, in_genome=None, out_file=None, layer_name=None, use_reverse_complement=True,
+def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=None, use_reverse_complement=True,
 	write_csv=False, score_column=None, batch_size=constants.DEFAULT_BATCH_SIZE):
 	"""Use the model to predict on all sequences, and save the activations.
 
 	Args:
 		model (keras model or str)
-		in_file (str): path to input .fa, .bed, or .narrowPeak
-		in_genome (str): path to input genome .fa, if in_file is .bed or .narrowPeak
+		in_files (str or list of str): paths to input .fa, .bed, or .narrowPeak files.
+		in_genomes (str or list of str): paths to corresponding genome .fa files,
+			if in_files are .bed or .narrowPeak. You must pass the same number of
+			in_genomes as in_files.
 		out_file (str): path to output file, .npy or .csv
 		layer_name (str): layer of model to get activations from. Default is the output layer.
 		use_reverse_complement (bool): if True, then evaluate on reverse complement sequences as well.
@@ -274,11 +276,17 @@ def get_activations(model, in_file, in_genome=None, out_file=None, layer_name=No
 		model = keras.Model(inputs=model.inputs, outputs=out_layer.output)
 
 	# Get dataset
-	if in_genome is not None:
-		source_files = [{"genome": in_genome, "intervals": in_file}]
+	if isinstance(in_files, str):
+		in_files = [in_files]
+	if isinstance(in_genomes, str):
+		in_genomes = [in_genomes]
+	if in_genomes is not None:
+		source_files = [
+			{"genome": in_genome, "intervals": in_file}
+			for (in_file, in_genome) in zip(in_files, in_genomes)]
 	else:
-		# in_file is an .fa file
-		source_files = [in_file]
+		# in_files are .fa files
+		source_files = in_files
 	# Only the input sequences will be used, target is fake
 	data = dataset.SequenceTfDataset(
 		source_files, [0], targets_are_classes=True, endless=False, reverse_complement=use_reverse_complement)
@@ -320,13 +328,18 @@ class AdditionalValidation:
                 x=val_data.dataset[0], y=val_data.dataset[1],
                 batch_size=self.batch_size, return_dict=True, verbose=0)
             for metric in self.metrics:
-                results[f'val_{idx + 1}_{metric}'] = values[metric]
+                if metric in values:
+                    results[f'val_{idx + 1}_{metric}'] = values[metric]
         # Aggregate metrics with geometric mean
         for metric in self.metrics:
             num_values = len(self.val_datasets)
-            values = [results[f'val_{idx + 1}_{metric}'] for idx in range(num_values)]
-            # https://en.wikipedia.org/wiki/Geometric_mean
-            results[f'val_*_{metric}_gm'] = np.power(np.product(values), 1 / num_values)
+            try:
+	            values = [results[f'val_{idx + 1}_{metric}'] for idx in range(num_values)]
+	            # https://en.wikipedia.org/wiki/Geometric_mean
+	            results[f'val_*_{metric}_gm'] = np.power(np.product(values), 1 / num_values)
+            except KeyError as e:
+            	# this metric was not calculated, skip it
+	            pass
         return results
 
 def get_additional_validation(config, model):
