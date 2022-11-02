@@ -95,7 +95,7 @@ def pca_fit(fit_data, pca_kwargs=None, reducer_outfile=None):
 
 	return reducer
 
-def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, scatter_kwargs=None, add_histogram=False, add_violinplot=False, add_ranksum_table=False):
+def scatter(points, plot_outfile=None, transform_labels=None, label_mapping=None, scatter_kwargs=None, add_histogram=False, add_violinplot=False, add_ranksum_table=False):
 	print("Plotting...")
 	# Create default scatter_kwargs as an empty dict
 	scatter_kwargs = scatter_kwargs or {}
@@ -157,6 +157,9 @@ def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, sca
 		for vp, value in zip(violins['bodies'], labels):
 			color = cmap((value - np.min(unique_labels))/(np.max(unique_labels) - np.min(unique_labels)))
 			vp.set_facecolor(color)
+		# Set line thickness to 0.75pt
+		for key in ['cmeans', 'cmaxes', 'cmins', 'cbars']:
+			violins[key].set_linewidth(0.75)
 
 	if add_ranksum_table:
 		# Do rank-sum test between the group with the largest label, and every other group
@@ -178,5 +181,6 @@ def scatter(points, plot_outfile, transform_labels=None, label_mapping=None, sca
 
 	# Arrange plots so that they don't squeeze into each other
 	plt.tight_layout(pad=5)
-	plt.savefig(plot_outfile, dpi=250)
+	if plot_outfile:
+		plt.savefig(plot_outfile, dpi=250)
 	return fig, axs
