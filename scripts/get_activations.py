@@ -40,7 +40,7 @@ def get_args():
 if __name__ == '__main__':
 	args = get_args()
 	get_activations(args.model, args.in_file,
-		in_genome=args.in_genome,
+		in_genomes=args.in_genome,
 		out_file=args.out_file,
 		layer_name=args.layer_name,
 		use_reverse_complement=not args.no_reverse_complement,
