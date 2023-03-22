@@ -8,16 +8,17 @@ print('done')
 
 print('loading data')
 val_data = dataset.SequenceTfDataset(
-        ['/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_PV/FinalModelData/mouse_PV_pos_VAL.fa'], [1],
+        ['/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_PV/FinalModelData/mouse_PV_neg_VAL.fa'], [0],
         targets_are_classes=True,
         endless=False,
         reverse_complement=True)
 
-sample = val_data.dataset[0][:10]
+print(val_data.dataset[0].shape)
+sample = val_data.dataset[0]
 print('done')
 
 print('eval with no dropout')
-print(model(sample))
+print(model.predict(sample))
 print()
 
 print('eval with dropout')

@@ -430,13 +430,14 @@ def enable_dropout(model):
 	model.set_weights(orig_weights)
 	return model
 
-def predict_with_uncertainty(model, inputs, num_trials=128, return_trials=False):
+def predict_with_uncertainty(model, inputs, batch_size=constants.DEFAULT_BATCH_SIZE, num_trials=64, return_trials=False):
 	"""Predict multiple times with Dropout enabled, and report aggregate results.
 	This is a Dropout-based approximation to using a Bayesian neural network.
 
 	Args:
 		model (keras.models.Model)
 		inputs (np.ndarray): shape [num_examples, sequence_len, 4]
+		batch_size (int): batch size for prediction
 		num_trials (int): number of times to run the model on each input
 		return_trials (bool):
 			if True, then return the raw outputs of the model for each trial,
@@ -449,7 +450,7 @@ def predict_with_uncertainty(model, inputs, num_trials=128, return_trials=False)
 			Optionally "trials" which are all the raw outputs of the model, shape [num_trials, num_examples, num_classes]
 	"""
 	model = enable_dropout(model)
-	trials = np.array([model(inputs) for _ in range(num_trials)])
+	trials = np.array([model.predict(inputs, batch_size=batch_size) for _ in range(num_trials)])
 	res = {
 		"mean": np.mean(trials, axis=0),
 		"std": np.std(trials, axis=0),
