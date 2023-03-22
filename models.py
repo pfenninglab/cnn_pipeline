@@ -1,5 +1,6 @@
 
 import numpy as np
+import scipy.stats
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -100,6 +101,57 @@ def get_model_architecture(input_shape, num_classes, config):
 		kernel_regularizer=l2(l=config['l2_reg_final']))(x)
 
 	return keras.Model(inputs=inputs, outputs=outputs)
+
+# TODO move Bayesian layers to a new layers module
+
+# From https://keras.io/examples/keras_recipes/bayesian_neural_networks/
+# Define the prior weight distribution as Normal of mean=0 and stddev=1.
+# The prior is not trainable; we fix its parameters.
+def prior(kernel_size, bias_size, dtype=None):
+    n = kernel_size + bias_size
+    prior_model = keras.Sequential(
+        [
+            tfp.layers.DistributionLambda(
+                lambda t: tfp.distributions.MultivariateNormalDiag(
+                    loc=tf.zeros(n), scale_diag=tf.ones(n)
+                )
+            )
+        ]
+    )
+    return prior_model
+
+# Define variational posterior weight distribution as multivariate Gaussian.
+# The learnable parameters for this distribution are the means, variances, and covariances.
+def posterior(kernel_size, bias_size, dtype=None):
+    n = kernel_size + bias_size
+    posterior_model = keras.Sequential(
+        [
+            tfp.layers.VariableLayer(
+                tfp.layers.MultivariateNormalTriL.params_size(n), dtype=dtype
+            ),
+            tfp.layers.MultivariateNormalTriL(n),
+        ]
+    )
+    return posterior_model
+
+def get_dense_layer(bayesian=False, train_size=None, **kwargs):
+	"""Return either keras.layers.Dense or tfp.layers.DenseVariational layer instance.
+	Args:
+		bayesian (bool):
+			if False, then return keras Dense layer.
+			if True, then return tfp DenseVariational layer with Gaussian prior and posterior.
+		train_size (int): number of examples in the training set, needed for bayesian == True.
+
+	Returns: keras.layers.Layer
+	"""
+	if bayesian:
+		return tfp.layers.DenseVariational(
+            make_prior_fn=prior,
+            make_posterior_fn=posterior,
+            kl_weight=(1 / train_size),
+            **kwargs
+        )
+
 
 def _get_layer_config(config, layer_num, keys):
 	"""Get the config values that apply at this layer.
@@ -358,3 +410,52 @@ def get_additional_validation(config, model):
     else:
     	metrics = ['mean_squared_error']
     return AdditionalValidation(model, val_datasets, metrics=metrics, batch_size=config.batch_size)
+
+
+def enable_dropout(model):
+	"""Turn on all Dropout layers during inference.
+
+	Args:
+		model (keras.models.Model)
+
+	Returns: keras.models.Model
+	"""
+	model_config = model.get_config()
+	orig_weights = model.get_weights()
+	for layer in model_config['layers']:
+		if layer.get('class_name') == 'Dropout':
+			layer['inbound_nodes'][0][0][-1]['training'] = True
+	# If this line fails in the future, we might need to add the custom_objects argument as in load_model()
+	model = keras.Model.from_config(model_config)
+	model.set_weights(orig_weights)
+	return model
+
+def predict_with_uncertainty(model, inputs, num_trials=128, return_trials=False):
+	"""Predict multiple times with Dropout enabled, and report aggregate results.
+	This is a Dropout-based approximation to using a Bayesian neural network.
+
+	Args:
+		model (keras.models.Model)
+		inputs (np.ndarray): shape [num_examples, sequence_len, 4]
+		num_trials (int): number of times to run the model on each input
+		return_trials (bool):
+			if True, then return the raw outputs of the model for each trial,
+				in addition to aggregate results.
+			if False, then return the aggregate results only.
+
+	Returns:
+		res (dict): Aggregated outputs of the model. Keys are
+			"mean", "std", "skew", "kurtosis", all have shape [num_examples, num_classes]
+			Optionally "trials" which are all the raw outputs of the model, shape [num_trials, num_examples, num_classes]
+	"""
+	model = enable_dropout(model)
+	trials = np.array([model(inputs) for _ in range(num_trials)])
+	res = {
+		"mean": np.mean(trials, axis=0),
+		"std": np.std(trials, axis=0),
+		"skew": scipy.stats.skew(trials, axis=0),
+		"kurtosis": scipy.stats.kurtosis(trials, axis=0)
+	}
+	if return_trials:
+		res['trials'] = trials
+	return res
