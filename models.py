@@ -450,7 +450,7 @@ def predict_with_uncertainty(model, inputs, batch_size=constants.DEFAULT_BATCH_S
 			Optionally "trials" which are all the raw outputs of the model, shape [num_trials, num_examples, num_classes]
 	"""
 	model = enable_dropout(model)
-	trials = np.array([model.predict(inputs, batch_size=batch_size) for _ in range(num_trials)])
+	trials = np.array([model.predict(inputs, batch_size=batch_size) for _ in tqdm(range(num_trials))])
 	res = {
 		"mean": np.mean(trials, axis=0),
 		"std": np.std(trials, axis=0),
