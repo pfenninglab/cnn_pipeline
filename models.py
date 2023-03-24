@@ -447,7 +447,7 @@ def predict_with_uncertainty(model, inputs, batch_size=constants.DEFAULT_BATCH_S
 	Returns:
 		res (dict): Aggregated outputs of the model. Keys are
 			"mean", "std", "skew", "kurtosis", all have shape [num_examples, num_classes]
-			Optionally "trials" which are all the raw outputs of the model, shape [num_trials, num_examples, num_classes]
+			Optionally "trials" which are all the raw outputs of the model, shape [num_examples, num_trials, num_classes]
 	"""
 	model = enable_dropout(model)
 	trials = np.array([model.predict(inputs, batch_size=batch_size) for _ in tqdm(range(num_trials))])
@@ -458,5 +458,6 @@ def predict_with_uncertainty(model, inputs, batch_size=constants.DEFAULT_BATCH_S
 		"kurtosis": scipy.stats.kurtosis(trials, axis=0)
 	}
 	if return_trials:
-		res['trials'] = trials
+		# Swap axes so that dimensions are [num_examples, num_trials, num_classes]
+		res['trials'] = np.swapaxes(trials, 0, 1)
 	return res
