@@ -102,57 +102,6 @@ def get_model_architecture(input_shape, num_classes, config):
 
 	return keras.Model(inputs=inputs, outputs=outputs)
 
-# TODO move Bayesian layers to a new layers module
-
-# From https://keras.io/examples/keras_recipes/bayesian_neural_networks/
-# Define the prior weight distribution as Normal of mean=0 and stddev=1.
-# The prior is not trainable; we fix its parameters.
-def prior(kernel_size, bias_size, dtype=None):
-    n = kernel_size + bias_size
-    prior_model = keras.Sequential(
-        [
-            tfp.layers.DistributionLambda(
-                lambda t: tfp.distributions.MultivariateNormalDiag(
-                    loc=tf.zeros(n), scale_diag=tf.ones(n)
-                )
-            )
-        ]
-    )
-    return prior_model
-
-# Define variational posterior weight distribution as multivariate Gaussian.
-# The learnable parameters for this distribution are the means, variances, and covariances.
-def posterior(kernel_size, bias_size, dtype=None):
-    n = kernel_size + bias_size
-    posterior_model = keras.Sequential(
-        [
-            tfp.layers.VariableLayer(
-                tfp.layers.MultivariateNormalTriL.params_size(n), dtype=dtype
-            ),
-            tfp.layers.MultivariateNormalTriL(n),
-        ]
-    )
-    return posterior_model
-
-def get_dense_layer(bayesian=False, train_size=None, **kwargs):
-	"""Return either keras.layers.Dense or tfp.layers.DenseVariational layer instance.
-	Args:
-		bayesian (bool):
-			if False, then return keras Dense layer.
-			if True, then return tfp DenseVariational layer with Gaussian prior and posterior.
-		train_size (int): number of examples in the training set, needed for bayesian == True.
-
-	Returns: keras.layers.Layer
-	"""
-	if bayesian:
-		return tfp.layers.DenseVariational(
-            make_prior_fn=prior,
-            make_posterior_fn=posterior,
-            kl_weight=(1 / train_size),
-            **kwargs
-        )
-
-
 def _get_layer_config(config, layer_num, keys):
 	"""Get the config values that apply at this layer.
 	If a config value is set as a list, then this returns the element from that list at this layer.
