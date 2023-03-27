@@ -1,5 +1,6 @@
 
 import numpy as np
+import scipy.stats
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
@@ -358,3 +359,54 @@ def get_additional_validation(config, model):
     else:
     	metrics = ['mean_squared_error']
     return AdditionalValidation(model, val_datasets, metrics=metrics, batch_size=config.batch_size)
+
+
+def enable_dropout(model):
+	"""Turn on all Dropout layers during inference.
+
+	Args:
+		model (keras.models.Model)
+
+	Returns: keras.models.Model
+	"""
+	model_config = model.get_config()
+	orig_weights = model.get_weights()
+	for layer in model_config['layers']:
+		if layer.get('class_name') == 'Dropout':
+			layer['inbound_nodes'][0][0][-1]['training'] = True
+	# If this line fails in the future, we might need to add the custom_objects argument as in load_model()
+	model = keras.Model.from_config(model_config)
+	model.set_weights(orig_weights)
+	return model
+
+def predict_with_uncertainty(model, inputs, batch_size=constants.DEFAULT_BATCH_SIZE, num_trials=64, return_trials=False):
+	"""Predict multiple times with Dropout enabled, and report aggregate results.
+	This is a Dropout-based approximation to using a Bayesian neural network.
+
+	Args:
+		model (keras.models.Model)
+		inputs (np.ndarray): shape [num_examples, sequence_len, 4]
+		batch_size (int): batch size for prediction
+		num_trials (int): number of times to run the model on each input
+		return_trials (bool):
+			if True, then return the raw outputs of the model for each trial,
+				in addition to aggregate results.
+			if False, then return the aggregate results only.
+
+	Returns:
+		res (dict): Aggregated outputs of the model. Keys are
+			"mean", "std", "skew", "kurtosis", all have shape [num_examples, num_classes]
+			Optionally "trials" which are all the raw outputs of the model, shape [num_examples, num_trials, num_classes]
+	"""
+	model = enable_dropout(model)
+	trials = np.array([model.predict(inputs, batch_size=batch_size) for _ in tqdm(range(num_trials))])
+	res = {
+		"mean": np.mean(trials, axis=0),
+		"std": np.std(trials, axis=0),
+		"skew": scipy.stats.skew(trials, axis=0),
+		"kurtosis": scipy.stats.kurtosis(trials, axis=0)
+	}
+	if return_trials:
+		# Swap axes so that dimensions are [num_examples, num_trials, num_classes]
+		res['trials'] = np.swapaxes(trials, 0, 1)
+	return res
