@@ -107,8 +107,18 @@ def get_class_weight(config, train_data):
 	if config.get('targets_are_classes') == False:
 		raise ValueError("Targets are not classes (`targets_are_classes == False`), but a class_weight scheme is provided. Please check config.")
 
-	if config.get('class_weight') == 'balanced':
+	if config.get('class_weight') == 'reciprocal':
+		# Chai's balancing method
 		return {class_idx: 1 / count * len(train_data) / train_data.num_classes
 			for class_idx, count in train_data.class_counts.items()}
+
+	elif config.get('class_weight') == 'proportional':
+		# Irene's balancing method
+		weights = {}
+		for class_idx in train_data.class_counts.keys():
+			# The weight for class i is the fraction of all the data that is *not* in class i
+			weights[class_idx] = sum(count/len(train_data) for idx, count in train_data.class_counts.items() if idx != class_idx)
+		return weights
+
 	else:
 		raise ValueError(f"Unsupported class_weight: `{config.get('class_weight')}`")
