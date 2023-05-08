@@ -109,7 +109,7 @@ use_reverse_complement:
 
 class_weight:
   desc: Scheme to weight the loss function according to the class.
-  allowed_values: ['none', 'balanced']
+  allowed_values: ['none', 'reciprocal', 'proportional']
   value: none
 
 # Optimization
