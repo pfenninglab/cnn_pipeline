@@ -5,7 +5,7 @@
 #SBATCH -n 1
 #SBATCH -o logs/out.txt
 #SBATCH -e logs/err.txt
-#SBATCH --mem 8000
+#SBATCH --mem 16000
 
 # Check arguments
 cluster_name=$1
