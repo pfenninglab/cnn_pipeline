@@ -155,9 +155,9 @@ source activate keras2-tf27; \
 python clr_rangetest.py -config config-base.yaml"
 ```
 Parameters:
--config: CNN pipeline config yaml file, e.g. config-base.yaml
--minlr: Minimum LR in the search. Default `1e-6`.
--maxlr: Maximum LR in the search. Default `50`.
+- `-config`: CNN pipeline config yaml file, e.g. config-base.yaml
+- `-minlr`: Minimum LR in the search. Default `1e-6`.
+- `-maxlr`: Maximum LR in the search. Default `50`.
 
 3. The output, `lr_find/lr_loss.png`, is a plot of loss vs learning rate.
 Look at the plot and use this to interpret it:
