@@ -145,6 +145,29 @@ where
 
 Trained models are saved in the `wandb/` directory.
 
+### Finding learning rate for Cyclic LR:
+1. Fill out `config-base.yaml` with your train & validation data paths and model architecture.
+
+2. Run the CLR learning rate range test (takes about 30 minutes on default dataset):
+
+sbatch -n 1 -p pfen3 --gres gpu:1 --wrap "\
+source activate keras2-tf27; \
+python clr_rangetest.py -config config-base.yaml"
+
+Parameters:
+-config: CNN pipeline config yaml file, e.g. config-base.yaml
+-minlr: Minimum LR in the search. Default `1e-6`.
+-maxlr: Maximum LR in the search. Default `50`.
+
+3. The output, `lr_find/lr_loss.png`, is a plot of loss vs learning rate.
+Look at the plot and use this to interpret it:
+https://github.com/titu1994/keras-one-cycle/tree/master#interpreting-the-plot
+
+4. The bounds you should use for the cyclic LR are:
+`lr_max`: the number you get from interpreting the plot, e.g. `10^(-1.7)`
+`lr_init`: lr_max / 20, e.g. `5^(-2.7)`
+You might need to try other values close to these values.
+
 ## Using a trained model
 
 ### Finding a trained model

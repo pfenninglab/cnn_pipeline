@@ -12,10 +12,15 @@ entity:
 
 train_data_paths:
   desc: Paths to FASTA, BED, or NarrowPeak files for training data.
-  # To use FASTA files with sequences already extracted, just put the file path.
-  # To use a reference genome and a BED or NarrowPeak file with intervals, put:
-  #     genome: <path to genome .fa>
-  #     intervals: <path to interval .bed or .narrowPeak>
+  # fasta or bed format:
+  #   fasta:
+  #     - negatives.fa
+  #     - positives.fa
+  #   bed:
+  #     - genome: genome.fa
+  #       intervals: negatives.bed
+  #     - genome: genome.fa
+  #       intervals: positives.bed
   value:
     - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
       intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_TRAIN.bed
@@ -51,6 +56,18 @@ targets_are_classes:
 
 additional_val_data_paths:
   desc: Paths to additional validation datasets. Metrics will be reported for each set separately.
+  # fasta or bed format:
+  #   fasta:
+  #     - [set1_negatives.fa, set1_positives.fa]
+  #     - [set2_negatives.fa, set2_positives.fa]
+  #   bed:
+  #     - [{genome: genome.fa, intervals: set1_negatives.bed},
+  #        {genome: genome.fa, intervals: set1_positives.bed}
+  #     - [{genome: genome.fa, intervals: set2_negatives.bed},
+  #        {genome: genome.fa, intervals: set2_positives.bed}
+  #
+  # it is fine to include a dataset with only negative or only positive examples, e.g.
+  # - [set1_negatives.fa]
   value:
     - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval1_mm10_VAL.fa]
     - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval2_hg38_VAL.fa]
