@@ -30,7 +30,7 @@ def range_test(args):
 	val_data = dataset.SequenceTfDataset(
 		wandb.config.val_data_paths, wandb.config.val_targets,
 		targets_are_classes=wandb.config.targets_are_classes,
-		endless=not wandb.config.use_exact_val_metrics,
+		endless=False,
 		batch_size=wandb.config.batch_size,
 		reverse_complement=wandb.config.use_reverse_complement)
 
@@ -44,7 +44,7 @@ def range_test(args):
 		train_data.seq_shape, train_data.num_classes, train_data.class_to_idx_mapping, lr_schedule, wandb.config)
 
 	# LR range test requires SGD optimizer
-	model.compile(optimizer=tensorflow.keras.optimizers.SGD(), loss=model.loss)
+	model.compile(optimizer=tensorflow.keras.optimizers.SGD(), loss=model.loss, metrics=model.metrics)
 
 
 
@@ -55,7 +55,9 @@ def range_test(args):
 
 	lr_finder = LRFinder(len(train_data), wandb.config.batch_size, minimum_lr=1e-6, maximum_lr=50.,
 	                     lr_scale='exp',
-	                     save_dir='lr_find/')
+	                     save_dir='lr_find/',
+	                     validation_data=val_data.dataset,
+	                     loss_smoothing_beta=0.0)
 
 	model.fit(train_data.dataset,
 	          epochs=1,
@@ -66,11 +68,17 @@ def range_test(args):
 
 	import matplotlib.pyplot as plt
 
-	plt.plot(lr_finder.lrs, lr_finder.losses)
+	# clipping: find the smallest and largest index where the loss is less than 4 times the min
+	min_idx = min(enumerate(lr_finder.losses),
+		key=lambda x: x[0] if x[1] < 4*min(lr_finder.losses) else float('inf'))[0]
+	max_idx = max(enumerate(lr_finder.losses),
+		key=lambda x: x[0] if x[1] < 4*min(lr_finder.losses) else float('-inf'))[0]
+
+	plt.plot(lr_finder.lrs[min_idx:max_idx], lr_finder.losses[min_idx:max_idx])
 	plt.title('Learning rate vs Loss')
-	plt.xlabel('learning rate')
+	plt.xlabel('log_10(learning rate)')
 	plt.ylabel('loss')
-	plt.savefig('lr_find/lr_loss.png')
+	plt.savefig('lr_find/lr_loss.png', dpi=200)
 
 def get_args():
 	import argparse

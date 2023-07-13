@@ -1,4 +1,6 @@
-"""clr.py: taken from https://github.com/titu1994/keras-one-cycle/blob/master/clr.py"""
+"""clr.py: Cyclic learning rate range finder.
+
+adapted from https://github.com/titu1994/keras-one-cycle/blob/master/clr.py"""
 
 import os
 import numpy as np
@@ -8,6 +10,8 @@ from keras.callbacks import Callback
 from keras import backend as K
 
 
+# OneCycleLR is NOT currently used in this pipeline.
+# Keeping it here for posterity.
 # Code is ported from https://github.com/fastai/fastai
 class OneCycleLR(Callback):
     def __init__(self,
@@ -335,8 +339,6 @@ class LRFinder(Callback):
     def on_train_begin(self, logs=None):
 
         self.current_epoch_ = 1
-        print(vars(self.model.optimizer.lr))
-        print(self.initial_lr)
         K.set_value(self.model.optimizer.lr, self.initial_lr)
 
         warnings.simplefilter("ignore")
@@ -369,16 +371,16 @@ class LRFinder(Callback):
             x = X[idx]
             y = Y[idx]
 
-            values = self.model.evaluate(x, y, batch_size=self.batch_size, verbose=False)
-            loss = values[0]
+            values = self.model.evaluate(x, y, batch_size=self.batch_size, verbose=False, return_dict=True)
+            loss = values['loss']
         else:
             loss = logs['loss']
 
         # smooth the loss value and bias correct
-        running_loss = self.loss_smoothing_beta * loss + (
-            1. - self.loss_smoothing_beta) * loss
-        running_loss = running_loss / (
-            1. - self.loss_smoothing_beta**self.current_batch_)
+        # bugfix from https://github.com/titu1994/keras-one-cycle/issues/2#issuecomment-441385715
+        running_loss = self.loss_smoothing_beta * self.running_loss_ + (1. - self.loss_smoothing_beta) * loss
+        self.running_loss_ = running_loss 
+        running_loss = running_loss / (1. - self.loss_smoothing_beta ** self.current_batch_)
 
         # stop logging if loss is too large
         if self.current_batch_ > 1 and self.stopping_criterion_factor is not None and (
@@ -416,7 +418,7 @@ class LRFinder(Callback):
         if self.verbose:
             if self.use_validation_set:
                 print(" - LRFinder: val_loss: %1.4f - lr = %1.8f " %
-                      (values[0], current_lr))
+                      (values['loss'], current_lr))
             else:
                 print(" - LRFinder: lr = %1.8f " % current_lr)
 
