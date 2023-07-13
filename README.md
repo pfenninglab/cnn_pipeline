@@ -149,11 +149,11 @@ Trained models are saved in the `wandb/` directory.
 1. Fill out `config-base.yaml` with your train & validation data paths and model architecture.
 
 2. Run the CLR learning rate range test (takes about 30 minutes on default dataset):
-
+```
 sbatch -n 1 -p pfen3 --gres gpu:1 --wrap "\
 source activate keras2-tf27; \
 python clr_rangetest.py -config config-base.yaml"
-
+```
 Parameters:
 -config: CNN pipeline config yaml file, e.g. config-base.yaml
 -minlr: Minimum LR in the search. Default `1e-6`.
