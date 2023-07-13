@@ -164,8 +164,8 @@ Look at the plot and use this to interpret it:
 https://github.com/titu1994/keras-one-cycle/tree/master#interpreting-the-plot
 
 4. The bounds you should use for the cyclic LR are:
-`lr_max`: the number you get from interpreting the plot, e.g. `10^(-1.7)`
-`lr_init`: lr_max / 20, e.g. `5^(-2.7)`
+- `lr_max`: the number you get from interpreting the plot, e.g. `10^(-1.7)`
+- `lr_init`: lr_max / 20, e.g. `5^(-2.7)`
 You might need to try other values close to these values.
 
 ## Using a trained model
