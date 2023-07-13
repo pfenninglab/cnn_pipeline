@@ -53,11 +53,13 @@ def range_test(args):
 
 	from clr import LRFinder
 
-	lr_finder = LRFinder(len(train_data), wandb.config.batch_size, minimum_lr=1e-6, maximum_lr=50.,
+	lr_finder = LRFinder(len(train_data), wandb.config.batch_size,
+	                     minimum_lr=args.minlr, maximum_lr=args.maxlr,
 	                     lr_scale='exp',
 	                     save_dir='lr_find/',
 	                     validation_data=val_data.dataset,
-	                     loss_smoothing_beta=0.0)
+	                     loss_smoothing_beta=0.0,
+	                     validation_sample_rate=8)
 
 	model.fit(train_data.dataset,
 	          epochs=1,
@@ -84,6 +86,8 @@ def get_args():
 	import argparse
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-config', type=str, required=True)
+	parser.add_argument('-minlr', type=float, default=1e-6, help='Minimum learning rate to test, default 1e-6.')
+	parser.add_argument('-maxlr', type=float, default=50., help='Maximum learning rate to test, default 50.')
 	# parse_known_args() allows hyperparameters to be passed in during sweeps
 	args, _ = parser.parse_known_args()
 	return args
