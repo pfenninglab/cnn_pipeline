@@ -96,6 +96,10 @@ additional_val_targets:
 
 # Training
 
+model_checkpoint:
+  desc: Path to saved model file (.h5). Use this if you want to resume training from this checkpoint.
+  value: none
+
 batch_size:
   desc: Batch size for training and validation.
   value: 512
