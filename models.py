@@ -28,7 +28,10 @@ LAYERWISE_PARAMS_DENSE = ['dense_filters', 'dropout_rate_dense', 'l2_reg_dense']
 
 
 def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config):
-	model = get_model_architecture(input_shape, num_classes, config)
+	if config.get('model_checkpoint') in [None, 'none']:
+		model = get_model_architecture(input_shape, num_classes, config)
+	else:
+		model = load_model(config.model_checkpoint)
 	optimizer = get_optimizer(lr_schedule, config)
 	metrics = get_metrics(num_classes, class_to_idx_mapping, config)
 
