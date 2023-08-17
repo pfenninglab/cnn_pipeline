@@ -67,6 +67,39 @@ def train(args):
 		callbacks=callback_fns,
 		class_weight=class_weight)
 
+	import tensorflow as tf
+	lr_schedule = tf.keras.optimizers.schedules.PolynomialDecay(
+	    wandb.config.lr_init,
+	    steps_per_epoch_train * 4,
+	    wandb.config.lr_init / 10,
+	    power=1)
+
+	tail_config = dict(wandb.config).copy()
+	if wandb.config.momentum_schedule == 'cyclic':
+		tail_config['momentum_schedule'] = 'constant'
+		tail_config['optimizer_args']['momentum'] = wandb.config.momentum_max
+	optimizer = models.get_optimizer(lr_schedule, tail_config)
+	metrics = models.get_metrics(train_data.num_classes, train_data.class_to_idx_mapping, wandb.config)
+	model.compile(optimizer=optimizer, loss=model.loss, metrics=metrics)
+
+	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config) + [
+		WandbCallback(),
+		callbacks.OptimizerLogger(model.optimizer),
+		callbacks.get_additional_validation_callback(wandb.config, model),
+		callbacks.get_model_checkpoint_callback(),
+		#callbacks.get_momentum_callback(steps_per_epoch_train, wandb.config)
+	]
+	callback_fns = [cb for cb in callback_fns if cb is not None]
+
+	model.fit(
+		train_data.dataset,
+		epochs=4,
+		steps_per_epoch=steps_per_epoch_train,
+		validation_data=val_data.dataset,
+		validation_steps=steps_per_epoch_val,
+		callbacks=callback_fns,
+		class_weight=class_weight)
+
 def get_args():
 	import argparse
 	parser = argparse.ArgumentParser()
