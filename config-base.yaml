@@ -142,6 +142,11 @@ optimizer:
 
 optimizer_args:
   desc: Arguments for optimizer.
+  # Default values for adam:
+  #   beta_1: 0.9
+  #   beta_2: 0.999
+  # Default values for sgd:
+  #   momentum: 0.9
   value:
     beta_1: 0.9
     beta_2: 0.999
