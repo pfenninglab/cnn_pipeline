@@ -4,6 +4,7 @@ import numpy as np
 import tensorflow as tf
 import tensorflow.keras.backend as K
 import wandb
+from wandb.keras import WandbCallback
 
 import constants
 import dataset
@@ -11,6 +12,16 @@ import models
 
 # wandb.run.dir when wandb mode == "disabled"
 WANDB_RUN_DIR_DISABLED = '/tmp'
+
+def get_training_callbacks(config, model, steps_per_epoch, disable_momentum=False):
+    callback_fns = get_early_stopping_callbacks(config) + [
+        WandbCallback(),
+        OptimizerLogger(model.optimizer),
+        get_additional_validation_callback(config, model),
+        get_model_checkpoint_callback()]
+    if not disable_momentum:
+        callback_fns.append(get_momentum_callback(steps_per_epoch, config))
+    return [cb for cb in callback_fns if cb is not None]    
 
 class OptimizerLogger(tf.keras.callbacks.Callback):
     """Log learning rate and optimizer values at the end of each epoch.

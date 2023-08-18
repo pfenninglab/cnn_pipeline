@@ -37,27 +37,18 @@ def train(args):
 
 	utils.validate_datasets([train_data, val_data])
 
-	# Get model
+	# Get training details
 	steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
 		wandb.config, train_data, val_data)
+	class_weight = utils.get_class_weight(wandb.config, train_data)
+	
+	# Get model
 	lr_schedule = lr_schedules.get_lr_schedule(steps_per_epoch_train, wandb.config)
 	model = models.get_model(
 		train_data.seq_shape, train_data.num_classes, train_data.class_to_idx_mapping, lr_schedule, wandb.config)
 
-	# Get callbacks
-	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config) + [
-		WandbCallback(),
-		callbacks.OptimizerLogger(model.optimizer),
-		callbacks.get_additional_validation_callback(wandb.config, model),
-		callbacks.get_model_checkpoint_callback(),
-		callbacks.get_momentum_callback(steps_per_epoch_train, wandb.config)
-	]
-	callback_fns = [cb for cb in callback_fns if cb is not None]
-
-	# Get class weights
-	class_weight = utils.get_class_weight(wandb.config, train_data)
-
 	# Train
+	callback_fns = callbacks.get_training_callbacks(wandb.config, model, steps_per_epoch_train)
 	model.fit(
 		train_data.dataset,
 		epochs=wandb.config.num_epochs,
@@ -67,35 +58,34 @@ def train(args):
 		callbacks=callback_fns,
 		class_weight=class_weight)
 
-
 	# CLR tail
+	if wandb.config.lr_schedule == 'cyclic':
+		finetune_clr_tail(steps_per_epoch_train, steps_per_epoch_val, class_weight, train_data, val_data, model, wandb.config)
 
-	lr_schedule = lr_schedules.get_linear_lr_schedule(steps_per_epoch_train, 4, wandb.config.lr_init, wandb.config.lr_init / 10)
 
-	tail_config = dict(wandb.config).copy()
-	if wandb.config.momentum_schedule == 'cyclic':
-		tail_config['optimizer_args']['momentum'] = wandb.config.momentum_max
+def finetune_clr_tail(steps_per_epoch_train, steps_per_epoch_val, class_weight, train_data, val_data, model, config):
+	"""Train with a linear LR decay at the end of a one-cycle LR schedule.
+	E.g. the final linear segment illustrated at https://raw.githubusercontent.com/titu1994/keras-one-cycle/master/images/one_cycle_lr.png
+	"""
+	lr_schedule = lr_schedules.get_linear_lr_schedule(steps_per_epoch_train, config.clr_tail_epochs, config.lr_init, config.lr_init / 10)
+	tail_config = dict(config).copy()
+	if config.momentum_schedule == 'cyclic':
+		tail_config['optimizer_args']['momentum'] = config.momentum_max
 	optimizer = models.get_optimizer(lr_schedule, tail_config)
-	metrics = models.get_metrics(train_data.num_classes, train_data.class_to_idx_mapping, wandb.config)
+	metrics = models.get_metrics(train_data.num_classes, train_data.class_to_idx_mapping, config)
 	model.compile(optimizer=optimizer, loss=model.loss, metrics=metrics)
 
-	callback_fns = callbacks.get_early_stopping_callbacks(wandb.config) + [
-		WandbCallback(),
-		callbacks.OptimizerLogger(model.optimizer),
-		callbacks.get_additional_validation_callback(wandb.config, model),
-		callbacks.get_model_checkpoint_callback(),
-		#callbacks.get_momentum_callback(steps_per_epoch_train, wandb.config)
-	]
-	callback_fns = [cb for cb in callback_fns if cb is not None]
+	callback_fns = callbacks.get_training_callbacks(config, model, steps_per_epoch_train, disable_momentum=True)
 
 	model.fit(
 		train_data.dataset,
-		epochs=4,
+		epochs=config.clr_tail_epochs,
 		steps_per_epoch=steps_per_epoch_train,
 		validation_data=val_data.dataset,
 		validation_steps=steps_per_epoch_val,
 		callbacks=callback_fns,
 		class_weight=class_weight)
+
 
 def get_args():
 	import argparse
