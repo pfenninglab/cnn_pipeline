@@ -67,16 +67,13 @@ def train(args):
 		callbacks=callback_fns,
 		class_weight=class_weight)
 
-	import tensorflow as tf
-	lr_schedule = tf.keras.optimizers.schedules.PolynomialDecay(
-	    wandb.config.lr_init,
-	    steps_per_epoch_train * 4,
-	    wandb.config.lr_init / 10,
-	    power=1)
+
+	# CLR tail
+
+	lr_schedule = lr_schedules.get_linear_lr_schedule(steps_per_epoch_train, 4, wandb.config.lr_init, wandb.config.lr_init / 10)
 
 	tail_config = dict(wandb.config).copy()
 	if wandb.config.momentum_schedule == 'cyclic':
-		tail_config['momentum_schedule'] = 'constant'
 		tail_config['optimizer_args']['momentum'] = wandb.config.momentum_max
 	optimizer = models.get_optimizer(lr_schedule, tail_config)
 	metrics = models.get_metrics(train_data.num_classes, train_data.class_to_idx_mapping, wandb.config)

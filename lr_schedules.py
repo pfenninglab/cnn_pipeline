@@ -59,3 +59,15 @@ def get_exp_lr_schedule(steps_per_epoch, config):
     	decay_steps=steps_per_epoch,
     	decay_rate=config.lr_exp_decay_per_epoch
 	)
+
+def get_linear_lr_schedule(steps_per_epoch, num_epochs, lr_max, lr_min):
+	"""Linear decay.
+	Currently intended only for the "tail" part at the end of the cyclic learning rate schedule,
+	not intended to be an option for the main learning rate schedule.
+	This is why this function does not conform to the API for CLR and exp lr schedules.
+	"""
+	return tf.keras.optimizers.schedules.PolynomialDecay(
+	    lr_max,
+	    steps_per_epoch * num_epochs,
+	    lr_min,
+	    power=1)
