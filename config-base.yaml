@@ -172,6 +172,10 @@ lr_cyc_num_cycles:
   desc: Float > 0. Number of cycles, for cyclic LR schedule.
   value: 1.0
 
+clr_tail_epochs:
+  desc: Int >= 0. Number of epochs to fine-tune model following cyclic LR training. Learning rate will decrease linearly from lr_init to lr_init / 10.
+  value: 5
+
 momentum_schedule:
   desc: Momentum schedule to use.
   allowed_values: ['constant', 'cyclic']
