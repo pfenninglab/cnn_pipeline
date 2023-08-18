@@ -579,6 +579,9 @@ class SequenceTfDataset:
         self.dataset = self._get_dataset(endless)
         self.class_counts = self.sc.class_counts
 
+        if self.batch_size > len(self):
+            print("WARNING: batch size is larger than size of dataset. This may cause unexpected issues during training.")
+
     def get_subset_as_arrays(self, size):
         """Return a random subset as 2 numpy arrays.
 
