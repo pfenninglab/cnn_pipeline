@@ -81,7 +81,9 @@ def get_config(yaml_path):
 def get_step_size(config, train_data, val_data):
 	batch_size = config.batch_size
 	steps_per_epoch_train = len(train_data) // batch_size
-	steps_per_epoch_val = len(val_data) // batch_size
+	# if val_data.endless == True, then the validation set is a generator and we need the epoch size
+	# if val_data.enless == False, then the validation set is a numpy array and the batching happens automatically
+	steps_per_epoch_val = len(val_data) // batch_size if val_data.endless else None
 	return steps_per_epoch_train, steps_per_epoch_val
 
 def validate_datasets(datasets):

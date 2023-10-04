@@ -293,7 +293,7 @@ def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=
 		source_files = in_files
 	# Only the input sequences will be used, target is fake
 	data = dataset.SequenceTfDataset(
-		source_files, [0], targets_are_classes=True, endless=False, reverse_complement=use_reverse_complement)
+		source_files, [0 for _ in source_files], targets_are_classes=True, endless=False, reverse_complement=use_reverse_complement)
 
 	# Generate predictions
 	print("Predicting...")
