@@ -133,6 +133,13 @@ class_weight:
   allowed_values: ['none', 'reciprocal', 'proportional']
   value: none
 
+loss_function:
+  desc: Loss function to use during training.
+  # classification: use 'sparse_categorical_crossentropy'
+  # regression: use 'mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', or 'huber'
+  allowed_values: ['sparse_categorical_crossentropy', 'mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', 'huber']
+  value: sparse_categorical_crossentropy
+
 # Optimization
 
 optimizer:

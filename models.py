@@ -15,7 +15,16 @@ import dataset
 from metrics import MulticlassMetric
 import lr_schedules
 
-
+LOSS_MAPPING_REGRESSION = {
+	# regression loss functions
+	'mean_squared_error': 'mean_squared_error',
+	'mean_absolute_error': 'mean_absolute_error',
+	'mean_absolute_percentage_error': 'mean_absolute_percentage_error',
+	'huber': keras.losses.Huber()
+}
+LOSS_MAPPING_CLASSIFICATION = {
+	'sparse_categorical_crossentropy': 'sparse_categorical_crossentropy'
+}
 OPTIMIZER_MAPPING = {
 	'sgd': SGD,
 	'adam': Adam
@@ -35,7 +44,25 @@ def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, confi
 	optimizer = get_optimizer(lr_schedule, config)
 	metrics = get_metrics(num_classes, class_to_idx_mapping, config)
 
-	loss = 'mean_squared_error' if num_classes is None else 'sparse_categorical_crossentropy' 
+	# choose loss function
+	loss_str = config.get('loss_function')
+	if num_classes is None:
+		# regression
+		if loss_str in [None, 'none']:
+			loss_str = 'mean_squared_error'
+		try:
+			loss = LOSS_MAPPING_REGRESSION[loss_str]
+		except KeyError:
+			raise KeyError(f"Invalid loss function for regression problem: {loss_str}. Try 'mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', or 'huber'")
+	else:
+		# classification
+		if loss_str in [None, 'none']:
+			loss_str = 'sparse_categorical_crossentropy'
+		try:
+			loss = LOSS_MAPPING_CLASSIFICATION[loss_str]
+		except KeyError:
+			raise KeyError(f"Invalid loss function for classification problem: {loss_str}. Try 'sparse_categorical_crossentropy'")
+
 	model.compile(loss=loss,
 		optimizer=optimizer,
 		metrics=metrics)
@@ -360,7 +387,7 @@ def get_additional_validation(config, model):
     if config.targets_are_classes:
     	metrics = ['acc', 'auroc', 'auprc', 'precision', 'sensitivity', 'f1', 'npv', 'specificity', 'npvsc']
     else:
-    	metrics = ['mean_squared_error']
+    	metrics = ['mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error']
     return AdditionalValidation(model, val_datasets, metrics=metrics, batch_size=config.batch_size)
 
 
