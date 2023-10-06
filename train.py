@@ -10,10 +10,14 @@ import callbacks
 import dataset
 import models
 import lr_schedules
+import os
 import utils
 
 import wandb
 from wandb.keras import WandbCallback
+
+# improve connection with wandb, from: https://github.com/wandb/wandb/issues/3326#issuecomment-1065328606
+os.environ["WANDB_START_METHOD"] = "thread"
 
 
 def train(args):
