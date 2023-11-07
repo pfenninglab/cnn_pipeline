@@ -29,7 +29,7 @@ through "Add a new SSH key".
 ```
 mkdir ~/repos
 cd ~/repos
-git clone git@github.com:pfenninglab/mouse_sst.git
+git clone git@github.com:pfenninglab/cnn_pipeline.git
 ```
 
 ## Setup
@@ -63,7 +63,7 @@ git clone git@github.com:pfenninglab/mouse_sst.git
 
 Ensure that you are on the head node. Go to this repo and run the setup script:
 ```
-cd ~/repos/mouse_sst
+cd ~/repos/cnn_pipeline
 bash setup.sh <cluster_name>
 ```
 where `<cluster_name>` is `lane` or `bridges`.
@@ -198,7 +198,7 @@ To evaluate a trained model on one or more validation sets:
 1. Edit `config-base.yaml` to include the paths to your datasets in  `additional_val_data_paths`, and the targets in `additional_val_targets`.
 2. Run evaluation on your datasets:
 ```
-cd mouse_sst/ (this repo)
+cd cnn_pipeline/ (this repo)
 srun -p pfen3 -n 1 --gres gpu:1 --pty bash
 conda activate keras2-tf27
 python scripts/validate.py -config config-base.yaml -model <path to model .h5 file>
@@ -226,7 +226,7 @@ additional_val_targets:
 
 You can get the activations from a trained model, either at the output layer or at an intermediate layer, using `scripts/get_activations.py`:
 ```
-cd mouse_sst/ (this repo)
+cd cnn_pipeline/ (this repo)
 srun -p pfen3 -n 1 --gres gpu:1 --pty bash
 conda activate keras2-tf27
 
