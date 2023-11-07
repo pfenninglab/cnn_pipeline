@@ -21,7 +21,7 @@ srun -n 1 -p interactive --pty bash
 On `bridges`, use `-p RM-shared` instead.
 
 2. Create an SSH key and add it to your GitHub account, if you don't already have one:
-[Instructions](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/checking-for-existing-ssh-keys). You only need to do the 3 steps "Check for existing SSH key"
+[Instructions](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/checking-for-existing-ssh-keys). If you're on the Lane cluster or the PSC, be sure to select the **Linux** tab to see the correct instructions. You only need to do the 3 steps "Check for existing SSH key"
 through "Add a new SSH key".
 
 3. Clone the repo. It is recommended that you clone into a directory just for repositories:
