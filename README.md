@@ -33,8 +33,18 @@ git clone git@github.com:pfenninglab/cnn_pipeline.git
 ```
 
 ## Setup
-1. Install Miniconda:
-    1. Download the latest Miniconda installer. This is the correct installer for `lane` and `bridges`:
+1. Install `conda`, if it's not already installed:
+    1. Check whether conda is installed:
+    ```
+    conda
+    # if conda is already installed, you'll see:
+    usage: conda [-h] [--no-plugins] [-V] COMMAND ...
+    
+    conda is a tool for managing and deploying applications, environments and packages.
+    ```
+    If conda is installed, then skip to step 2, **Create conda environments**. If conda is not installed,
+    then follow these steps to install:
+    2. Download the latest Miniconda installer. This is the correct installer for `lane` and `bridges`:
     
     ```
     cd /tmp
@@ -44,7 +54,7 @@ git clone git@github.com:pfenninglab/cnn_pipeline.git
     If you're not on `lane` or `bridges`, check your system's architecture and download the correct
     installer from [Latest Miniconda Installer Links](https://docs.conda.io/en/latest/miniconda.html#latest-miniconda-installer-links).
 
-    2. Run the installer:
+    3. Run the installer:
     
     ```
     bash Miniconda3-latest-Linux-x86_64.sh
@@ -52,7 +62,7 @@ git clone git@github.com:pfenninglab/cnn_pipeline.git
     
     You will need to answer a few questions when prompted. The default values for each question should work.
 
-    3. Cleanup and exit the interactive node:
+    4. Cleanup and exit the interactive node:
     ```
     rm Miniconda3-latest-Linux-x86_64.sh
     exit
@@ -73,10 +83,12 @@ This creates the environments `keras2-tf27` (for training) and `keras2-tf24` (fo
 3. Create a `wandb` account: [signup link](https://app.wandb.ai/login?signup=true)
  
  NOTE: `wandb` account usernames cannot be changed. I recommend creating a username like
- `<name>-cmu`, e.g. `csestili-cmu`, in case you want to have different accounts for personal
+ `<name>-cmu`, e.g. `hharper-cmu`, in case you want to have different accounts for personal
  use or for other future workplaces.
 
-During account creation, you will be asked if you want to create a team. You do not need to do this.
+During account creation, you will be asked if you want to create a team.
+You do not need to do this, so skip it if you're able to.
+If wandb doesn't let you skip, then create a team named after your username, or any team name you prefer.
 
 4. Log in to `wandb` on `lane`:
 ```
