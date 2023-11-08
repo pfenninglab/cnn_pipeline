@@ -44,6 +44,7 @@ git clone git@github.com:pfenninglab/cnn_pipeline.git
     ```
     If conda is installed, then skip to step 2, **Create conda environments**. If conda is not installed,
     then follow these steps to install:
+   
     2. Download the latest Miniconda installer. This is the correct installer for `lane` and `bridges`:
     
     ```
@@ -69,7 +70,7 @@ git clone git@github.com:pfenninglab/cnn_pipeline.git
     ```
     This will return you to the head node on the cluster.
 
-2. Create conda environments:
+3. Create conda environments:
 
 Ensure that you are on the head node. Go to this repo and run the setup script:
 ```
