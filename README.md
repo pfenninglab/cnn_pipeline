@@ -237,32 +237,36 @@ additional_val_targets:
 
 ### Get activations from a trained model
 
-You can get the activations from a trained model, either at the output layer or at an intermediate layer, using `scripts/get_activations.py`:
+Get the outputs of a trained model, or the inner-layer activations, using `scripts/get_activations.py`:
 ```
-cd cnn_pipeline/ (this repo)
-srun -p pfen3 -n 1 --gres gpu:1 --pty bash
-conda activate keras2-tf27
-
-python scripts/get_activations.py \
+Usage: python scripts/get_activations.py \
   -model <path to model .h5>
-  -in_file <path to input .fa, .bed, or .narrowPeak file> \
-  [-in_genome <path to genome .fa file, if in_file is .bed or .narrowPeak>] \
+  -in_files <paths to input .fa, .bed, or .narrowPeak file> \
+  [-in_genomes <paths to genome .fa file, if in_file is .bed or .narrowPeak>] \
   -out_file <path to output file, .npy or .csv> \
   [-layer_name <layer name to get activations from, e.g. 'flatten'>. default is output layer] \
   [--no_reverse_complement, don't evaluate on reverse complement sequences] \
   [--write_csv, write activations as .csv file instead of .npy] \
-  [-score_column <output unit to extract score in the csv, e.g. 1>. default writes whole activation as a row]
-```
-To get a numpy array of activations from an intermediate layer:
-```
-  -layer_name <layer_name>
-  [don't pass --write_csv]
-```
-To get a csv of probabilities for the positive class from a binary classifier:
-```
+  [-score_column <output unit to extract score in the csv, e.g. 1>. default writes whole activation as a row] \
+  [--bayesian, do Bayesian inference with N=64 trials]
+
+Examples:
+
+1. Model is a binary classifier, output .csv file of probabilities for the positive class:
   [don't pass -layer_name]
   --write_csv
   -score_column 1
+  (optional: --bayesian to get Bayesian predictions)
+
+2. Model is a regression model, output .csv file of predicted values:
+  [don't pass -layer_name]
+  --write_csv
+  -score_column 0
+  (optional: --bayesian to get Bayesian predictions)
+
+3. Model is classification or regression, output .npy file of inner-layer activations:
+  -layer_name <layer_name>
+  [don't pass --write_csv]
 ```
 
 **NOTE:** By default, reverse complement sequences are included. The output file will have twice as many activations as the input file has sequences. The order of results is:

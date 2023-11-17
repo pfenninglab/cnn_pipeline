@@ -8,7 +8,8 @@ Usage: python scripts/get_activations.py \
 	[-layer_name <layer name to get activations from, e.g. 'flatten'>. default is output layer] \
 	[--no_reverse_complement, don't evaluate on reverse complement sequences] \
 	[--write_csv, write activations as .csv file instead of .npy] \
-	[-score_column <output unit to extract score in the csv, e.g. 1>. default writes whole activation as a row]
+	[-score_column <output unit to extract score in the csv, e.g. 1>. default writes whole activation as a row] \
+	[--bayesian, do Bayesian inference with N=64 trials]
 
 Examples:
 
