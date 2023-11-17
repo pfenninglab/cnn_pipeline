@@ -260,7 +260,7 @@ def validate(config, model):
 	return res
 
 def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=None, use_reverse_complement=True,
-	write_csv=False, score_column=None, batch_size=constants.DEFAULT_BATCH_SIZE):
+	write_csv=False, score_column=None, batch_size=constants.DEFAULT_BATCH_SIZE, bayesian=False):
 	"""Use the model to predict on all sequences, and save the activations.
 
 	Args:
@@ -283,7 +283,16 @@ def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=
 			layer_name=None (get activations of output layer) and
 			score_column=1 (get score from output unit for class 1).
 			if score_column is None, then all units of activation will be written as a row.
+		bayesian (bool): whether to run model in Bayesian inference mode.
+			if False, then output fixed predictions
+			if True, then output Bayesian predictions (N=64 trials) for each input
 	"""
+	# Check combination of inputs
+	if write_csv and (score_column is None) and bayesian:
+		raise IOError('Invalid argument combination. If doing Bayesian inference and writing to csv, then choose a score_column. For regression models, use -score_column 0; for classification models, use -score_column 1.')
+	if write_csv and (layer_name is not None) and bayesian:
+		raise IOError('Invalid argument combination. If doing Bayesian inference and getting inner layer activations, then there are too many dimensions to write to .csv file. Omit --write_csv to save to .npy file instead.')
+
 	# Load model from path, if necessary
 	if isinstance(model, str):
 		model = load_model(model)
@@ -324,7 +333,13 @@ def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=
 
 	# Generate predictions
 	print("Predicting...")
-	predictions = model.predict(data.dataset[0], batch_size=batch_size, verbose=1)
+	if bayesian:
+		predictions = predict_with_uncertainty(model, data.dataset[0], batch_size=batch_size, num_trials=64, return_trials=True)
+		# [num_examples, num_bayesian_trials, num_classes]
+		predictions = predictions['trials']
+	else:
+		# [num_examplesl, num_classes]
+		predictions = model.predict(data.dataset[0], batch_size=batch_size, verbose=1)
 
 	# Write to file
 	if out_file is not None:
@@ -335,7 +350,12 @@ def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=
 				lines = predictions
 			else:
 				# Extract single value
-				lines = predictions[:, score_column]
+				if bayesian:
+					# [num_examples, num_bayesian_trials]
+					lines = predictions[:, :, score_column]
+				else:
+					# [num_examples,]
+					lines = predictions[:, score_column]
 			np.savetxt(out_file, lines, delimiter='\t', fmt='%.8e')
 		else:
 			np.save(out_file, predictions)
