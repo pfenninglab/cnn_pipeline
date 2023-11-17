@@ -27,8 +27,8 @@ def get_args():
 	import argparse
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-model', type=str, required=True)
-	parser.add_argument('-in_file', type=str, required=True)
-	parser.add_argument('-in_genome', type=str, required=False)
+	parser.add_argument('-in_files', nargs='+')
+	parser.add_argument('-in_genomes', nargs='*')
 	parser.add_argument('-out_file', type=str, required=True)
 	parser.add_argument('-layer_name', type=str, required=False)
 	parser.add_argument('--no_reverse_complement', action='store_true')
@@ -39,8 +39,11 @@ def get_args():
 
 if __name__ == '__main__':
 	args = get_args()
-	get_activations(args.model, args.in_file,
-		in_genomes=args.in_genome,
+	if args.in_genomes is not None:
+		if len(args.in_files) != len(args.in_genomes):
+			raise IOError(f'Different number of in_files and in_genomes! Got {len(args.in_files)} input files and {len(args.in_genomes)} genomes.')
+	get_activations(args.model, args.in_files,
+		in_genomes=args.in_genomes,
 		out_file=args.out_file,
 		layer_name=args.layer_name,
 		use_reverse_complement=not args.no_reverse_complement,
