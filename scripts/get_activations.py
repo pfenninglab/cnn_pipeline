@@ -16,16 +16,17 @@ Examples:
 	[don't pass -layer_name]
 	--write_csv
 	-score_column 1
+	(optional: --bayesian to get Bayesian predictions)
 
 2. Model is a regression model, output .csv file of predicted values:
 	[don't pass -layer_name]
 	--write_csv
 	-score_column 0
+	(optional: --bayesian to get Bayesian predictions)
 
 3. Model is classification or regression, output .npy file of inner-layer activations:
 	-layer_name <layer_name>
 	[don't pass --write_csv]
-
 """
 import argparse
 
@@ -42,6 +43,7 @@ def get_args():
 	parser.add_argument('--no_reverse_complement', action='store_true')
 	parser.add_argument('--write_csv', action='store_true')
 	parser.add_argument('-score_column', type=int, required=False)
+	parser.add_argument('--bayesian', action='store_true')
 	return parser.parse_args()
 
 
@@ -56,4 +58,5 @@ if __name__ == '__main__':
 		layer_name=args.layer_name,
 		use_reverse_complement=not args.no_reverse_complement,
 		write_csv=args.write_csv,
-		score_column=args.score_column)
+		score_column=args.score_column,
+		bayesian=args.bayesian)
