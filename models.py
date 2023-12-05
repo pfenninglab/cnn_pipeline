@@ -79,12 +79,15 @@ def get_sigma_loss(orig_loss_fn):
 			loss_fn = keras.losses.get(orig_loss_fn)
 		except Exception as e:
 			pass
+
+		# evaluate the original loss function on the original output of the network (all except last unit)
 		orig_loss = loss_fn(y_true, y_pred[:, :-1])
 
 		# get uncertainty estimate
-		# !!! TODO switch to log space as in eqn (8) !!!
-		sigma = y_pred[:, -1]
-		sigma_loss = tf.math.pow(sigma, -2) * orig_loss + 2 * tf.math.log(sigma)
+		# last unit represents s = log(sigma^2) (equation 8)
+		# where sigma^2 is the estimated variance associated with this prediction
+		log_variance = y_pred[:, -1]
+		sigma_loss = tf.math.exp(-log_variance) * orig_loss + log_variance
 
 		return sigma_loss
 	return sigma_loss_fn
@@ -155,11 +158,8 @@ def get_model_architecture(input_shape, num_classes, config, model_uncertainty=F
 
 	if model_uncertainty:
 		# Add additional output unit to model uncertainty
-
-		# !!! TODO: how to force this to be positive? !!!
-
-		sigma_output = layers.Dense(1, activation=None)(x)
-		outputs = layers.Concatenate(axis=1)([outputs, sigma_output])
+		log_variance = layers.Dense(1, activation=None)(x)
+		outputs = layers.Concatenate(axis=1)([outputs, log_variance])
 
 	return keras.Model(inputs=inputs, outputs=outputs)
 
