@@ -36,9 +36,9 @@ LAYERWISE_PARAMS_CONV = ['conv_filters', 'conv_width', 'conv_stride', 'dropout_r
 LAYERWISE_PARAMS_DENSE = ['dense_filters', 'dropout_rate_dense', 'l2_reg_dense']
 
 
-def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config):
+def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config, model_uncertainty=False):
 	if config.get('model_checkpoint') in [None, 'none']:
-		model = get_model_architecture(input_shape, num_classes, config)
+		model = get_model_architecture(input_shape, num_classes, config, model_uncertainty=model_uncertainty)
 	else:
 		model = load_model(config.model_checkpoint)
 	optimizer = get_optimizer(lr_schedule, config)
@@ -63,13 +63,33 @@ def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, confi
 		except KeyError:
 			raise KeyError(f"Invalid loss function for classification problem: {loss_str}. Try 'sparse_categorical_crossentropy'")
 
+	if model_uncertainty:
+		loss = get_sigma_loss(loss)
+
 	model.compile(loss=loss,
 		optimizer=optimizer,
 		metrics=metrics)
 
 	return model
 
-def get_model_architecture(input_shape, num_classes, config):
+def get_sigma_loss(orig_loss_fn):
+	def sigma_loss_fn(y_true, y_pred):
+		loss_fn = orig_loss_fn
+		try:
+			loss_fn = keras.losses.get(orig_loss_fn)
+		except Exception as e:
+			pass
+		orig_loss = loss_fn(y_true, y_pred[:, :-1])
+
+		# get uncertainty estimate
+		# !!! TODO switch to log space as in eqn (8) !!!
+		sigma = y_pred[:, -1]
+		sigma_loss = tf.math.pow(sigma, -2) * orig_loss + 2 * tf.math.log(sigma)
+
+		return sigma_loss
+	return sigma_loss_fn
+
+def get_model_architecture(input_shape, num_classes, config, model_uncertainty=False):
 	"""Get 1-dimensional CNN model architecture.
 	Properties:
 		- Inputs are 1-hot encoded sequences of shape [sequence_len, encoding_dim]
@@ -120,15 +140,26 @@ def get_model_architecture(input_shape, num_classes, config):
 
 	# Final (output) layer
 	if num_classes is None:
+		# Single-variable regression
 		num_output_units = 1
 		activation = None
 	elif isinstance(num_classes, int):
+		# Classification with N classes
+		# We model binary classification as [P(class = 0 | x), P(class = 1 | x)]
 		num_output_units = num_classes
 		activation = "softmax"
 	else:
 		raise ValueError(f"Invalid num_classes: {num_classes}")
 	outputs = layers.Dense(num_output_units, activation=activation,
 		kernel_regularizer=l2(l=config['l2_reg_final']))(x)
+
+	if model_uncertainty:
+		# Add additional output unit to model uncertainty
+
+		# !!! TODO: how to force this to be positive? !!!
+
+		sigma_output = layers.Dense(1, activation=None)(x)
+		outputs = layers.Concatenate(axis=1)([outputs, sigma_output])
 
 	return keras.Model(inputs=inputs, outputs=outputs)
 
