@@ -14,5 +14,10 @@ else
 	exit 1
 fi
 
+# Update environment variables in  ~/.bashrc
+# Put this repo on your $PYTHONPATH so you can access cnn pipe modules
+echo "# CNN Pipeline environment variables" >> ~/.bashrc
+echo "export PYTHONPATH=\$PYTHONPATH:$PWD" >> ~/.bashrc
+
 # Run setup on a GPU cluster, so that conda knows to install the gpu version of tensorflow
 sbatch -p $PARTITION_GPU scripts/setup_main.sb ${cluster_name}
