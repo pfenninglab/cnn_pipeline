@@ -1,20 +1,11 @@
-
-import importlib
-
 import wandb
 
+import callbacks
 import dataset
 import lr_schedules
 import models
 import train
 import utils
-
-importlib.reload(dataset)
-importlib.reload(lr_schedules)
-importlib.reload(models)
-importlib.reload(train)
-importlib.reload(utils)
-
 
 # args
 MODEL_UNCERTAINTY = True
@@ -50,14 +41,15 @@ model = models.get_model(
 	train_data.seq_shape, train_data.num_classes, train_data.class_to_idx_mapping, lr_schedule, wandb.config,
 	model_uncertainty=MODEL_UNCERTAINTY)
 
+# Train
+callback_fns = callbacks.get_training_callbacks(wandb.config, model, steps_per_epoch_train)
+model.fit(
+	train_data.dataset,
+	epochs=wandb.config.num_epochs,
+	steps_per_epoch=steps_per_epoch_train,
+	validation_data=val_data.dataset,
+	validation_steps=steps_per_epoch_val,
+	callbacks=callback_fns,
+	class_weight=class_weight)
 
 
-
-
-
-
-### testing
-
-import tensorflow as tf
-res = model.loss(tf.constant([1, 1, 1, 1, 1]), tf.constant([[0.3, 0.7, -3.0], [0.3, 0.7, -2.0], [0.3, 0.7, -1.0], [0.3, 0.7, 0.0], [0.3, 0.7, 1.0]]))
-print(res)
