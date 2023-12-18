@@ -193,16 +193,16 @@ To find the directory associated with a given run:
 2. The run ID is the part of that URL after `runs/`. E.g. for the above model, the run id is `1gimqghi`.
 3. On `lane`, find the trained model with this run id. You can use the `find` command for this:
 ```
-find wandb/ -wholename *<run id>*/files/model-final.h5
+find wandb/ -wholename *<run id>*/files/model-latest.h5
 ```
 
 Note: The asterisks are part of the command. E.g. for the above model, you would use 
-`find wandb/ -wholename *1gimqghi*/files/model-final.h5`.
+`find wandb/ -wholename *1gimqghi*/files/model-best.h5`.
 
 This will give you a path to the trained model.
 
-To get the final model, use `model-final.h5`.
-To get the model with the lowest validation loss, use `model-best.h5`.
+To get the model with the lowest validation loss (this is probably the one you want), use `model-best.h5`.
+To get the model after the latest epoch, use `model-latest.h5`.
 
 ### Evaluating a trained model
 
