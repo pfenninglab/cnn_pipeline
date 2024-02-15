@@ -294,7 +294,9 @@ def load_model(model_path):
 	# and construct this dict dynamically before load.
 	custom_objects = {
 		"MulticlassMetric": MulticlassMetric,
-		"scale_fn": lr_schedules.ClrScaleFn.scale_fn
+		"scale_fn": lr_schedules.ClrScaleFn.scale_fn,
+		"sigma_loss_fn": get_sigma_loss(None),
+		"constant_loss": get_constant_loss(0)
 	}
 	return tf.keras.models.load_model(model_path, custom_objects=custom_objects)
 

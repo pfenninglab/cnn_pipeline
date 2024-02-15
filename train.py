@@ -49,7 +49,7 @@ def train(args):
 	# Get model
 	lr_schedule = lr_schedules.get_lr_schedule(steps_per_epoch_train, wandb.config)
 	model = models.get_model(
-		train_data.seq_shape, train_data.num_classes, train_data.class_to_idx_mapping, lr_schedule, wandb.config)
+		train_data.seq_shape, train_data.num_classes, train_data.class_to_idx_mapping, lr_schedule, wandb.config, model_uncertainty=wandb.config.model_uncertainty)
 
 	# Train
 	callback_fns = callbacks.get_training_callbacks(wandb.config, model, steps_per_epoch_train)
