@@ -43,7 +43,7 @@ def get_args():
 	parser.add_argument('-layer_name', type=str, required=False)
 	parser.add_argument('--no_reverse_complement', action='store_true')
 	parser.add_argument('--write_csv', action='store_true')
-	parser.add_argument('-score_column', type=int, required=False)
+	parser.add_argument('-score_column', required=False)
 	parser.add_argument('--bayesian', action='store_true')
 	return parser.parse_args()
 

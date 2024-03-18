@@ -278,18 +278,23 @@ def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=
 			if False, then activations will be saved as a numpy array, dimension [num_examples, dim_1, ..., dim_n]
 			if True, then activations will be saved as rows in a csv. This can only be used with
 			a layer whose output shape is rank 2, i.e. a layer with output shape (None, N).
-		score_column (int): index of rank-1 activations to write to csv rows.
-			For example, if you want the predicted probabilities out of a binary classifier, use
-			layer_name=None (get activations of output layer) and
-			score_column=1 (get score from output unit for class 1).
-			if score_column is None, then all units of activation will be written as a row.
+		score_column (int, string, or None): which unit of the layer to get the score from.
+			if int: select the unit with that index. for example:
+				choose 0 to get the first unit (e.g. single-output regression)
+				choose 1 to get the second unit (e.g. probability of positive class for binary classification)
+			if 'all': return all the scores for this layer (e.g. intermediate layer activations)
+			if None: behavior is based on the layer_name:
+				if layer_name is None (output layer), then get the last unit in the output layer
+				if layer_name is an intermediate layer, then equivalent to 'all'
 		bayesian (bool): whether to run model in Bayesian inference mode.
 			if False, then output fixed predictions
 			if True, then output Bayesian predictions (N=64 trials) for each input
 	"""
+	score_column_all = 'all'
+
 	# Check combination of inputs
-	if write_csv and (score_column is None) and bayesian:
-		raise IOError('Invalid argument combination. If doing Bayesian inference and writing to csv, then choose a score_column. For regression models, use -score_column 0; for classification models, use -score_column 1.')
+	if write_csv and (score_column == score_column_all) and bayesian:
+		raise IOError('Invalid argument combination. If doing Bayesian inference and writing to csv, then choose a single score_column, or pass score_column=None for default behavior.')
 	if write_csv and (layer_name is not None) and bayesian:
 		raise IOError('Invalid argument combination. If doing Bayesian inference and getting inner layer activations, then there are too many dimensions to write to .csv file. Omit --write_csv to save to .npy file instead.')
 
@@ -297,17 +302,35 @@ def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=
 	if isinstance(model, str):
 		model = load_model(model)
 
-	# Check layer shape
+	# Convert score column to numeric, if possible
+	try:
+		# "1" -> 1
+		# 1 -> 1
+		score_column = int(score_column)
+	except:
+		# None -> None
+		# "all" -> "all"
+		pass
+
+	# Get output layer and score column
 	if layer_name is None:
 		out_layer = model.layers[-1]
+		# Apply score_column default
+		if score_column is None:
+			# The last unit in the output layer
+			score_column = out_layer.output_shape[1] - 1
 	else:
 		out_layer = model.get_layer(layer_name)
+		# Apply score_column default
+		if score_column is None:
+			# The entire layer
+			score_column = 'all'
 	out_shape = out_layer.output_shape
 	if write_csv and len(out_shape) != 2:
 		raise ValueError(f"Wrong layer shape for write_csv. Required shape is rank 2, i.e. [None, N], got layer {layer_name} with shape {out_shape}")
-	if (score_column is not None):
-		if not isinstance(score_column, int):
-			raise ValueError(f"Invalid type for score_column, expected int, got {type(score_column)}")
+	
+	# Check score column
+	if isinstance(score_column, int):
 		if score_column >= out_shape[1]:
 			raise ValueError(f"Invalid score_column, got {score_column} but layer shape is {out_shape}")
 
@@ -345,7 +368,7 @@ def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=
 	if out_file is not None:
 		print("Saving...")
 		if write_csv:
-			if score_column is None:
+			if score_column == score_column_all:
 				# Write entire activation as row
 				lines = predictions
 			else:

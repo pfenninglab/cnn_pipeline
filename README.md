@@ -247,7 +247,7 @@ Usage: python scripts/get_activations.py \
   [-layer_name <layer name to get activations from, e.g. 'flatten'>. default is output layer] \
   [--no_reverse_complement, don't evaluate on reverse complement sequences] \
   [--write_csv, write activations as .csv file instead of .npy] \
-  [-score_column <output unit to extract score in the csv, e.g. 1>. default writes whole activation as a row] \
+  [-score_column <output unit to extract score, e.g. 1>. use 'all' to write all units in the layer] \
   [--bayesian, do Bayesian inference with N=64 trials]
 
 Examples:
@@ -255,17 +255,16 @@ Examples:
 1. Model is a binary classifier, output .csv file of probabilities for the positive class:
   [don't pass -layer_name]
   --write_csv
-  -score_column 1
   (optional: --bayesian to get Bayesian predictions)
 
 2. Model is a regression model, output .csv file of predicted values:
   [don't pass -layer_name]
   --write_csv
-  -score_column 0
   (optional: --bayesian to get Bayesian predictions)
 
 3. Model is classification or regression, output .npy file of inner-layer activations:
   -layer_name <layer_name>
+  -score_column all
   [don't pass --write_csv]
 ```
 
@@ -278,20 +277,3 @@ pred(example_n)
 pred(revcomp(example_n))
 ```
 To exclude reverse complement sequences, pass `--no_reverse_complement`.
-
-## Preprocessing
-Currently, models expect all input sequences to be the same length, and will fail with a `ValueError`
-if this is not the case.
-
-If you have a `.bed` or `.narrowPeak` file with intervals of different lengths, you can use
-`preprocessing.py` to produce another file with intervals of standardized lengths. Specifically,
-the following preprocessing is applied:
-
-**Input:** `length`, the desired standardized length.
-1. Duplicate intervals are removed.
-2. Each interval is replaced with another interval that has the same summit center, but is `length` bases long.
-
-Usage:
-```
-python preprocessing.py expand_peaks -b <input .bed file> -o <output .bed file> -l <integer length>
-```
