@@ -34,13 +34,11 @@ def init(args):
 def get_data():
 	# Background is training set
 	bg_data = dataset.SequenceTfDataset(wandb.config.train_data_paths, wandb.config.train_targets,
-		targets_are_classes=True)
-	# Foreground is positive examples from validation set
-	fg_idx = np.array(wandb.config.val_targets) == wandb.config.shap_pos_label
-	fg_data = dataset.SequenceTfDataset(
-		list(np.array(wandb.config.val_data_paths)[fg_idx]),
-		list(np.array(wandb.config.val_targets)[fg_idx]),
-		targets_are_classes=True)
+		targets_are_classes=False)
+
+	# Foreground is validation set
+	fg_data = dataset.SequenceTfDataset(wandb.config.val_data_paths, wandb.config.val_targets,
+		targets_are_classes=False)
 
 	bg, _ = bg_data.get_subset_as_arrays(wandb.config.shap_num_bg)
 	fg, _ = fg_data.get_subset_as_arrays(wandb.config.shap_num_fg)
@@ -121,7 +119,7 @@ class ModiscoNormalization:
 
 def get_modisco_results(shap_values, fg):
 	# Get normalized importance scores
-	hyp_imp_scores = shap_values[wandb.config.shap_pos_label]
+	hyp_imp_scores = shap_values[0]
 	normalization = ModiscoNormalization(wandb.config.modisco_normalization)
 	normed_impscores, normed_hyp_impscores = normalization(hyp_imp_scores, fg)
 

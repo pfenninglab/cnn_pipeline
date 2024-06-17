@@ -9,7 +9,7 @@ from wandb.keras import WandbCallback
 import constants
 import dataset
 import models
-
+import datetime
 # wandb.run.dir when wandb mode == "disabled"
 WANDB_RUN_DIR_DISABLED = '/tmp'
 
@@ -74,12 +74,19 @@ def get_additional_validation_callback(config, model):
     return AdditionalValidationLogger(additional_val)
 
 def get_model_checkpoint_callback():
+    
     """Save latest model after each epoch."""
     run_dir = wandb.run.dir
     if run_dir == WANDB_RUN_DIR_DISABLED:
         return None
-    filepath = os.path.join(run_dir, 'model-latest.h5')
-    return tf.keras.callbacks.ModelCheckpoint(filepath)
+    #filepath = os.path.join(run_dir, 'model-latest.h5')
+    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
+    filepath = os.path.join(run_dir, f'model_{timestamp}_epoch_{{epoch:02d}}.h5')
+#    return tf.keras.callbacks.ModelCheckpoint(filepath)
+    return tf.keras.callbacks.ModelCheckpoint(filepath,
+                                            save_freq='epoch',  # Save the model at the end of every epoch
+		                                    save_weights_only=False,  # Set to True to save only weights, False to save the whole model
+		                                    verbose=1)
 
 def get_momentum_callback(steps_per_epoch, config):
     if config.momentum_schedule == 'cyclic':

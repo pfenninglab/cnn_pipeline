@@ -19,11 +19,16 @@ from wandb.keras import WandbCallback
 # improve connection with wandb, from: https://github.com/wandb/wandb/issues/3326#issuecomment-1065328606
 os.environ["WANDB_START_METHOD"] = "thread"
 
-
+#############################################
+#from tensorflow.keras.callbacks import ModelCheckpoint
+import datetime
+##################################################
 def train(args):
 	# Start `wandb`
 	config, project = utils.get_config(args.config)
-	wandb.init(config=config, project=project, mode=args.wandb_mode)
+	#########################################################
+	wandb.init(config=config, project=project, mode=args.wandb_mode,dir='/projects/pfenninggroup/ad_mpra_ml/wandb')#20240508
+	#########################################################
 	utils.validate_config(wandb.config)
 
 	# Get datasets
@@ -53,6 +58,7 @@ def train(args):
 
 	# Train
 	callback_fns = callbacks.get_training_callbacks(wandb.config, model, steps_per_epoch_train)
+
 	model.fit(
 		train_data.dataset,
 		epochs=wandb.config.num_epochs,
