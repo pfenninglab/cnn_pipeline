@@ -22,9 +22,9 @@ train_data_paths:
   #     - genome: genome.fa
   #       intervals: positives.bed
   value:
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
       intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_TRAIN.bed
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
       intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_TRAIN.bed
 
 train_targets:
@@ -39,9 +39,9 @@ train_targets:
 val_data_paths:
   desc: Paths to FASTA, BED, or NarrowPeak files for validation data.
   value:
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
       intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_VAL.bed
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/2bit/fasta/Mus_musculus.fa
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
       intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed
 
 val_targets:
