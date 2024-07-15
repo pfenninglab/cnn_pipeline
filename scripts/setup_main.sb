@@ -22,7 +22,7 @@ fi
 conda update -y -n base -c defaults conda
 
 # Create base environments
-conda env create -n keras2-tf27 --file=env_yaml/keras2-tf27.yml
+conda env create -n keras2-tf27 --file=env_yaml/keras2-tf27-frozen.yml
 conda env create -n keras2-tf24 --file=env_yaml/keras2-tf24.yml
 
 # Update environments with cluster-specific environment variables
