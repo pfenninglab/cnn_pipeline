@@ -1,8 +1,6 @@
 #!/bin/bash
 
 # We use a GPU partition so that conda knows to install the gpu version of tensorflow
-#SBATCH --gres gpu:1
-#SBATCH -n 1
 #SBATCH -o logs/out.txt
 #SBATCH -e logs/err.txt
 #SBATCH --mem 16000
