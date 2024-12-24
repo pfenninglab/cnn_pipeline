@@ -1,5 +1,7 @@
 import os
-
+import datetime
+import random
+import string
 import wandb
 import yaml
 
@@ -73,7 +75,7 @@ def check_layerwise_params(config_dict, layer_key, layerwise_params):
 
 def get_config(yaml_path):
 	with open(yaml_path, "r") as f:
-	    config = yaml.safe_load(f)
+		config = yaml.safe_load(f)
 	config = {k: v['value'] for k, v in config.items()}
 	project = config['project']
 	return config, project
@@ -124,3 +126,27 @@ def get_class_weight(config, train_data):
 
 	else:
 		raise ValueError(f"Unsupported class_weight: `{config.get('class_weight')}`")
+
+
+def generate_unique_id(prefix='run'):
+	"""
+	Generate a unique ID based on the current date, time, and a random string.
+
+	Args:
+		prefix (str, optional): A string to prepend to the generated ID. Defaults to "run".
+
+	Returns:
+		str: A unique ID in the format `{prefix}-{YYYYMMDD}_{HHMMSS}_{random}`
+			 or `run-{YYYYMMDD}_{HHMMSS}_{random}` if no prefix is provided.
+	"""
+	# Get the current date and time
+	now = datetime.datetime.now()
+	date_part = now.strftime("%Y%m%d")
+	time_part = now.strftime("%H%M%S")
+
+	# Generate a random string of 8 lowercase alphabet letters or letters
+	random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+
+	# Combine components into the unique ID
+	unique_id = f"{prefix}-{date_part}_{time_part}_{random_string}"
+	return unique_id
