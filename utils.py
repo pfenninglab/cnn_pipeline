@@ -1,5 +1,4 @@
 import os
-import datetime
 import random
 import string
 import wandb
@@ -128,25 +127,21 @@ def get_class_weight(config, train_data):
 		raise ValueError(f"Unsupported class_weight: `{config.get('class_weight')}`")
 
 
-def generate_unique_id(prefix='run'):
-	"""
-	Generate a unique ID based on the current date, time, and a random string.
+def generate_unique_id(suffix=None):
+    """
+    Generate a unique ID consisting of a random string of 8 lowercase letters or digits.
 
-	Args:
-		prefix (str, optional): A string to prepend to the generated ID. Defaults to "run".
+    Args:
+        suffix (str, optional): A string to prepend to the generated ID. Defaults to None.
 
-	Returns:
-		str: A unique ID in the format `{prefix}-{YYYYMMDD}_{HHMMSS}_{random}`
-			 or `run-{YYYYMMDD}_{HHMMSS}_{random}` if no prefix is provided.
-	"""
-	# Get the current date and time
-	now = datetime.datetime.now()
-	date_part = now.strftime("%Y%m%d")
-	time_part = now.strftime("%H%M%S")
+    Returns:
+        str: A unique ID in the format `{random}-{suffix}` or `{random}` if no suffix is provided.
+    """
+    # Generate a random string of 8 lowercase alphabet letters or digits
+    random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
 
-	# Generate a random string of 8 lowercase alphabet letters or letters
-	random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+    # Prepend the suffix if provided
+    if suffix:
+        return f"{random_string}-{suffix}"
 
-	# Combine components into the unique ID
-	unique_id = f"{prefix}-{date_part}_{time_part}_{random_string}"
-	return unique_id
+    return random_string
