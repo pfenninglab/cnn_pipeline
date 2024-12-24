@@ -27,6 +27,7 @@ def train(args):
 	# Configure wandb with directory and name from config
 	wandb_dir = config.get('dir', os.getcwd())  # Use current directory if not specified
 	wandb_name = config.get('name', None)  # Use None if not specified - wandb will generate random name
+	wandb_id = utils.generate_unique_id(wandb_name) # create a unique run ID that includes the name if not none
 
 	wandb.init(
 		config=config, 
