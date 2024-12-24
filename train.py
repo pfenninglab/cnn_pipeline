@@ -23,7 +23,12 @@ os.environ["WANDB_START_METHOD"] = "thread"
 def train(args):
 	# Start `wandb`
 	config, project = utils.get_config(args.config)
-	wandb.init(config=config, project=project, mode=args.wandb_mode)
+
+	# Configure wandb with directory and name from config
+	wandb_dir = config.get('dir', os.getcwd())  # Use current directory if not specified
+	wandb_name = config.get('name', None)  # Use None if not specified - wandb will generate random name
+
+	wandb.init(config=config, project=project, dir=wandb_dir, name=wandb_name, mode=args.wandb_mode)
 	utils.validate_config(wandb.config)
 
 	# Get datasets
