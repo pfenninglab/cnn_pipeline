@@ -24,13 +24,29 @@ def train(args):
 	# Start `wandb`
 	config, project = utils.get_config(args.config)
 
-	# Configure wandb with directory and name from config
-	wandb_dir = config.get('dir', os.getcwd())  # Use current directory if not specified
-	os.makedirs(wandb_dir, exist_ok=True)       # Create the directory if it doesn't exist
+	# Handle wandb directory configuration
+	wandb_dir = config.get('dir')
+	if wandb_dir and wandb_dir.lower() != 'none':
+		# Convert relative path to absolute if needed
+		if not os.path.isabs(wandb_dir):
+			wandb_dir = os.path.abspath(wandb_dir)
+		# Create directory if it doesn't exist
+		os.makedirs(wandb_dir, exist_ok=True)
+	else:
+		# Default to current working directory if dir is not set, empty, or 'none'
+		wandb_dir = os.getcwd()
 
 	# Use the name from the config if specified, otherwise let wandb generate a random name
-	wandb_name = config.get('name', None)  # Use None if not specified - wandb will generate random name
-	wandb_id = utils.generate_unique_id(wandb_name) # create a unique run ID that includes the name if not none
+	wandb_name = config.get('name')
+	if wandb_name and wandb_name.lower() != 'none':
+		# Use specified name
+		pass
+	else:
+		# Let wandb generate a random name
+		wandb_name = None
+
+	# create a unique run ID that includes the name if not none
+	wandb_id = utils.generate_unique_id(wandb_name)
 
 	wandb.init(
 		config=config, 

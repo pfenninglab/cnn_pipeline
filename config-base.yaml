@@ -11,10 +11,10 @@ entity:
 # WandB logging
 dir:
   desc: Directory to create the wandb folder to save model checkpoints and logs.
-  value: 
+  value: none
 name:
   desc: Short descriptive name of this run to show on the W&B.com logger.
-  value: 
+  value: none
 
 # Data
 
