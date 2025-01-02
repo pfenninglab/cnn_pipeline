@@ -7,7 +7,7 @@ cluster_name=$1
 if [ "$cluster_name" = "lane" ]; then
 	PARTITION_GPU="pfen3 --gres gpu:1 -n 1 --mem 16000"
 elif [ "$cluster_name" = "bridges" ]; then
-	PARTITION_GPU="GPU-shared --gpus=v100-32:1"
+	PARTITION_GPU="GPU-shared -N=1 --gpus=v100-32:1"
 else
 	echo "Invalid cluster name: $cluster_name"
 	echo "Usage: bash setup.sh <cluster_name>, where <cluster_name> is \"lane\" or \"bridges\""

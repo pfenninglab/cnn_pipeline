@@ -22,4 +22,4 @@ then
     exit 1
 fi
 
-srun -n 1 -p $PARTITION_NO_GPU --pty scripts/start_sweep_main.sh $sweep_config_path
+srun -n 1 -p $PARTITION_NO_GPU $EXTRA --pty scripts/start_sweep_main.sh $sweep_config_path
