@@ -23,9 +23,7 @@ from sklearn.metrics import (
     f1_score
 )
 
-
-from gkm_utils import resolve_input_files, PathValidator, SequenceValidator
-from gkm_config import GkmConfig
+from gkm_config import GkmConfig, PathValidator, SequenceValidator
 
 logger = logging.getLogger(__name__)
 
