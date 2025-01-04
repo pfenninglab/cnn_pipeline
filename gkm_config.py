@@ -10,6 +10,7 @@ This module handles:
 import os
 import yaml
 import logging
+import subprocess
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Union, Any, Tuple
 from pathlib import Path
@@ -196,7 +197,7 @@ class GkmConfig:
         )
 
     def get_run_prefix(self) -> str:
-        """Generate unique prefix incorporating key parameters."""
+        """Generate unique prefix incorporating key parameters and config name."""
         if self.output_prefix:
             return self.output_prefix
             
@@ -218,6 +219,9 @@ class GkmConfig:
                 f"M{self.init_decay}",
                 f"H{self.half_life}"
             ])
+        
+        # Add config name as suffix
+        params.append(self.name)
             
         prefix = f"gkm-{'_'.join(params)}"
         if self.model_dir:
@@ -468,26 +472,59 @@ class FASTAHandler:
     def bed_to_fasta(bed_file: Union[str, Path], 
                      genome_file: Union[str, Path],
                      output_path: Union[str, Path]) -> None:
-        """Convert BED file to FASTA using bedtools."""
-        try:
-            import pybedtools
-        except ImportError:
-            raise GkmUtilsError("pybedtools required for BED to FASTA conversion")
-
+        """Convert BED file to FASTA using command line bedtools.
+        
+        Args:
+            bed_file: Path to input BED file
+            genome_file: Path to reference genome FASTA
+            output_path: Path to output FASTA file
+            
+        Raises:
+            GkmUtilsError: If conversion fails or requirements not met
+        """
+        # Validate input and output paths
         PathValidator.validate_input_file(bed_file)
         PathValidator.validate_input_file(genome_file)
         PathValidator.validate_output_path(output_path)
 
+        # Check if bedtools is available
         try:
-            bed = pybedtools.BedTool(bed_file)
-            bed.sequence(fi=str(genome_file), fo=str(output_path))
+            subprocess.run(['bedtools', '--version'], 
+                         check=True, 
+                         capture_output=True, 
+                         text=True)
+        except subprocess.CalledProcessError:
+            raise GkmUtilsError("bedtools command failed. Please ensure bedtools is installed and in your PATH")
+        except FileNotFoundError:
+            raise GkmUtilsError("bedtools command not found. Please install bedtools and ensure it's in your PATH")
+
+        try:
+            # Construct and run bedtools getfasta command
+            cmd = [
+                'bedtools', 'getfasta',
+                '-fi', str(genome_file),
+                '-bed', str(bed_file),
+                '-fo', str(output_path)
+            ]
             
-            # Validate output
+            result = subprocess.run(
+                cmd,
+                check=True,
+                capture_output=True,
+                text=True
+            )
+            
+            # Check if output file was created
             if not os.path.exists(output_path):
                 raise GkmUtilsError(f"FASTA file not created: {output_path}")
                 
+            # Validate the output FASTA file
             SequenceValidator.validate_sequence_length(output_path)
             
+        except subprocess.CalledProcessError as e:
+            # Capture bedtools error message
+            error_msg = e.stderr if e.stderr else str(e)
+            raise GkmUtilsError(f"BED to FASTA conversion failed: {error_msg}")
         except Exception as e:
             raise GkmUtilsError(f"BED to FASTA conversion failed: {str(e)}")
 
@@ -513,11 +550,27 @@ def resolve_input_files(config_files: List[Union[str, Dict]],
                 PathValidator.validate_input_file(file_entry['intervals'])
                 
                 fasta_path = str(Path(file_entry['intervals']).with_suffix('.fa'))
-                FASTAHandler.bed_to_fasta(
-                    file_entry['intervals'],
-                    file_entry['genome'],
-                    fasta_path
-                )
+                
+                # Check if FASTA already exists and is valid
+                if os.path.exists(fasta_path):
+                    try:
+                        PathValidator.validate_fasta_format(fasta_path)
+                        SequenceValidator.validate_sequence_length(fasta_path)
+                        logger.info(f"Using existing FASTA file: {fasta_path}")
+                    except GkmUtilsError:
+                        logger.info(f"Existing FASTA file {fasta_path} is invalid. Regenerating...")
+                        FASTAHandler.bed_to_fasta(
+                            file_entry['intervals'],
+                            file_entry['genome'],
+                            fasta_path
+                        )
+                else:
+                    logger.info(f"Converting BED to FASTA: {file_entry['intervals']} -> {fasta_path}")
+                    FASTAHandler.bed_to_fasta(
+                        file_entry['intervals'],
+                        file_entry['genome'],
+                        fasta_path
+                    )
                 fasta_files.append(fasta_path)
             else:
                 # Direct FASTA path
@@ -532,7 +585,27 @@ def resolve_input_files(config_files: List[Union[str, Dict]],
                 PathValidator.validate_input_file(file_entry)
                 
                 fasta_path = str(Path(file_entry).with_suffix('.fa'))
-                FASTAHandler.bed_to_fasta(file_entry, genome, fasta_path)
+                
+                # Check if FASTA already exists and is valid
+                if os.path.exists(fasta_path):
+                    try:
+                        PathValidator.validate_fasta_format(fasta_path)
+                        SequenceValidator.validate_sequence_length(fasta_path)
+                        logger.info(f"Using existing FASTA file: {fasta_path}")
+                    except GkmUtilsError:
+                        logger.info(f"Existing FASTA file {fasta_path} is invalid. Regenerating...")
+                        FASTAHandler.bed_to_fasta(
+                            file_entry,
+                            genome,
+                            fasta_path
+                        )
+                else:
+                    logger.info(f"Converting BED to FASTA: {file_entry} -> {fasta_path}")
+                    FASTAHandler.bed_to_fasta(
+                        file_entry,
+                        genome,
+                        fasta_path
+                    )
                 fasta_files.append(fasta_path)
             else:
                 # Direct FASTA file
@@ -540,7 +613,7 @@ def resolve_input_files(config_files: List[Union[str, Dict]],
                 PathValidator.validate_fasta_format(file_entry)
                 fasta_files.append(str(file_entry))
                 
-    # Validate all sequences have same length
+    # Final validation of all FASTA files
     for fasta_file in fasta_files:
         SequenceValidator.validate_sequence_length(fasta_file)
         
