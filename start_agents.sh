@@ -25,4 +25,4 @@ then
 fi
 
 # Launch sweep
-sbatch -p $PARTITION_GPU --array=1-${num_agents}%${throttle} scripts/start_agent_main.sb ${sweep_id}
+sbatch -p $PARTITION_GPU --gres $GRES $EXTRA --array=1-${num_agents}%${throttle} scripts/start_agent_main.sb ${sweep_id}

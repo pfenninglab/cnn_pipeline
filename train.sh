@@ -22,4 +22,4 @@ then
     exit 1
 fi
 
-sbatch -p $PARTITION_GPU scripts/train_main.sb $config_path
+sbatch -p $PARTITION_GPU --gres $GRES $EXTRA scripts/train_main.sb $config_path
