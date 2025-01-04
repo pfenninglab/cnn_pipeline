@@ -3,7 +3,7 @@
 This module handles:
 1. Training gkm-SVM models using the gkmtrain executable with exact lsgkm parameters
 2. Computing performance metrics matching CNN pipeline format
-3. Managing validation data and predictions
+3. Managing validation data and predictions from CNN pipeline configs
 4. Saving evaluation results in CNN-compatible format
 """
 
@@ -12,6 +12,7 @@ import numpy as np
 import subprocess
 import logging
 import json
+import argparse
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional, Union, Tuple
@@ -274,3 +275,218 @@ def save_results(config: GkmConfig,
         raise GkmTrainerError(f"Failed to save results: {e}")
         
     return output_path
+
+
+def parse_args():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description='Train gkm-SVM model using CNN pipeline config with optional lsgkm parameter overrides',
+        usage='%(prog)s -config <config_file> [options]'
+    )
+    
+    # Required config file
+    parser.add_argument(
+        '-config', required=True,
+        help='Path to CNN pipeline YAML configuration file'
+    )
+    
+    # Core gkm-SVM parameters (matching gkmtrain)
+    parser.add_argument(
+        '-t', type=int, choices=[0, 1, 2, 3, 4, 5],
+        help='set kernel function (default: 4 wgkm)\n'
+             '  0 -- gapped-kmer\n'
+             '  1 -- estimated l-mer with full filter\n'
+             '  2 -- estimated l-mer with truncated filter (gkm)\n'
+             '  3 -- gkm + RBF (gkmrbf)\n'
+             '  4 -- gkm + center weighted (wgkm)\n'
+             '  5 -- gkm + center weighted + RBF (wgkmrbf)'
+    )
+    parser.add_argument(
+        '-l', type=int,
+        help='set word length, 3<=l<=12 (default: 11)'
+    )
+    parser.add_argument(
+        '-k', type=int,
+        help='set number of informative column, k<=l (default: 7)'
+    )
+    parser.add_argument(
+        '-d', type=int,
+        help='set maximum number of mismatches to consider, d<=4 (default: 3)'
+    )
+    
+    # Kernel-specific parameters
+    parser.add_argument(
+        '-g', type=float,
+        help='set gamma for RBF kernel. -t 3 or 5 only (default: 1.0)'
+    )
+    parser.add_argument(
+        '-M', type=int,
+        help='set the initial value (M) of the exponential decay function\n'
+             'for wgkm-kernels. max=255, -t 4 or 5 only (default: 50)'
+    )
+    parser.add_argument(
+        '-H', type=float,
+        help='set the half-life parameter (H) that is the distance (D) required\n'
+             'to fall to half of its initial value in the exponential decay\n'
+             'function for wgkm-kernels. -t 4 or 5 only (default: 50)'
+    )
+    
+    # SVM parameters
+    parser.add_argument(
+        '-c', type=float,
+        help='set the regularization parameter SVM-C (default: 1.0)'
+    )
+    parser.add_argument(
+        '-e', type=float,
+        help='set the precision parameter epsilon (default: 0.001)'
+    )
+    parser.add_argument(
+        '-w', type=float,
+        help='set the parameter SVM-C to w*C for the positive set (default: 1.0)'
+    )
+    parser.add_argument(
+        '-m', type=float,
+        help='set cache memory size in MB (default: 100.0)'
+    )
+    parser.add_argument(
+        '-s', action='store_true',
+        help='if set, use the shrinking heuristics'
+    )
+    
+    # Runtime parameters
+    parser.add_argument(
+        '-v', type=int, default=2, choices=[0, 1, 2, 3, 4],
+        help='set the level of verbosity (default: 2)\n'
+             '  0 -- error msgs only (ERROR)\n'
+             '  1 -- warning msgs (WARN)\n'
+             '  2 -- progress msgs at coarse-grained level (INFO)\n'
+             '  3 -- progress msgs at fine-grained level (DEBUG)\n'
+             '  4 -- progress msgs at finer-grained level (TRACE)'
+    )
+    parser.add_argument(
+        '-T', type=int, default=1, choices=[1, 4, 16],
+        help='set the number of threads for parallel calculation, 1, 4, or 16\n'
+             '(default: 1)'
+    )
+    
+    # CNN pipeline specific overrides
+    parser.add_argument(
+        '--model_dir',
+        help='Override model directory from config'
+    )
+    parser.add_argument(
+        '--output_prefix',
+        help='Override output prefix from config'
+    )
+    parser.add_argument(
+        '--genome_path',
+        help='Path to genome file for BED conversion'
+    )
+    
+    return parser.parse_args()
+
+def update_config_from_args(config: GkmConfig, args: argparse.Namespace) -> GkmConfig:
+    """Update configuration with command line arguments.
+    
+    Args:
+        config: Original GkmConfig object from YAML
+        args: Parsed command line arguments
+        
+    Returns:
+        Updated GkmConfig object
+    """
+    # Map of argument names to config attributes
+    param_map = {
+        't': 'kernel_type',
+        'l': 'word_length',
+        'k': 'informed_cols',
+        'd': 'max_mismatch',
+        'g': 'gamma',
+        'M': 'init_decay',
+        'H': 'half_life',
+        'c': 'regularization',
+        'e': 'epsilon',
+        'w': 'pos_weight',
+        'm': 'cache_memory',
+        's': 'use_shrinking',
+        'v': 'verbosity',
+        'T': 'num_threads'
+    }
+    
+    # Update config with non-None argument values
+    for arg_name, config_name in param_map.items():
+        value = getattr(args, arg_name)
+        if value is not None:
+            setattr(config, config_name, value)
+    
+    # Handle special CNN pipeline parameters
+    if args.model_dir:
+        config.model_dir = args.model_dir
+    if args.output_prefix:
+        config.output_prefix = args.output_prefix
+    if args.genome_path:
+        config.genome_path = args.genome_path
+    
+    return config
+
+def setup_logging(verbosity: int):
+    """Configure logging based on verbosity level."""
+    log_levels = {
+        0: logging.ERROR,
+        1: logging.WARNING,
+        2: logging.INFO,
+        3: logging.DEBUG,
+        4: logging.DEBUG  # TRACE maps to DEBUG as Python lacks TRACE
+    }
+    
+    logging.basicConfig(
+        level=log_levels[verbosity],
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+def main():
+    """Main execution function."""
+    # Parse arguments
+    args = parse_args()
+    
+    # Setup logging
+    setup_logging(args.v)
+    logger = logging.getLogger(__name__)
+    
+    try:
+        # Load config from YAML
+        logger.info(f"Loading configuration from {args.config}")
+        config = GkmConfig.from_yaml(args.config)
+        
+        # Update config with command line arguments
+        config = update_config_from_args(config, args)
+        
+        # Validate updated configuration
+        logger.info("Validating configuration")
+        config.validate()
+        
+        # Train model
+        logger.info("Training model")
+        model_path = train_model(config)
+        logger.info(f"Model saved to {model_path}")
+        
+        # Evaluate model using CNN pipeline evaluation
+        logger.info("Evaluating model")
+        results = evaluate_model(config, model_path)
+        
+        # Save results in CNN pipeline format
+        results_path = save_results(config, results, model_path)
+        logger.info(f"Results saved to {results_path}")
+        
+        # Print summary metrics
+        logger.info("Training completed successfully")
+        logger.info("Summary metrics:")
+        for metric, value in results.items():
+            logger.info(f"  {metric}: {value:.4f}")
+            
+    except Exception as e:
+        logger.error(f"Error during execution: {str(e)}")
+        raise
+
+if __name__ == "__main__":
+    main()
