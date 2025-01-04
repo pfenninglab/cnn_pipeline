@@ -23,7 +23,38 @@ os.environ["WANDB_START_METHOD"] = "thread"
 def train(args):
 	# Start `wandb`
 	config, project = utils.get_config(args.config)
-	wandb.init(config=config, project=project, mode=args.wandb_mode)
+
+	# Handle wandb directory configuration
+	wandb_dir = config.get('dir')
+	if wandb_dir and wandb_dir.lower() != 'none':
+		# Convert relative path to absolute if needed
+		if not os.path.isabs(wandb_dir):
+			wandb_dir = os.path.abspath(wandb_dir)
+		# Create directory if it doesn't exist
+		os.makedirs(wandb_dir, exist_ok=True)
+	else:
+		# Default to current working directory if dir is not set, empty, or 'none'
+		wandb_dir = os.getcwd()
+
+	# Use the name from the config if specified, otherwise let wandb generate a random name
+	wandb_name = config.get('name')
+	if wandb_name and wandb_name.lower() != 'none':
+		# Use specified name
+		pass
+	else:
+		# Let wandb generate a random name
+		wandb_name = None
+
+	# create a unique run ID that includes the name if not none
+	wandb_id = utils.generate_unique_id(wandb_name)
+
+	wandb.init(
+		config=config, 
+		project=project, 
+		dir=wandb_dir, 
+		name=wandb_name, 
+		id=wandb_id, 
+		mode=args.wandb_mode)
 	utils.validate_config(wandb.config)
 
 	# Get datasets

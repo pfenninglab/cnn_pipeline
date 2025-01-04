@@ -1,5 +1,6 @@
 import os
-
+import random
+import string
 import wandb
 import yaml
 
@@ -73,7 +74,7 @@ def check_layerwise_params(config_dict, layer_key, layerwise_params):
 
 def get_config(yaml_path):
 	with open(yaml_path, "r") as f:
-	    config = yaml.safe_load(f)
+		config = yaml.safe_load(f)
 	config = {k: v['value'] for k, v in config.items()}
 	project = config['project']
 	return config, project
@@ -124,3 +125,23 @@ def get_class_weight(config, train_data):
 
 	else:
 		raise ValueError(f"Unsupported class_weight: `{config.get('class_weight')}`")
+
+
+def generate_unique_id(suffix=None):
+    """
+    Generate a unique ID consisting of a random string of 8 lowercase letters or digits.
+
+    Args:
+        suffix (str, optional): A string to prepend to the generated ID. Defaults to None.
+
+    Returns:
+        str: A unique ID in the format `{random}-{suffix}` or `{random}` if no suffix is provided.
+    """
+    # Generate a random string of 8 lowercase alphabet letters or digits
+    random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+
+    # Prepend the suffix if provided
+    if suffix:
+        return f"{random_string}-{suffix}"
+
+    return random_string

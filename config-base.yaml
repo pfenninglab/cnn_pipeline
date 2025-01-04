@@ -8,6 +8,14 @@ entity:
   desc: Name of `wandb` account for tracking.
   value: cmu-cbd-pfenninglab
 
+# WandB logging
+dir:
+  desc: Directory to create the wandb folder to save model checkpoints and logs.
+  value: none
+name:
+  desc: Short descriptive name of this run to show on the W&B.com logger.
+  value: none
+
 # Data
 
 train_data_paths:
