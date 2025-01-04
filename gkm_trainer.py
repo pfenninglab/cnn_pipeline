@@ -280,7 +280,7 @@ def save_results(config: GkmConfig,
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description='Train gkm-SVM model using CNN pipeline config with optional lsgkm parameter overrides',
+        description='Train and predict with gkm-SVM models using CNN pipeline config',
         usage='%(prog)s -config <config_file> [options]'
     )
     
@@ -290,16 +290,20 @@ def parse_args():
         help='Path to CNN pipeline YAML configuration file'
     )
     
-    # Core gkm-SVM parameters (matching gkmtrain)
+    # Prediction mode arguments
+    parser.add_argument(
+        '--predict',
+        help='Run in prediction mode with given input FASTA/BED file'
+    )
+    parser.add_argument(
+        '--predict_output',
+        help='Output file for predictions (default: <model_prefix>_predictions.txt)'
+    )
+    
+        # Core gkm-SVM parameters (matching gkmtrain)
     parser.add_argument(
         '-t', type=int, choices=[0, 1, 2, 3, 4, 5],
-        help='set kernel function (default: 4 wgkm)\n'
-             '  0 -- gapped-kmer\n'
-             '  1 -- estimated l-mer with full filter\n'
-             '  2 -- estimated l-mer with truncated filter (gkm)\n'
-             '  3 -- gkm + RBF (gkmrbf)\n'
-             '  4 -- gkm + center weighted (wgkm)\n'
-             '  5 -- gkm + center weighted + RBF (wgkmrbf)'
+        help='set kernel function (default: 4 wgkm)'
     )
     parser.add_argument(
         '-l', type=int,
@@ -446,43 +450,57 @@ def setup_logging(verbosity: int):
 
 def main():
     """Main execution function."""
-    # Parse arguments
     args = parse_args()
-    
-    # Setup logging
     setup_logging(args.v)
     logger = logging.getLogger(__name__)
     
     try:
-        # Load config from YAML
+        # Load and validate config
         logger.info(f"Loading configuration from {args.config}")
         config = GkmConfig.from_yaml(args.config)
-        
-        # Update config with command line arguments
         config = update_config_from_args(config, args)
-        
-        # Validate updated configuration
-        logger.info("Validating configuration")
         config.validate()
         
-        # Train model
-        logger.info("Training model")
-        model_path = train_model(config)
-        logger.info(f"Model saved to {model_path}")
-        
-        # Evaluate model using CNN pipeline evaluation
-        logger.info("Evaluating model")
-        results = evaluate_model(config, model_path)
-        
-        # Save results in CNN pipeline format
-        results_path = save_results(config, results, model_path)
-        logger.info(f"Results saved to {results_path}")
-        
-        # Print summary metrics
-        logger.info("Training completed successfully")
-        logger.info("Summary metrics:")
-        for metric, value in results.items():
-            logger.info(f"  {metric}: {value:.4f}")
+        if args.predict:
+            # Prediction mode
+            if not os.path.exists(args.predict):
+                raise GkmTrainerError(f"Input file not found: {args.predict}")
+                
+            # Find latest model file if not specified
+            model_dir = config.model_dir or os.getcwd()
+            model_files = sorted(
+                Path(model_dir).glob("*.model.txt"),
+                key=os.path.getmtime
+            )
+            if not model_files:
+                raise GkmTrainerError(f"No model files found in {model_dir}")
+            model_path = str(model_files[-1])
+            
+            # Run prediction
+            logger.info(f"Running prediction using model: {model_path}")
+            output_file = args.predict_output or f"{os.path.splitext(model_path)[0]}_predictions.txt"
+            pred_path = predict(config, model_path, args.predict)
+            
+            # Move/rename predictions if needed
+            if output_file != pred_path:
+                import shutil
+                shutil.move(pred_path, output_file)
+                logger.info(f"Predictions saved to: {output_file}")
+        else:
+            # Training mode
+            logger.info("Training model")
+            model_path = train_model(config)
+            logger.info(f"Model saved to {model_path}")
+            
+            logger.info("Evaluating model")
+            results = evaluate_model(config, model_path)
+            results_path = save_results(config, results, model_path)
+            logger.info(f"Results saved to {results_path}")
+            
+            # Print summary metrics
+            logger.info("Summary metrics:")
+            for metric, value in results.items():
+                logger.info(f"  {metric}: {value:.4f}")
             
     except Exception as e:
         logger.error(f"Error during execution: {str(e)}")
