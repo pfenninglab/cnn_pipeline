@@ -277,7 +277,23 @@ class GkmConfig:
             
         return pos_files, neg_files
 
+    def get_val_files(self) -> Tuple[List[str], List[str]]:
+        """Similar to get_train_files but for validation data."""
+        pos_files = [p for p, t in zip(self.val_data_paths, self.val_targets) if t == 1]
+        neg_files = [p for p, t in zip(self.val_data_paths, self.val_targets) if t == 0]
+        return pos_files, neg_files
 
+    def get_prediction_path(self, test_file: str, prefix: str = None) -> str:
+        """Standardize prediction file path generation."""
+        model_base_dir = Path(self.dir) if self.dir else Path.cwd()
+        pred_dir = model_base_dir / "lsgkm" / self.name / "predictions"
+        pred_dir.mkdir(parents=True, exist_ok=True)
+        
+        test_name = Path(test_file).stem
+        if prefix:
+            return str(pred_dir / f"{self.name}_{prefix}_{test_name}_predictions.txt")
+        return str(pred_dir / f"{self.name}_{test_name}_predictions.txt")
+        
     @classmethod
     def from_yaml(cls, yaml_path: str) -> 'GkmConfig':
         """Create config from CNN pipeline YAML format."""
@@ -382,22 +398,6 @@ class GkmConfig:
             '-T', str(self.num_threads)
         ]
 
-def resolve_paths_with_config(config: GkmConfig) -> None:
-    """Resolve all paths in a GkmConfig object.
-    
-    Args:
-        config: GkmConfig object containing paths to resolve
-    """
-    config.resolve_paths()
-
-def validate_config_paths(config: GkmConfig) -> None:
-    """Validate all paths in a GkmConfig object.
-    
-    Args:
-        config: GkmConfig object containing paths to validate
-    """
-    config._validate_resolved_paths()
-
 class GkmUtilsError(Exception):
     """Base exception class for gkm-utils errors."""
     pass
@@ -462,8 +462,8 @@ class FASTAHandler:
     """Handles FASTA file operations for gkm-SVM pipeline."""
     
     @staticmethod
-    def count_sequences_in_fasta(fasta_file: str) -> int:
-        """Count number of sequences in a FASTA file by counting header lines."""
+    def count_sequences(fasta_file: str) -> int:
+        """Count number of sequences in a FASTA file."""
         count = 0
         with open(fasta_file) as f:
             for line in f:
@@ -523,24 +523,3 @@ class FASTAHandler:
             
         except Exception as e:
             raise GkmUtilsError(f"BED to FASTA conversion failed: {str(e)}")
-
-def _resolve_data_paths(self, paths: List[Union[str, Dict]]) -> List[str]:
-    """Internal method to resolve individual data paths."""
-    resolved = []
-    for path in paths:
-        if isinstance(path, dict):
-            if 'genome' in path and 'intervals' in path:
-                fasta_path = str(Path(path['intervals']).with_suffix('.fa'))
-                if not os.path.exists(fasta_path):
-                    FASTAHandler.bed_to_fasta(
-                        path['intervals'],
-                        path['genome'],
-                        fasta_path
-                    )
-                resolved.append(fasta_path)
-            else:
-                resolved.append(path['path'])
-        else:
-            resolved.append(str(path))
-    return resolved
-

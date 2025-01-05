@@ -24,7 +24,7 @@ from sklearn.metrics import (
     f1_score
 )
 
-from gkm_config import GkmConfig, Validator, Validator
+from gkm_config import GkmConfig, Validator, FASTAHandler
 
 logger = logging.getLogger(__name__)
 
@@ -45,15 +45,6 @@ def get_prediction_filename(config: GkmConfig, test_file: str, prefix: str = Non
         pred_path = str(pred_dir / f"{config.name}_{test_name}_predictions.txt")
         
     return pred_path
-
-def count_sequences_in_fasta(fasta_file: str) -> int:
-    """Count number of sequences in a FASTA file by counting header lines."""
-    count = 0
-    with open(fasta_file) as f:
-        for line in f:
-            if line.startswith('>'):
-                count += 1
-    return count
 
 def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: str = 'reciprocal') -> float:
     """Calculate positive class weight based on sequence counts.
@@ -144,8 +135,8 @@ def train_model(config: GkmConfig) -> str:
     Validator.validate_sequence_length(neg_output)
     
     # Calculate class weights based on sequence counts
-    pos_count = count_sequences_in_fasta(pos_output)
-    neg_count = count_sequences_in_fasta(neg_output)
+    pos_count = FASTAHandler.count_sequences(pos_output)
+    neg_count = FASTAHandler.count_sequences(neg_output)
     total_count = pos_count + neg_count
     
     logger.info(f"Training set composition:")
@@ -244,18 +235,16 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
     pos_train, neg_train = config.get_train_files()
         
     # Count sequences in each file
-    pos_count = sum(count_sequences_in_fasta(f) for f in pos_train)
-    neg_count = sum(count_sequences_in_fasta(f) for f in neg_train)
+    pos_count = sum(FASTAHandler.count_sequences(f) for f in pos_train)
+    neg_count = sum(FASTAHandler.count_sequences(f) for f in neg_train)
     
     # Predict on all files
     all_predictions = []
     for file in pos_train:
-        pred_file = predict(config, model_path, file, "train-pos")
-        predictions = parse_prediction_file(pred_file)
+        predictions = predict(config, model_path, file, "train-pos")
         all_predictions.extend(predictions)
     for file in neg_train:
-        pred_file = predict(config, model_path, file, "train-neg")
-        predictions = parse_prediction_file(pred_file)
+        predictions = predict(config, model_path, file, "train-neg")
         all_predictions.extend(predictions)
     
     y_pred = np.array(all_predictions)
@@ -268,22 +257,19 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
 
     # Validation set metrics if available
     if config.val_data_paths:
-        pos_val, neg_val = _get_files_by_class(
-            config.val_data_paths, config.val_targets)
+        pos_val, neg_val = config.get_val_files()
             
         # Count sequences in validation files
-        pos_count = sum(count_sequences_in_fasta(f) for f in pos_val)
-        neg_count = sum(count_sequences_in_fasta(f) for f in neg_val)
+        pos_count = sum(FASTAHandler.count_sequences(f) for f in pos_val)
+        neg_count = sum(FASTAHandler.count_sequences(f) for f in neg_val)
         
         # Predict on all validation files
         all_predictions = []
         for file in pos_val:
-            pred_file = predict(config, model_path, file, "validation-pos")
-            predictions = parse_prediction_file(pred_file)
+            predictions = predict(config, model_path, file, "validation-pos")
             all_predictions.extend(predictions)
         for file in neg_val:
-            pred_file = predict(config, model_path, file, "validation-neg")
-            predictions = parse_prediction_file(pred_file)
+            predictions = predict(config, model_path, file, "validation-neg")
             all_predictions.extend(predictions)
         
         y_pred = np.array(all_predictions)
@@ -303,18 +289,16 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
             pos_files, neg_files = _get_files_by_class(paths, targets)
             
             # Count sequences in additional validation files
-            pos_count = sum(count_sequences_in_fasta(f) for f in pos_files)
-            neg_count = sum(count_sequences_in_fasta(f) for f in neg_files)
+            pos_count = sum(FASTAHandler.count_sequences(f) for f in pos_files)
+            neg_count = sum(FASTAHandler.count_sequences(f) for f in neg_files)
             
             # Predict on all files in this validation set
             all_predictions = []
             for file in pos_files:
-                pred_file = predict(config, model_path, file, f"additional_validation_{i}-pos")
-                predictions = parse_prediction_file(pred_file)
+                predictions = predict(config, model_path, file, f"additional_validation_{i}-pos")
                 all_predictions.extend(predictions)
             for file in neg_files:
-                pred_file = predict(config, model_path, file, f"additional_validation_{i}-neg")
-                predictions = parse_prediction_file(pred_file)
+                predictions = predict(config, model_path, file, f"additional_validation_{i}-neg")
                 all_predictions.extend(predictions)
             
             y_pred = np.array(all_predictions)
