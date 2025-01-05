@@ -21,16 +21,9 @@ logger = logging.getLogger(__name__)
 # Type alias for path-like objects
 PathLike = Union[str, Path]
 
-class GkmUtilsError(Exception):
+class GkmError(Exception):
     """Base exception class for gkm-utils errors."""
     pass
-
-class FilePatterns:
-    """Constants for file naming patterns."""
-    MODEL_FILE = "{prefix}.model.txt"
-    PREDICTION_FILE = "{model_name}_{prefix}_{test_name}_predictions.txt"
-    RESULTS_FILE = "{model_prefix}_results.json"
-    COMBINED_FASTA = "{name}-{class_label}.fa"
 
 @dataclass
 class GkmParams:
@@ -65,9 +58,66 @@ class GkmParams:
         if self.kernel_type not in self.metadata['allowed']:
             raise ValueError(f"kernel_type must be one of {self.metadata['allowed']}")
 
-class FASTAConverter:
-    """Handles conversion between file formats."""
+# MODIFY in gkm_config.py:
+class Validator:
+    """Consolidated validation utilities."""
     
+    @staticmethod
+    def validate_training_files(pos_files: List[PathLike], neg_files: List[PathLike]) -> None:
+        """Validate all training files."""
+        for files in [pos_files, neg_files]:
+            for file in files:
+                Validator.validate_training_file(file)
+    
+    @staticmethod 
+    def validate_training_file(filepath: PathLike) -> None:
+        """Validate a single training file."""
+        filepath = Path(filepath)
+        Validator.validate_input_file(filepath)
+        FileHandler.validate_fasta(filepath)
+           
+    @staticmethod
+    def validate_input_file(filepath: PathLike) -> None:
+        """Check if input file exists and is readable."""
+        path = Path(filepath)
+        if not path.exists():
+            raise GkmError(f"File does not exist: {filepath}")
+        if not os.access(path, os.R_OK):
+            raise GkmError(f"File is not readable: {filepath}")
+            
+    @staticmethod
+    def validate_output_path(filepath: PathLike) -> None:
+        """Validate output path is writable."""
+        path = Path(filepath)
+        if path.exists() and not os.access(path, os.W_OK):
+            raise GkmError(f"Path exists but is not writable: {filepath}")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError as e:
+            raise GkmError(f"Cannot create parent directories for {filepath}: {e}")
+
+
+class FASTAHandler:
+    """Handles reading and validation of FASTA files."""
+    
+    @staticmethod
+    def count_sequences(fasta_file: PathLike) -> int:
+        """Count number of sequences in a FASTA file."""
+        count = 0
+        with open(fasta_file) as f:
+            for line in f:
+                if line.startswith('>'):
+                    count += 1
+        return count
+    
+    @staticmethod
+    def validate_format(fasta_file: PathLike) -> None:
+        """Validate FASTA file format."""
+        with open(fasta_file) as f:
+            first_line = f.readline().strip()
+            if not first_line.startswith('>'):
+                raise GkmError(f"Invalid FASTA format in {fasta_file}")
+
     @staticmethod
     def bed_to_fasta(bed_file: PathLike, 
                      genome_file: PathLike,
@@ -77,21 +127,20 @@ class FASTAConverter:
         genome_file = Path(genome_file)
         output_path = Path(output_path)
         
-        # Validate input and output paths
+        # Validate paths
         Validator.validate_input_file(bed_file)
         Validator.validate_input_file(genome_file)
         Validator.validate_output_path(output_path)
 
-        # Check if bedtools is available
+        # Check bedtools
         if subprocess.run(['which', 'bedtools'], capture_output=True).returncode != 0:
-            raise GkmUtilsError("bedtools command not found. Please install bedtools")
+            raise GkmError("bedtools command not found")
 
         try:
-            # Check if bed file has a name column
+            # Check for name column
             with open(bed_file) as f:
                 has_name_column = len(f.readline().strip().split('\t')) >= 4
             
-            # Construct bedtools command
             cmd = ['bedtools', 'getfasta', 
                   '-fi', str(genome_file), 
                   '-bed', str(bed_file)]
@@ -99,56 +148,16 @@ class FASTAConverter:
                 cmd.append('-name')
             cmd.extend(['-fo', str(output_path)])
                 
-            logger.info(f"Running command: {' '.join(cmd)}")
-            
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode != 0:
-                raise GkmUtilsError(f"bedtools command failed: {result.stderr}")
+                raise GkmError(f"bedtools failed: {result.stderr}")
             
-            # Validate the output
             if not output_path.exists():
-                raise GkmUtilsError(f"FASTA file not created: {output_path}")
-            FASTAReader.validate_format(output_path)
+                raise GkmError(f"FASTA file not created: {output_path}")
+            FASTAHandler.validate_format(output_path)
             
         except Exception as e:
-            raise GkmUtilsError(f"BED to FASTA conversion failed: {str(e)}")
-
-class Validator:
-    """Validates file paths and sequences for gkm-SVM processing."""
-    
-    @staticmethod
-    def validate_training_files(pos_files: List[PathLike], neg_files: List[PathLike]) -> None:
-        """Comprehensive validation of training file sets."""
-        for files in [pos_files, neg_files]:
-            for file in files:
-                Validator.validate_training_file(file)
-    
-    @staticmethod
-    def validate_training_file(filepath: PathLike) -> None:
-        """Comprehensive validation for a single training file."""
-        filepath = Path(filepath)
-        Validator.validate_input_file(filepath)
-        FASTAReader.validate_format(filepath)
-           
-    @staticmethod
-    def validate_input_file(filepath: PathLike) -> None:
-        """Check if input file exists and is readable."""
-        path = Path(filepath)
-        if not path.exists():
-            raise GkmUtilsError(f"File does not exist: {filepath}")
-        if not os.access(path, os.R_OK):
-            raise GkmUtilsError(f"File is not readable: {filepath}")
-            
-    @staticmethod
-    def validate_output_path(filepath: PathLike) -> None:
-        """Validate output path is writable."""
-        path = Path(filepath)
-        if path.exists() and not os.access(path, os.W_OK):
-            raise GkmUtilsError(f"Path exists but is not writable: {filepath}")
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            raise GkmUtilsError(f"Cannot create parent directories for {filepath}: {e}")
+            raise GkmError(f"BED to FASTA conversion failed: {str(e)}")
 
 
 @dataclass
@@ -177,13 +186,56 @@ class GkmConfig:
     additional_val_data_paths: List[List[Union[str, Dict[str, str]]]] = field(default_factory=list)
     additional_val_targets: List[List[int]] = field(default_factory=list)
     
-    # Additional Fields
-    genome_path: Optional[str] = None
-    save_predictions: bool = True
-    
     # Executable Paths
     gkm_executable: str = "gkmtrain"
     pred_executable: str = "gkmpredict"
+
+    # initialize the GkmConfig class
+    def __init__(self, 
+                 project: str,
+                 name: str = "gkm-svm",
+                 model_dir: Optional[str] = None,
+                 output_prefix: Optional[str] = None,
+                 dir: Optional[str] = None,
+                 class_weight: Optional[str] = None,
+                 train_data_paths: List[Union[str, Dict[str, str]]] = None,
+                 train_targets: List[Union[int, Dict[str, int]]] = None,
+                 val_data_paths: List[Union[str, Dict[str, str]]] = None,
+                 val_targets: List[Union[int, Dict[str, int]]] = None,
+                 additional_val_data_paths: List[List[Union[str, Dict[str, str]]]] = None,
+                 additional_val_targets: List[List[int]] = None,
+                 **kwargs):
+
+        """Initialize config with resolved paths."""
+        super().__init__(**kwargs)
+        self.project = project
+        self.name = name
+        self.model_dir = model_dir
+        self.output_prefix = output_prefix
+        self.dir = dir
+        self.class_weight = class_weight
+        
+        # Resolve paths during initialization
+        self.train_data_paths = [self._resolve_file_path(p) for p in (train_data_paths or [])]
+        self.train_targets = train_targets or []
+        
+        self.val_data_paths = [self._resolve_file_path(p) for p in (val_data_paths or [])]
+        self.val_targets = val_targets or []
+        
+        self.additional_val_data_paths = [
+            [self._resolve_file_path(p) for p in paths]
+            for paths in (additional_val_data_paths or [])
+        ]
+        self.additional_val_targets = additional_val_targets or []
+
+    @staticmethod
+    def _resolve_file_path(path_spec: Union[str, Dict[str, str]]) -> Path:
+        """Resolve file path from CNN pipeline format."""
+        if isinstance(path_spec, dict):
+            if 'intervals' in path_spec:
+                return Path(path_spec['intervals'])
+            raise ValueError(f"Invalid path specification: {path_spec}")
+        return Path(path_spec)
 
     def get_model_dir(self) -> Path:
         """Get path to model directory."""
@@ -191,10 +243,6 @@ class GkmConfig:
         model_dir = base_dir / "lsgkm" / self.name
         model_dir.mkdir(parents=True, exist_ok=True)
         return model_dir
-        
-    def get_prediction_dir(self) -> Path:
-        """Get path to predictions directory."""
-        return self.get_model_dir() / "predictions"
     
     def get_prediction_path(self, test_file: PathLike, prefix: Optional[str] = None) -> Path:
         """Generate path for prediction output file."""
@@ -209,40 +257,6 @@ class GkmConfig:
                 test_name=test_name
             )
         return pred_dir / f"{self.name}_{test_name}_predictions.txt"
-
-    def resolve_file_path(self, path_spec: Union[str, Dict[str, str]]) -> Path:
-        """Resolve file path from CNN pipeline format."""
-        if isinstance(path_spec, dict):
-            if 'intervals' in path_spec:
-                return Path(path_spec['intervals'])
-            raise ValueError(f"Invalid path specification: {path_spec}")
-        return Path(path_spec)
-    
-    def resolve_paths(self) -> None:
-        """Resolve and validate all input paths."""
-        self.train_data_paths = [self.resolve_file_path(p) for p in self.train_data_paths]
-        self.val_data_paths = [self.resolve_file_path(p) for p in self.val_data_paths]
-        
-        if self.additional_val_data_paths:
-            self.additional_val_data_paths = [
-                [self.resolve_file_path(p) for p in paths] 
-                for paths in self.additional_val_data_paths
-            ]
-        
-        # Validate all resolved paths
-        self._validate_resolved_paths()
-
-    def _validate_resolved_paths(self) -> None:
-        """Validate all resolved paths exist and are in correct format."""
-        for path in self.train_data_paths:
-            Validator.validate_training_file(path)
-            
-        for path in self.val_data_paths:
-            Validator.validate_training_file(path)
-            
-        for path_set in self.additional_val_data_paths:
-            for path in path_set:
-                Validator.validate_training_file(path)
 
     def get_train_files(self) -> Tuple[List[Path], List[Path]]:
         """Get positive and negative training files."""
@@ -299,9 +313,6 @@ class GkmConfig:
                 resolved = resolve_input_files(paths, self.genome_path)
                 resolved_additional.append(resolved)
             self.additional_val_data_paths = resolved_additional
-            
-        # Validate all resolved paths
-        self._validate_resolved_paths()
     
     def get_prediction_path(self, test_file: str, prefix: str = None) -> str:
         """Standardize prediction file path generation."""
@@ -315,59 +326,37 @@ class GkmConfig:
         return str(pred_dir / f"{self.name}_{test_name}_predictions.txt")
 
     def validate(self) -> None:
-        """Validate parameters against both gkm-SVM and CNN pipeline requirements."""
-        # Core Parameter Validation
-        self._validate_word_length()
-        self._validate_informed_cols()
-        self._validate_max_mismatch()
-        self._validate_kernel_type()
+        """Validate complete configuration."""
+        self._validate_parameters()
+        self._validate_paths()
+        self._validate_data()
         
-        # Kernel-Specific Validation
-        self._validate_kernel_params()
+    def _validate_parameters(self) -> None:
+        """Validate core parameters."""
+        self.params.validate()
         
-        # Runtime Validation
-        self._validate_runtime_params()
-        
-        # Data Path Validation
-        self._validate_data_paths()
-
- 
-    def _validate_data_paths(self) -> None:
-        """Validate CNN pipeline data paths."""
-        # Check path counts match
-        if len(self.train_data_paths) != len(self.train_targets):
-            raise ValueError("Number of training paths must match number of targets")
-            
-        if len(self.val_data_paths) != len(self.val_targets):
-            raise ValueError("Number of validation paths must match number of targets")
-            
-        if len(self.additional_val_data_paths) != len(self.additional_val_targets):
-            raise ValueError("Number of additional validation sets must match number of targets")
-
-        # Validate file existence
-        for paths in [self.train_data_paths, self.val_data_paths]:
-            for path in paths:
-                file_path = self._get_file_path(path)
-                if not os.path.exists(file_path):
-                    raise FileNotFoundError(f"Data file not found: {file_path}")
-
-        for path_set in self.additional_val_data_paths:
-            for path in path_set:
-                file_path = self._get_file_path(path)
-                if not os.path.exists(file_path):
-                    raise FileNotFoundError(f"Additional validation file not found: {file_path}")
-
-    def _validate_resolved_paths(self) -> None:
-        """Validate all resolved paths exist and are in correct format."""
+    def _validate_paths(self) -> None:
+        """Validate all file paths exist."""
         for path in self.train_data_paths:
-            Validator.validate_file(path)
+            Validator.validate_training_file(path)
             
         for path in self.val_data_paths:
-            Validator.validate_file(path)
+            Validator.validate_training_file(path)
             
         for path_set in self.additional_val_data_paths:
             for path in path_set:
-                Validator.validate_file(path)
+                Validator.validate_training_file(path)
+                
+    def _validate_data(self) -> None:
+        """Validate data configuration."""
+        if len(self.train_data_paths) != len(self.train_targets):
+            raise ValueError("Number of training paths must match targets")
+            
+        if len(self.val_data_paths) != len(self.val_targets):
+            raise ValueError("Number of validation paths must match targets")
+            
+        if len(self.additional_val_data_paths) != len(self.additional_val_targets):
+            raise ValueError("Number of additional validation sets must match targets")
 
     def _get_file_path(self, path_spec: Union[str, Dict[str, str]]) -> str:
         """Extract file path from CNN pipeline path specification."""
@@ -515,70 +504,3 @@ class GkmConfig:
             '-v', str(self.verbosity),
             '-T', str(self.num_threads)
         ]
-
-class FASTAReader:
-    """Handles reading and validation of FASTA files."""
-    
-    @staticmethod
-    def count_sequences(fasta_file: PathLike) -> int:
-        """Count number of sequences in a FASTA file."""
-        count = 0
-        with open(fasta_file) as f:
-            for line in f:
-                if line.startswith('>'):
-                    count += 1
-        return count
-    
-    @staticmethod
-    def validate_format(fasta_file: PathLike) -> None:
-        """Validate FASTA file format."""
-        with open(fasta_file) as f:
-            first_line = f.readline().strip()
-            if not first_line.startswith('>'):
-                raise GkmUtilsError(f"Invalid FASTA format in {fasta_file}")
-
-class FASTAConverter:
-    """Handles conversion between file formats."""
-    
-    @staticmethod
-    def bed_to_fasta(bed_file: PathLike, 
-                     genome_file: PathLike,
-                     output_path: PathLike) -> None:
-        """Convert BED file to FASTA using bedtools."""
-        bed_file = Path(bed_file)
-        genome_file = Path(genome_file)
-        output_path = Path(output_path)
-        
-        # Validate paths
-        Validator.validate_input_file(bed_file)
-        Validator.validate_input_file(genome_file)
-        Validator.validate_output_path(output_path)
-
-        # Check bedtools
-        if subprocess.run(['which', 'bedtools'], capture_output=True).returncode != 0:
-            raise GkmUtilsError("bedtools command not found")
-
-        try:
-            # Check for name column
-            with open(bed_file) as f:
-                has_name_column = len(f.readline().strip().split('\t')) >= 4
-            
-            cmd = ['bedtools', 'getfasta', 
-                  '-fi', str(genome_file), 
-                  '-bed', str(bed_file)]
-            if has_name_column:
-                cmd.append('-name')
-            cmd.extend(['-fo', str(output_path)])
-                
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            if result.returncode != 0:
-                raise GkmUtilsError(f"bedtools failed: {result.stderr}")
-            
-            if not output_path.exists():
-                raise GkmUtilsError(f"FASTA file not created: {output_path}")
-            FASTAReader.validate_format(output_path)
-            
-        except Exception as e:
-            raise GkmUtilsError(f"BED to FASTA conversion failed: {str(e)}")
-
-
