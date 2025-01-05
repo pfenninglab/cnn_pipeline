@@ -24,7 +24,14 @@ from sklearn.metrics import (
     f1_score
 )
 
-from gkm_config import GkmConfig, Validator, FASTAHandler
+from gkm_config import (
+    GkmConfig, 
+    FASTAReader,
+    FASTAConverter,
+    GkmUtilsError,
+    PathLike,
+    FilePatterns
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,19 +39,6 @@ class GkmTrainerError(Exception):
     """Base exception class for gkm-trainer errors."""
     pass
 
-def get_prediction_filename(config: GkmConfig, test_file: str, prefix: str = None) -> str:
-    """Generate standardized prediction filename."""
-    model_base_dir = Path(config.dir) if config.dir else Path.cwd()
-    pred_dir = model_base_dir / "lsgkm" / config.name / "predictions"
-    pred_dir.mkdir(parents=True, exist_ok=True)
-    
-    test_name = Path(test_file).stem
-    if prefix:
-        pred_path = str(pred_dir / f"{config.name}_{prefix}_{test_name}_predictions.txt")
-    else:
-        pred_path = str(pred_dir / f"{config.name}_{test_name}_predictions.txt")
-        
-    return pred_path
 
 def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: str = 'reciprocal') -> float:
     """Calculate positive class weight based on sequence counts.
@@ -135,8 +129,8 @@ def train_model(config: GkmConfig) -> str:
     Validator.validate_sequence_length(neg_output)
     
     # Calculate class weights based on sequence counts
-    pos_count = FASTAHandler.count_sequences(pos_output)
-    neg_count = FASTAHandler.count_sequences(neg_output)
+    pos_count = FASTAReader.count_sequences(pos_output)
+    neg_count = FASTAReader.count_sequences(neg_output)
     total_count = pos_count + neg_count
     
     logger.info(f"Training set composition:")
@@ -173,7 +167,7 @@ def train_model(config: GkmConfig) -> str:
 
 def predict(config: GkmConfig, model_path: str, test_file: str, prefix: str = None) -> np.ndarray:
     """Run prediction and return numpy array of scores."""
-    pred_path = get_prediction_filename(config, test_file, prefix)
+    pred_path = config.get_prediction_path(test_file, prefix)
     
     # Return cached predictions if they exist
     if os.path.exists(pred_path):
@@ -235,8 +229,8 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
     pos_train, neg_train = config.get_train_files()
         
     # Count sequences in each file
-    pos_count = sum(FASTAHandler.count_sequences(f) for f in pos_train)
-    neg_count = sum(FASTAHandler.count_sequences(f) for f in neg_train)
+    pos_count = sum(FASTAReader.count_sequences(f) for f in pos_train)
+    neg_count = sum(FASTAReader.count_sequences(f) for f in neg_train)
     
     # Predict on all files
     all_predictions = []
@@ -260,8 +254,8 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
         pos_val, neg_val = config.get_val_files()
             
         # Count sequences in validation files
-        pos_count = sum(FASTAHandler.count_sequences(f) for f in pos_val)
-        neg_count = sum(FASTAHandler.count_sequences(f) for f in neg_val)
+        pos_count = sum(FASTAReader.count_sequences(f) for f in pos_val)
+        neg_count = sum(FASTAReader.count_sequences(f) for f in neg_val)
         
         # Predict on all validation files
         all_predictions = []
@@ -289,8 +283,8 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
             pos_files, neg_files = _get_files_by_class(paths, targets)
             
             # Count sequences in additional validation files
-            pos_count = sum(FASTAHandler.count_sequences(f) for f in pos_files)
-            neg_count = sum(FASTAHandler.count_sequences(f) for f in neg_files)
+            pos_count = sum(FASTAReader.count_sequences(f) for f in pos_files)
+            neg_count = sum(FASTAReader.count_sequences(f) for f in neg_files)
             
             # Predict on all files in this validation set
             all_predictions = []
