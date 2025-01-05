@@ -32,6 +32,8 @@ class GkmConfig:
     name: str = "gkm-svm"
     model_dir: Optional[str] = None
     output_prefix: Optional[str] = None
+    dir: Optional[str] = None  # Directory for output files
+    class_weight: Optional[str] = None  # Class weighting scheme ('none', 'reciprocal', or 'proportional')
     
     # Core gkm-SVM Parameters
     word_length: int = 11  # -l: word length (3-12)
@@ -221,9 +223,7 @@ class GkmConfig:
             ])
         
         # Add config name as suffix
-        params.append(self.name)
-            
-        prefix = f"gkm-{'_'.join(params)}"
+        prefix = f"gkm-{'_'.join(params)}-{self.name}"
         if self.model_dir:
             return os.path.join(self.model_dir, prefix)
         return prefix
@@ -305,6 +305,8 @@ class GkmConfig:
             'name': yaml_dict.get('name', {}).get('value', 'gkm-svm'),
             'model_dir': yaml_dict.get('model_dir', {}).get('value'),
             'output_prefix': yaml_dict.get('output_prefix', {}).get('value'),
+            'dir': yaml_dict.get('dir', {}).get('value'),
+            'class_weight': yaml_dict.get('class_weight', {}).get('value', 'none'),  # Add class_weight
             
             # Core parameters
             'word_length': yaml_dict.get('word_length', {}).get('value', 11),
@@ -332,6 +334,12 @@ class GkmConfig:
 
         # Create and validate config
         config = cls(**config_dict)
+        
+        # Validate class_weight value if specified
+        if config.class_weight not in [None, 'none', 'reciprocal', 'proportional']:
+            raise ValueError(f"Invalid class_weight value: {config.class_weight}. "
+                           "Must be one of: none, reciprocal, proportional")
+        
         config.validate()
         return config
 
@@ -488,31 +496,18 @@ class FASTAHandler:
         PathValidator.validate_output_path(output_path)
 
         # Check if bedtools is available
-        try:
-            subprocess.run(['bedtools', '--version'], 
-                         check=True, 
-                         capture_output=True, 
-                         text=True)
-        except subprocess.CalledProcessError:
-            raise GkmUtilsError("bedtools command failed. Please ensure bedtools is installed and in your PATH")
-        except FileNotFoundError:
+        exit_code = os.system("which bedtools > /dev/null 2>&1")
+        if exit_code != 0:
             raise GkmUtilsError("bedtools command not found. Please install bedtools and ensure it's in your PATH")
 
         try:
             # Construct and run bedtools getfasta command
-            cmd = [
-                'bedtools', 'getfasta',
-                '-fi', str(genome_file),
-                '-bed', str(bed_file),
-                '-fo', str(output_path)
-            ]
+            cmd = f"bedtools getfasta -fi {genome_file} -bed {bed_file} -fo {output_path}"
+            logger.info(f"Running command: {cmd}")
             
-            result = subprocess.run(
-                cmd,
-                check=True,
-                capture_output=True,
-                text=True
-            )
+            exit_code = os.system(cmd)
+            if exit_code != 0:
+                raise GkmUtilsError(f"bedtools command failed with exit code: {exit_code}")
             
             # Check if output file was created
             if not os.path.exists(output_path):
@@ -521,12 +516,9 @@ class FASTAHandler:
             # Validate the output FASTA file
             SequenceValidator.validate_sequence_length(output_path)
             
-        except subprocess.CalledProcessError as e:
-            # Capture bedtools error message
-            error_msg = e.stderr if e.stderr else str(e)
-            raise GkmUtilsError(f"BED to FASTA conversion failed: {error_msg}")
         except Exception as e:
             raise GkmUtilsError(f"BED to FASTA conversion failed: {str(e)}")
+
 
 def resolve_input_files(config_files: List[Union[str, Dict]],
                        genome: Optional[str] = None) -> List[str]:

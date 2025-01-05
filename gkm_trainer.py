@@ -52,6 +52,49 @@ def _get_files_by_class(paths: List[str], targets: List[int]) -> Tuple[List[str]
         
     return pos_files, neg_files
 
+def count_sequences_in_fasta(fasta_file: str) -> int:
+    """Count number of sequences in a FASTA file by counting header lines."""
+    count = 0
+    with open(fasta_file) as f:
+        for line in f:
+            if line.startswith('>'):
+                count += 1
+    return count
+
+def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: str = 'reciprocal') -> float:
+    """Calculate positive class weight based on sequence counts.
+    
+    Args:
+        pos_count: Number of positive sequences
+        neg_count: Number of negative sequences
+        weighting_scheme: Strategy for weight calculation ('reciprocal' or 'proportional')
+        
+    Returns:
+        Weight value for positive class (SVM -w parameter)
+        
+    Based on CNN pipeline class weighting schemes:
+    - reciprocal: weight = (total_samples / num_classes) / class_count
+    - proportional: weight = fraction of samples in other classes
+    """
+    total_count = pos_count + neg_count
+    
+    if weighting_scheme == 'reciprocal':
+        # Chai's balancing method: weight = (N/k) / n_i
+        # Where N is total samples, k is number of classes (2), n_i is class count
+        balanced_count = total_count / 2
+        weight = balanced_count / pos_count
+        
+    elif weighting_scheme == 'proportional':
+        # Irene's balancing method: weight = fraction of samples in other classes
+        weight = neg_count / total_count
+        
+    else:
+        # No weighting
+        weight = 1.0
+        
+    return weight
+
+
 def train_model(config: GkmConfig) -> str:
     """Train a gkm-SVM model using config parameters.
     
@@ -70,23 +113,63 @@ def train_model(config: GkmConfig) -> str:
     # Get positive and negative files
     pos_files, neg_files = config.get_train_files()
     
-    # Use first file from each class for training
-    pos_file, neg_file = pos_files[0], neg_files[0]
+    # Create model directory structure
+    model_base_dir = Path(config.dir) if config.dir else Path.cwd()
+    model_dir = model_base_dir / "lsgkm" / config.name
+    model_dir.mkdir(parents=True, exist_ok=True)
     
-    # Get output prefix and create directory if needed
-    out_prefix = config.get_run_prefix()
-    output_dir = Path(out_prefix).parent
-    output_dir.mkdir(parents=True, exist_ok=True)
+    # Create combined FASTA files
+    pos_output = model_dir / f"{config.name}-pos.fa"
+    neg_output = model_dir / f"{config.name}-neg.fa"
     
-    # Get training command
-    cmd = config.get_train_cmd(pos_file, neg_file, out_prefix)
+    logger.info(f"Combining {len(pos_files)} positive files into {pos_output}")
+    with open(pos_output, 'w') as outfile:
+        for pos_file in pos_files:
+            with open(pos_file) as infile:
+                for line in infile:
+                    outfile.write(line)
+                    
+    logger.info(f"Combining {len(neg_files)} negative files into {neg_output}")
+    with open(neg_output, 'w') as outfile:
+        for neg_file in neg_files:
+            with open(neg_file) as infile:
+                for line in infile:
+                    outfile.write(line)
     
-    logger.info(f"Training model with command: {' '.join(cmd)}")
+    # Validate combined files
+    PathValidator.validate_fasta_format(pos_output)
+    PathValidator.validate_fasta_format(neg_output)
+    SequenceValidator.validate_sequence_length(pos_output)
+    SequenceValidator.validate_sequence_length(neg_output)
     
-    try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        raise GkmTrainerError(f"Training failed: {e.stderr}")
+    # Calculate class weights based on sequence counts
+    pos_count = count_sequences_in_fasta(pos_output)
+    neg_count = count_sequences_in_fasta(neg_output)
+    total_count = pos_count + neg_count
+    
+    logger.info(f"Training set composition:")
+    logger.info(f"  Positive sequences: {pos_count:,} ({pos_count/total_count:.1%})")
+    logger.info(f"  Negative sequences: {neg_count:,} ({neg_count/total_count:.1%})")
+    
+    # Set positive class weight if weighting scheme specified
+    if hasattr(config, 'class_weight') and config.class_weight not in [None, 'none']:
+        weight = calculate_class_weight(pos_count, neg_count, config.class_weight)
+        logger.info(f"Using {config.class_weight} weighting scheme, positive weight = {weight:.3f}")
+        config.pos_weight = weight
+    else:
+        logger.info("No class weighting applied")
+    
+    # Get output prefix and prepare command
+    out_prefix = str(model_dir / config.get_run_prefix())
+    cmd = config.get_train_cmd(str(pos_output), str(neg_output), out_prefix)
+    cmd_str = ' '.join(cmd)
+    
+    logger.info(f"Training model with command: {cmd_str}")
+    
+    # Run training command
+    exit_code = os.system(cmd_str)
+    if exit_code != 0:
+        raise GkmTrainerError(f"Training failed with exit code: {exit_code}")
     
     # Verify model file exists
     model_path = f"{out_prefix}.model.txt"
@@ -94,6 +177,7 @@ def train_model(config: GkmConfig) -> str:
         raise GkmTrainerError(f"Model file not created: {model_path}")
         
     return model_path
+
 
 def predict(config: GkmConfig, model_path: str, test_file: str) -> str:
     """Run gkmpredict with configuration parameters.
@@ -114,24 +198,35 @@ def predict(config: GkmConfig, model_path: str, test_file: str) -> str:
     PathValidator.validate_input_file(test_file)
     PathValidator.validate_fasta_format(test_file)
     
-    # Generate prediction output path
-    pred_path = f"{os.path.splitext(model_path)[0]}_predictions.txt"
-    PathValidator.validate_output_path(pred_path)
+    # Get model directory structure
+    model_base_dir = Path(config.dir) if config.dir else Path.cwd()
+    model_dir = model_base_dir / "lsgkm" / config.name
+    
+    # Create predictions directory if needed
+    pred_dir = model_dir / "predictions"
+    pred_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate unique prediction output path using timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    test_name = Path(test_file).stem
+    pred_path = str(pred_dir / f"{test_name}_{timestamp}_predictions.txt")
     
     # Get prediction command
     cmd = config.get_predict_cmd(test_file, model_path, pred_path)
+    cmd_str = ' '.join(cmd)
     
-    logger.info(f"Running predictions with command: {' '.join(cmd)}")
+    logger.info(f"Running predictions with command: {cmd_str}")
     
-    try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        raise GkmTrainerError(f"Prediction failed: {e.stderr}")
+    # Run prediction command
+    exit_code = os.system(cmd_str)
+    if exit_code != 0:
+        raise GkmTrainerError(f"Prediction failed with exit code: {exit_code}")
         
     if not os.path.exists(pred_path):
         raise GkmTrainerError(f"Predictions file not created: {pred_path}")
         
     return pred_path
+
 
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, 
                    prefix: str = '') -> Dict[str, float]:
