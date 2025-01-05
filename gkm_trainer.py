@@ -24,14 +24,42 @@ from sklearn.metrics import (
     f1_score
 )
 
-from gkm_config import (
-    GkmConfig, 
-    FASTAHandler,
-    PathManager, 
-    GkmError
-)
+from gkm_config import GkmConfig, PathValidator, SequenceValidator
 
 logger = logging.getLogger(__name__)
+
+class GkmTrainerError(Exception):
+    """Base exception class for gkm-trainer errors."""
+    pass
+
+def _get_files_by_class(paths: List[str], targets: List[int]) -> Tuple[List[str], List[str]]:
+    """Split files into positive and negative sets.
+    
+    Args:
+        paths: List of file paths
+        targets: List of binary targets (0/1)
+        
+    Returns:
+        Tuple of (positive_files, negative_files)
+    """
+    pos_files = [p for p, t in zip(paths, targets) if t == 1]
+    neg_files = [p for p, t in zip(paths, targets) if t == 0]
+    
+    if not pos_files:
+        raise GkmTrainerError("No positive examples found")
+    if not neg_files:
+        raise GkmTrainerError("No negative examples found")
+        
+    return pos_files, neg_files
+
+def count_sequences_in_fasta(fasta_file: str) -> int:
+    """Count number of sequences in a FASTA file by counting header lines."""
+    count = 0
+    with open(fasta_file) as f:
+        for line in f:
+            if line.startswith('>'):
+                count += 1
+    return count
 
 def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: str = 'reciprocal') -> float:
     """Calculate positive class weight based on sequence counts.
@@ -77,82 +105,127 @@ def train_model(config: GkmConfig) -> str:
         Path to trained model file
         
     Raises:
-        GkmError: If training fails
+        GkmTrainerError: If training fails
     """
+    # Resolve and validate paths
+    config.resolve_paths()
+    
     # Get positive and negative files
     pos_files, neg_files = config.get_train_files()
-    logger.info(pos_files)
     
-    path_manager = PathManager()
-
-    # Get paths for combined files
-    combined_pos = path_manager.get_combined_fasta_paths(config.name, "pos")
-    combined_neg = path_manager.get_combined_fasta_paths(config.name, "neg")
-
-    # Combine files and get counts
-    logger.info(f"Combining {len(pos_files)} positive files into {combined_pos}")
-    pos_count = FASTAHandler.combine_files(pos_files, combined_pos)
+    # Create model directory structure
+    model_base_dir = Path(config.dir) if config.dir else Path.cwd()
+    model_dir = model_base_dir / "lsgkm" / config.name
+    model_dir.mkdir(parents=True, exist_ok=True)
     
-    logger.info(f"Combining {len(neg_files)} negative files into {combined_neg}")
-    neg_count = FASTAHandler.combine_files(neg_files, combined_neg)
+    # Create combined FASTA files
+    pos_output = model_dir / f"{config.name}-pos.fa"
+    neg_output = model_dir / f"{config.name}-neg.fa"
+    
+    logger.info(f"Combining {len(pos_files)} positive files into {pos_output}")
+    with open(pos_output, 'w') as outfile:
+        for pos_file in pos_files:
+            with open(pos_file) as infile:
+                for line in infile:
+                    outfile.write(line)
+                    
+    logger.info(f"Combining {len(neg_files)} negative files into {neg_output}")
+    with open(neg_output, 'w') as outfile:
+        for neg_file in neg_files:
+            with open(neg_file) as infile:
+                for line in infile:
+                    outfile.write(line)
     
     # Validate combined files
-    FASTAHandler.validate_format(combined_pos)
-    FASTAHandler.validate_format(combined_neg)
+    PathValidator.validate_fasta_format(pos_output)
+    PathValidator.validate_fasta_format(neg_output)
+    SequenceValidator.validate_sequence_length(pos_output)
+    SequenceValidator.validate_sequence_length(neg_output)
     
-    # Calculate statistics
+    # Calculate class weights based on sequence counts
+    pos_count = count_sequences_in_fasta(pos_output)
+    neg_count = count_sequences_in_fasta(neg_output)
     total_count = pos_count + neg_count
-    logger.info("Training set composition:")
+    
+    logger.info(f"Training set composition:")
     logger.info(f"  Positive sequences: {pos_count:,} ({pos_count/total_count:.1%})")
     logger.info(f"  Negative sequences: {neg_count:,} ({neg_count/total_count:.1%})")
     
-    # Set class weight if specified
-    if config.class_weight not in [None, 'none']:
+    # Set positive class weight if weighting scheme specified
+    if hasattr(config, 'class_weight') and config.class_weight not in [None, 'none']:
         weight = calculate_class_weight(pos_count, neg_count, config.class_weight)
-        logger.info(f"Using {config.class_weight} weighting scheme, weight = {weight:.3f}")
+        logger.info(f"Using {config.class_weight} weighting scheme, positive weight = {weight:.3f}")
         config.pos_weight = weight
     else:
         logger.info("No class weighting applied")
     
-    # Get model path
-    model_prefix = config.get_run_prefix()
-    model_path = config.get_model_path(model_prefix)
-    
-    # Check if model already exists
-    if model_path.exists():
-        logger.info(f"Model already exists at {model_path}, skipping training")
-        return str(model_path)
-    
-    # Run training command
-    cmd = config.get_train_cmd(str(combined_pos), str(combined_neg), str(model_path))
+    # Get output prefix and prepare command
+    out_prefix = str(model_dir / config.get_run_prefix())
+    cmd = config.get_train_cmd(str(pos_output), str(neg_output), out_prefix)
     cmd_str = ' '.join(cmd)
+    
     logger.info(f"Training model with command: {cmd_str}")
     
-    result = os.system(cmd, capture_output=True, text=True, check=True)
+    # Run training command
+    exit_code = os.system(cmd_str)
+    if exit_code != 0:
+        raise GkmTrainerError(f"Training failed with exit code: {exit_code}")
     
     # Verify model file exists
-    if not model_path.exists():
-        raise GkmError(f"Model file not created: {model_path}")
+    model_path = f"{out_prefix}.model.txt"
+    if not os.path.exists(model_path):
+        raise GkmTrainerError(f"Model file not created: {model_path}")
         
-    return str(model_path)
+    return model_path
 
 
-def predict(config: GkmConfig, model_path: str, test_file: str, prefix: str = None) -> np.ndarray:
-    """Run prediction and return numpy array of scores."""
-    pred_path = config.get_prediction_path(test_file, prefix)
+def predict(config: GkmConfig, model_path: str, test_file: str) -> str:
+    """Run gkmpredict with configuration parameters.
     
-    # Return cached predictions if they exist
-    if os.path.exists(pred_path):
-        logger.info(f"Using cached predictions: {pred_path}")
-        return np.loadtxt(pred_path)
+    Args:
+        config: GkmConfig object containing parameters
+        model_path: Path to trained model file
+        test_file: Path to test sequences FASTA file
         
-    # Run prediction
+    Returns:
+        Path to predictions file
+        
+    Raises:
+        GkmTrainerError: If prediction fails
+    """
+    # Validate input files
+    PathValidator.validate_input_file(model_path)
+    PathValidator.validate_input_file(test_file)
+    PathValidator.validate_fasta_format(test_file)
+    
+    # Get model directory structure
+    model_base_dir = Path(config.dir) if config.dir else Path.cwd()
+    model_dir = model_base_dir / "lsgkm" / config.name
+    
+    # Create predictions directory if needed
+    pred_dir = model_dir / "predictions"
+    pred_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate unique prediction output path using timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    test_name = Path(test_file).stem
+    pred_path = str(pred_dir / f"{test_name}_{timestamp}_predictions.txt")
+    
+    # Get prediction command
     cmd = config.get_predict_cmd(test_file, model_path, pred_path)
-    exit_code = os.system(' '.join(cmd))
+    cmd_str = ' '.join(cmd)
+    
+    logger.info(f"Running predictions with command: {cmd_str}")
+    
+    # Run prediction command
+    exit_code = os.system(cmd_str)
     if exit_code != 0:
-        raise GkmError(f"Prediction failed with exit code: {exit_code}")
+        raise GkmTrainerError(f"Prediction failed with exit code: {exit_code}")
         
-    return np.loadtxt(pred_path)
+    if not os.path.exists(pred_path):
+        raise GkmTrainerError(f"Predictions file not created: {pred_path}")
+        
+    return pred_path
 
 
 def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray, 
@@ -169,12 +242,12 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray,
     """
     # Verify inputs
     if len(y_true) != len(y_pred):
-        raise GkmError(
+        raise GkmTrainerError(
             f"Length mismatch: y_true ({len(y_true)}) != y_pred ({len(y_pred)})"
         )
     
     if not len(y_true):
-        raise GkmError("Empty prediction arrays")
+        raise GkmTrainerError("Empty prediction arrays")
         
     # Compute threshold-independent metrics
     metrics = {
@@ -192,58 +265,43 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray,
 
     return metrics
 
-
 def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
-    """Evaluate model on training, validation and additional sets."""
+    """Evaluate model on training, validation and additional sets.
+    
+    Args:
+        config: GkmConfig object with evaluation parameters
+        model_path: Path to trained model file
+        
+    Returns:
+        Dictionary of evaluation metrics
+    """
     results = {}
     
     # Training set metrics
-    pos_train, neg_train = config.get_train_files()
-        
-    # Count sequences in each file
-    pos_count = sum(FASTAHander.count_sequences(f) for f in pos_train)
-    neg_count = sum(FASTAHander.count_sequences(f) for f in neg_train)
+    pos_train, neg_train = _get_files_by_class(
+        config.train_data_paths, config.train_targets)
     
-    # Predict on all files
-    all_predictions = []
-    for file in pos_train:
-        predictions = predict(config, model_path, file, "train-pos")
-        all_predictions.extend(predictions)
-    for file in neg_train:
-        predictions = predict(config, model_path, file, "train-neg")
-        all_predictions.extend(predictions)
-    
-    y_pred = np.array(all_predictions)
+    train_pred = predict(config, model_path, pos_train[0])
+    with open(train_pred) as f:
+        y_pred = np.array([float(line.strip()) for line in f])
     y_true = np.concatenate([
-        np.ones(pos_count),
-        np.zeros(neg_count)
+        np.ones(len(pos_train)), 
+        np.zeros(len(neg_train))
     ])
-    
     results.update(compute_metrics(y_true, y_pred))
 
     # Validation set metrics if available
     if config.val_data_paths:
-        pos_val, neg_val = config.get_val_files()
-            
-        # Count sequences in validation files
-        pos_count = sum(FASTAHander.count_sequences(f) for f in pos_val)
-        neg_count = sum(FASTAHander.count_sequences(f) for f in neg_val)
+        pos_val, neg_val = _get_files_by_class(
+            config.val_data_paths, config.val_targets)
         
-        # Predict on all validation files
-        all_predictions = []
-        for file in pos_val:
-            predictions = predict(config, model_path, file, "validation-pos")
-            all_predictions.extend(predictions)
-        for file in neg_val:
-            predictions = predict(config, model_path, file, "validation-neg")
-            all_predictions.extend(predictions)
-        
-        y_pred = np.array(all_predictions)
+        val_pred = predict(config, model_path, pos_val[0]) 
+        with open(val_pred) as f:
+            y_pred = np.array([float(line.strip()) for line in f])
         y_true = np.concatenate([
-            np.ones(pos_count),
-            np.zeros(neg_count)
+            np.ones(len(pos_val)),
+            np.zeros(len(neg_val))
         ])
-            
         results.update(compute_metrics(y_true, y_pred, prefix='val_'))
 
     # Additional validation sets if available
@@ -254,25 +312,13 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
         ), 1):
             pos_files, neg_files = _get_files_by_class(paths, targets)
             
-            # Count sequences in additional validation files
-            pos_count = sum(FASTAHander.count_sequences(f) for f in pos_files)
-            neg_count = sum(FASTAHander.count_sequences(f) for f in neg_files)
-            
-            # Predict on all files in this validation set
-            all_predictions = []
-            for file in pos_files:
-                predictions = predict(config, model_path, file, f"additional_validation_{i}-pos")
-                all_predictions.extend(predictions)
-            for file in neg_files:
-                predictions = predict(config, model_path, file, f"additional_validation_{i}-neg")
-                all_predictions.extend(predictions)
-            
-            y_pred = np.array(all_predictions)
+            pred_file = predict(config, model_path, pos_files[0])
+            with open(pred_file) as f:
+                y_pred = np.array([float(line.strip()) for line in f])
             y_true = np.concatenate([
-                np.ones(pos_count),
-                np.zeros(neg_count)
+                np.ones(len(pos_files)),
+                np.zeros(len(neg_files))
             ])
-                
             results.update(compute_metrics(y_true, y_pred, prefix=f'val_{i}_'))
 
     return results
@@ -280,20 +326,48 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
 def save_results(config: GkmConfig,
                 results: Dict[str, float],
                 model_path: str) -> str:
-    """Save evaluation results using standardized naming."""
-    output_path = f"{os.path.splitext(model_path)[0]}_results.json"
+    """Save evaluation results matching CNN pipeline format."""
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    output_path = f"{os.path.splitext(model_path)[0]}_results_{timestamp}.json"
     
+    # Format results matching CNN pipeline
     output = {
-        'model_config': config.__dict__,
-        'results': {k: float(f'{v:.4f}') for k, v in results.items()},
+        'model_config': {
+            # Core parameters
+            'word_length': config.word_length,
+            'informed_cols': config.informed_cols, 
+            'max_mismatch': config.max_mismatch,
+            'kernel_type': config.kernel_type,
+            'regularization': config.regularization,
+            
+            # Kernel parameters
+            'gamma': config.gamma,
+            'init_decay': config.init_decay,
+            'half_life': config.half_life,
+            
+            # Runtime parameters
+            'num_threads': config.num_threads,
+            'use_shrinking': config.use_shrinking,
+            
+            # Paths
+            'model_path': str(model_path)
+        },
+        'results': {
+            k: float(f'{v:.4f}') for k, v in results.items()
+        },
         'metadata': {
+            'timestamp': timestamp,
             'project': config.project,
             'name': config.name
         }
     }
     
-    with open(output_path, 'w') as f:
-        json.dump(output, f, indent=2)
+    # Save results
+    try:
+        with open(output_path, 'w') as f:
+            json.dump(output, f, indent=2)
+    except IOError as e:
+        raise GkmTrainerError(f"Failed to save results: {e}")
         
     return output_path
 
@@ -403,7 +477,11 @@ def parse_args():
         '--output_prefix',
         help='Override output prefix from config'
     )
-
+    parser.add_argument(
+        '--genome_path',
+        help='Path to genome file for BED conversion'
+    )
+    
     return parser.parse_args()
 
 def update_config_from_args(config: GkmConfig, args: argparse.Namespace) -> GkmConfig:
@@ -445,6 +523,8 @@ def update_config_from_args(config: GkmConfig, args: argparse.Namespace) -> GkmC
         config.model_dir = args.model_dir
     if args.output_prefix:
         config.output_prefix = args.output_prefix
+    if args.genome_path:
+        config.genome_path = args.genome_path
     
     return config
 
@@ -479,7 +559,7 @@ def main():
         if args.predict:
             # Prediction mode
             if not os.path.exists(args.predict):
-                raise GkmError(f"Input file not found: {args.predict}")
+                raise GkmTrainerError(f"Input file not found: {args.predict}")
                 
             # Find latest model file if not specified
             model_dir = config.model_dir or os.getcwd()
@@ -488,7 +568,7 @@ def main():
                 key=os.path.getmtime
             )
             if not model_files:
-                raise GkmError(f"No model files found in {model_dir}")
+                raise GkmTrainerError(f"No model files found in {model_dir}")
             model_path = str(model_files[-1])
             
             # Run prediction
