@@ -27,7 +27,6 @@ from sklearn.metrics import (
 from gkm_config import (
     GkmConfig, 
     FASTAHandler,
-    GkmUtilsError,
     PathLike, 
     GkmError
 )
@@ -80,81 +79,72 @@ def train_model(config: GkmConfig) -> str:
     Raises:
         GkmError: If training fails
     """
-
     # Get positive and negative files
     pos_files, neg_files = config.get_train_files()
     
-    # Create model directory structure
-    model_base_dir = Path(config.dir) if config.dir else Path.cwd()
-    model_dir = model_base_dir / "lsgkm" / config.name
-    model_dir.mkdir(parents=True, exist_ok=True)
+    # Get paths for combined files
+    combined_pos, combined_neg = config.get_combined_fasta_paths()
     
-    # Check if model already exists
-    model_prefix = config.get_run_prefix()
-    expected_model_path = f"{model_dir / model_prefix}.model.txt"
-    if os.path.exists(expected_model_path):
-        logger.info(f"Model already exists at {expected_model_path}, skipping training")
-        return expected_model_path
-
-    # Rest of the training code remains the same...
-    pos_output = model_dir / f"{config.name}-pos.fa"
-    neg_output = model_dir / f"{config.name}-neg.fa"
-    
-    logger.info(f"Combining {len(pos_files)} positive files into {pos_output}")
-    with open(pos_output, 'w') as outfile:
-        for pos_file in pos_files:
-            with open(pos_file) as infile:
-                for line in infile:
-                    outfile.write(line)
-                    
-    logger.info(f"Combining {len(neg_files)} negative files into {neg_output}")
-    with open(neg_output, 'w') as outfile:
-        for neg_file in neg_files:
-            with open(neg_file) as infile:
-                for line in infile:
-                    outfile.write(line)
-    
-    # Validate combined files
-    Validator.validate_fasta_format(pos_output)
-    Validator.validate_fasta_format(neg_output)
-    Validator.validate_sequence_length(pos_output)
-    Validator.validate_sequence_length(neg_output)
-    
-    # Calculate class weights based on sequence counts
-    pos_count = FASTAHander.count_sequences(pos_output)
-    neg_count = FASTAHander.count_sequences(neg_output)
-    total_count = pos_count + neg_count
-    
-    logger.info(f"Training set composition:")
-    logger.info(f"  Positive sequences: {pos_count:,} ({pos_count/total_count:.1%})")
-    logger.info(f"  Negative sequences: {neg_count:,} ({neg_count/total_count:.1%})")
-    
-    # Set positive class weight if weighting scheme specified
-    if hasattr(config, 'class_weight') and config.class_weight not in [None, 'none']:
-        weight = calculate_class_weight(pos_count, neg_count, config.class_weight)
-        logger.info(f"Using {config.class_weight} weighting scheme, positive weight = {weight:.3f}")
-        config.pos_weight = weight
-    else:
-        logger.info("No class weighting applied")
-    
-    # Get output prefix and prepare command
-    out_prefix = str(model_dir / config.get_run_prefix())
-    cmd = config.get_train_cmd(str(pos_output), str(neg_output), out_prefix)
-    cmd_str = ' '.join(cmd)
-    
-    logger.info(f"Training model with command: {cmd_str}")
-    
-    # Run training command
-    exit_code = os.system(cmd_str)
-    if exit_code != 0:
-        raise GkmError(f"Training failed with exit code: {exit_code}")
-    
-    # Verify model file exists
-    model_path = f"{out_prefix}.model.txt"
-    if not os.path.exists(model_path):
-        raise GkmError(f"Model file not created: {model_path}")
+    try:
+        # Combine files and get counts
+        logger.info(f"Combining {len(pos_files)} positive files into {combined_pos}")
+        pos_count = FASTAHandler.combine_files(pos_files, combined_pos)
         
-    return model_path
+        logger.info(f"Combining {len(neg_files)} negative files into {combined_neg}")
+        neg_count = FASTAHandler.combine_files(neg_files, combined_neg)
+        
+        # Validate combined files
+        FASTAHandler.validate_format(combined_pos)
+        FASTAHandler.validate_format(combined_neg)
+        
+        # Calculate statistics
+        total_count = pos_count + neg_count
+        logger.info("Training set composition:")
+        logger.info(f"  Positive sequences: {pos_count:,} ({pos_count/total_count:.1%})")
+        logger.info(f"  Negative sequences: {neg_count:,} ({neg_count/total_count:.1%})")
+        
+        # Set class weight if specified
+        if config.class_weight not in [None, 'none']:
+            weight = calculate_class_weight(pos_count, neg_count, config.class_weight)
+            logger.info(f"Using {config.class_weight} weighting scheme, weight = {weight:.3f}")
+            config.pos_weight = weight
+        else:
+            logger.info("No class weighting applied")
+        
+        # Get model path
+        model_prefix = config.get_run_prefix()
+        model_path = config.get_model_path(model_prefix)
+        
+        # Check if model already exists
+        if model_path.exists():
+            logger.info(f"Model already exists at {model_path}, skipping training")
+            return str(model_path)
+        
+        # Run training command
+        cmd = config.get_train_cmd(str(combined_pos), str(combined_neg), str(model_path))
+        cmd_str = ' '.join(cmd)
+        logger.info(f"Training model with command: {cmd_str}")
+        
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        
+        # Verify model file exists
+        if not model_path.exists():
+            raise GkmError(f"Model file not created: {model_path}")
+            
+        return str(model_path)
+        
+    except subprocess.CalledProcessError as e:
+        raise GkmError(f"Training failed: {e.stderr}")
+    except Exception as e:
+        raise GkmError(f"Error during training: {str(e)}")
+    finally:
+        # Clean up temporary files
+        for path in [combined_pos, combined_neg]:
+            if path.exists():
+                try:
+                    path.unlink()
+                except Exception as e:
+                    logger.warning(f"Error cleaning up {path}: {str(e)}")
 
 
 def predict(config: GkmConfig, model_path: str, test_file: str, prefix: str = None) -> np.ndarray:

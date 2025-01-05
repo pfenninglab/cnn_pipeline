@@ -25,40 +25,158 @@ class GkmError(Exception):
     """Base exception class for gkm-utils errors."""
     pass
 
-@dataclass
-class GkmParams:
-    """Container for gkm-SVM parameters with validation."""
-    word_length: int = field(default=11, metadata={'min': 3, 'max': 12})
-    informed_cols: int = field(default=7, metadata={'max_ref': 'word_length'})
-    max_mismatch: int = field(default=3, metadata={'min': 0, 'max': 4})
-    kernel_type: int = field(default=4, metadata={'allowed': [0, 1, 2, 3, 4, 5]})
-    
-    def __post_init__(self):
-        """Validate parameters after initialization."""
-        self._validate_word_length()
-        self._validate_informed_cols()
-        self._validate_max_mismatch()
-        self._validate_kernel_type()
-        
-    def _validate_word_length(self) -> None:
-        if not self.metadata['min'] <= self.word_length <= self.metadata['max']:
-            raise ValueError(f"word_length must be between {self.metadata['min']} and {self.metadata['max']}")
-            
-    def _validate_informed_cols(self) -> None:
-        if self.informed_cols > self.word_length:
-            raise ValueError(f"informed_cols ({self.informed_cols}) must be <= word_length ({self.word_length})")
-            
-    def _validate_max_mismatch(self) -> None:
-        if not self.metadata['min'] <= self.max_mismatch <= self.metadata['max']:
-            raise ValueError(f"max_mismatch must be between {self.metadata['min']} and {self.metadata['max']}")
-        if self.max_mismatch > self.informed_cols:
-            raise ValueError(f"max_mismatch ({self.max_mismatch}) must be <= informed_cols ({self.informed_cols})")
-            
-    def _validate_kernel_type(self) -> None:
-        if self.kernel_type not in self.metadata['allowed']:
-            raise ValueError(f"kernel_type must be one of {self.metadata['allowed']}")
+class PathResolutionError(Exception):
+    """Custom exception for path resolution errors."""
+    pass
 
-# MODIFY in gkm_config.py:
+@dataclass
+class DataPath:
+    """Container for input data paths."""
+    file_path: Path
+    genome_path: Optional[Path] = None
+    
+    @property
+    def is_bed(self) -> bool:
+        return bool(self.genome_path)
+
+class PathManager:
+    """Centralized path handling for gkm-SVM configuration."""
+    
+    def __init__(self, base_dir: Optional[Union[str, Path]] = None):
+        """Initialize PathManager with optional base directory.
+        
+        Args:
+            base_dir: Base directory for relative paths. Uses CWD if not specified.
+        """
+        self.base_dir = Path(base_dir) if base_dir else Path.cwd()
+    
+    def resolve_data_path(self, path_spec: Union[str, Dict[str, str]]) -> DataPath:
+        """Resolve CNN pipeline path format to DataPath object.
+        
+        Args:
+            path_spec: Either a string path to FASTA file or dict with genome/intervals paths
+            
+        Returns:
+            DataPath object with resolved paths
+            
+        Raises:
+            PathResolutionError: If path format is invalid or files don't exist
+        """
+        try:
+            if isinstance(path_spec, str):
+                # Direct FASTA file path
+                return DataPath(file_path=self._resolve_path(path_spec))
+            
+            elif isinstance(path_spec, dict):
+                # BED file with genome
+                if 'intervals' not in path_spec:
+                    raise PathResolutionError(f"Missing 'intervals' in path specification: {path_spec}")
+                    
+                file_path = self._resolve_path(path_spec['intervals'])
+                genome_path = self._resolve_path(path_spec['genome']) if 'genome' in path_spec else None
+                
+                return DataPath(file_path=file_path, genome_path=genome_path)
+            
+            else:
+                raise PathResolutionError(f"Invalid path specification type: {type(path_spec)}")
+                
+        except Exception as e:
+            raise PathResolutionError(f"Failed to resolve path {path_spec}: {str(e)}")
+    
+    def resolve_model_dir(self, model_name: str) -> Path:
+        """Get path to model directory, creating it if needed.
+        
+        Args:
+            model_name: Name of the model
+            
+        Returns:
+            Path to model directory
+        """
+        model_dir = self.base_dir / "lsgkm" / model_name
+        model_dir.mkdir(parents=True, exist_ok=True)
+        return model_dir
+    
+    def resolve_prediction_dir(self, model_name: str) -> Path:
+        """Get path to predictions directory, creating it if needed.
+        
+        Args:
+            model_name: Name of the model
+            
+        Returns:
+            Path to predictions directory
+        """
+        pred_dir = self.resolve_model_dir(model_name) / "predictions"
+        pred_dir.mkdir(parents=True, exist_ok=True)
+        return pred_dir
+    
+    def _resolve_path(self, path: Union[str, Path]) -> Path:
+        """Convert path string to Path object, resolving relative to base_dir.
+        
+        Args:
+            path: Path string or Path object
+            
+        Returns:
+            Resolved Path object
+            
+        Raises:
+            PathResolutionError: If path doesn't exist
+        """
+        path_obj = Path(path)
+        if path_obj.is_absolute():
+            resolved_path = path_obj
+        else:
+            resolved_path = self.base_dir / path_obj
+            
+        if not resolved_path.exists():
+            raise PathResolutionError(f"Path does not exist: {resolved_path}")
+            
+        return resolved_path
+
+    def get_prediction_path(self, model_name: str, test_file: Union[str, Path], prefix: Optional[str] = None) -> Path:
+        """Generate standardized path for prediction output file.
+        
+        Args:
+            model_name: Name of the model
+            test_file: Path to test file being predicted
+            prefix: Optional prefix for prediction file name
+            
+        Returns:
+            Path where predictions should be saved
+        """
+        pred_dir = self.resolve_prediction_dir(model_name)
+        test_name = Path(test_file).stem
+        
+        if prefix:
+            return pred_dir / f"{model_name}_{prefix}_{test_name}_predictions.txt"
+        return pred_dir / f"{model_name}_{test_name}_predictions.txt"
+
+    def get_model_path(self, model_name: str, run_prefix: str) -> Path:
+        """Generate standardized path for model file.
+        
+        Args:
+            model_name: Name of the model
+            run_prefix: Prefix incorporating run parameters
+            
+        Returns:
+            Path where model should be saved
+        """
+        model_dir = self.resolve_model_dir(model_name)
+        return model_dir / f"{run_prefix}.model.txt"
+
+    def get_combined_fasta_paths(self, model_name: str, class_label: str) -> Path:
+        """Generate paths for combined FASTA files.
+        
+        Args:
+            model_name: Name of the model
+            class_label: Class label (e.g. "pos" or "neg")
+            
+        Returns:
+            Path for combined FASTA file
+        """
+        model_dir = self.resolve_model_dir(model_name)
+        return model_dir / f"{model_name}-{class_label}.fa"
+
+        
 class Validator:
     """Consolidated validation utilities."""
     
@@ -100,6 +218,27 @@ class Validator:
 class FASTAHandler:
     """Handles reading and validation of FASTA files."""
     
+    @staticmethod
+    def combine_files(input_files: List[PathLike], output_file: PathLike) -> int:
+        """Combine multiple FASTA files into one and return sequence count.
+        
+        Args:
+            input_files: List of input FASTA files
+            output_file: Path for combined output
+            
+        Returns:
+            Number of sequences in combined file
+        """
+        count = 0
+        with open(output_file, 'w') as outfile:
+            for file in input_files:
+                with open(file) as infile:
+                    for line in infile:
+                        if line.startswith('>'):
+                            count += 1
+                        outfile.write(line)
+        return count
+        
     @staticmethod
     def count_sequences(fasta_file: PathLike) -> int:
         """Count number of sequences in a FASTA file."""
@@ -161,14 +300,34 @@ class FASTAHandler:
 
 
 @dataclass
+class GkmParams:
+    """Container for gkm-SVM specific parameters."""
+    word_length: int = 11          # -l: word length (default 11)
+    informed_cols: int = 7         # -k: number of informative columns (default 7) 
+    max_mismatch: int = 3         # -d: maximum number of mismatches (default 3)
+    kernel_type: int = 4          # -t: kernel type, one of [0,1,2,3,4,5] (default 4 wgkm)
+    gamma: float = 1.0           # -g: gamma parameter for RBF kernel (t=3,5)
+    init_decay: int = 50         # -M: initial value for weight decay (t=4,5)
+    half_life: float = 50.0      # -H: half-life parameter for weight decay (t=4,5)
+    regularization: float = 1.0   # -c: regularization parameter (default 1.0)
+    epsilon: float = 0.001       # -e: precision parameter (default 0.001)
+    pos_weight: float = 1.0      # -w: weight for positive class (default 1.0)
+    cache_memory: float = 100.0  # -m: cache memory size in MB (default 100.0)
+    use_shrinking: bool = False  # -s: use shrinking heuristics if True
+    
+    # Path to executable
+    gkm_executable: str = "gkmtrain"  # Path to gkmtrain executable
+    pred_executable: str = "gkmpredict"  # Path to gkmpredict executable
+
+    
+@dataclass
 class GkmConfig:
     """Configuration for gkm-SVM models with CNN pipeline compatibility."""
     # Project Config
     project: str
     name: str = "gkm-svm"
-    model_dir: Optional[str] = None
-    output_prefix: Optional[str] = None
     dir: Optional[str] = None
+    output_prefix: Optional[str] = None
     class_weight: Optional[str] = None
     
     # Core Parameters 
@@ -186,56 +345,23 @@ class GkmConfig:
     additional_val_data_paths: List[List[Union[str, Dict[str, str]]]] = field(default_factory=list)
     additional_val_targets: List[List[int]] = field(default_factory=list)
     
-    # Executable Paths
-    gkm_executable: str = "gkmtrain"
-    pred_executable: str = "gkmpredict"
-
-    # initialize the GkmConfig class
-    def __init__(self, 
-                 project: str,
-                 name: str = "gkm-svm",
-                 model_dir: Optional[str] = None,
-                 output_prefix: Optional[str] = None,
-                 dir: Optional[str] = None,
-                 class_weight: Optional[str] = None,
-                 train_data_paths: List[Union[str, Dict[str, str]]] = None,
-                 train_targets: List[Union[int, Dict[str, int]]] = None,
-                 val_data_paths: List[Union[str, Dict[str, str]]] = None,
-                 val_targets: List[Union[int, Dict[str, int]]] = None,
-                 additional_val_data_paths: List[List[Union[str, Dict[str, str]]]] = None,
-                 additional_val_targets: List[List[int]] = None,
-                 **kwargs):
-
-        """Initialize config with resolved paths."""
-        super().__init__(**kwargs)
-        self.project = project
-        self.name = name
-        self.model_dir = model_dir
-        self.output_prefix = output_prefix
-        self.dir = dir
-        self.class_weight = class_weight
+    def __post_init__(self):
+        """Initialize path manager and resolve data paths."""
+        self.path_manager = PathManager(self.dir)
         
-        # Resolve paths during initialization
-        self.train_data_paths = [self._resolve_file_path(p) for p in (train_data_paths or [])]
-        self.train_targets = train_targets or []
-        
-        self.val_data_paths = [self._resolve_file_path(p) for p in (val_data_paths or [])]
-        self.val_targets = val_targets or []
-        
-        self.additional_val_data_paths = [
-            [self._resolve_file_path(p) for p in paths]
-            for paths in (additional_val_data_paths or [])
+        # Convert all data paths to DataPath objects
+        self._train_paths = [
+            self.path_manager.resolve_data_path(path)
+            for path in self.train_data_paths
         ]
-        self.additional_val_targets = additional_val_targets or []
-
-    @staticmethod
-    def _resolve_file_path(path_spec: Union[str, Dict[str, str]]) -> Path:
-        """Resolve file path from CNN pipeline format."""
-        if isinstance(path_spec, dict):
-            if 'intervals' in path_spec:
-                return Path(path_spec['intervals'])
-            raise ValueError(f"Invalid path specification: {path_spec}")
-        return Path(path_spec)
+        self._val_paths = [
+            self.path_manager.resolve_data_path(path)
+            for path in self.val_data_paths
+        ]
+        self._additional_val_paths = [
+            [self.path_manager.resolve_data_path(path) for path in paths]
+            for paths in self.additional_val_data_paths
+        ]
 
     def get_model_dir(self) -> Path:
         """Get path to model directory."""
@@ -325,39 +451,6 @@ class GkmConfig:
             return str(pred_dir / f"{self.name}_{prefix}_{test_name}_predictions.txt")
         return str(pred_dir / f"{self.name}_{test_name}_predictions.txt")
 
-    def validate(self) -> None:
-        """Validate complete configuration."""
-        self._validate_parameters()
-        self._validate_paths()
-        self._validate_data()
-        
-    def _validate_parameters(self) -> None:
-        """Validate core parameters."""
-        self.params.validate()
-        
-    def _validate_paths(self) -> None:
-        """Validate all file paths exist."""
-        for path in self.train_data_paths:
-            Validator.validate_training_file(path)
-            
-        for path in self.val_data_paths:
-            Validator.validate_training_file(path)
-            
-        for path_set in self.additional_val_data_paths:
-            for path in path_set:
-                Validator.validate_training_file(path)
-                
-    def _validate_data(self) -> None:
-        """Validate data configuration."""
-        if len(self.train_data_paths) != len(self.train_targets):
-            raise ValueError("Number of training paths must match targets")
-            
-        if len(self.val_data_paths) != len(self.val_targets):
-            raise ValueError("Number of validation paths must match targets")
-            
-        if len(self.additional_val_data_paths) != len(self.additional_val_targets):
-            raise ValueError("Number of additional validation sets must match targets")
-
     def _get_file_path(self, path_spec: Union[str, Dict[str, str]]) -> str:
         """Extract file path from CNN pipeline path specification."""
         if isinstance(path_spec, dict):
@@ -375,15 +468,7 @@ class GkmConfig:
             
         Returns:
             Initialized GkmConfig object
-            
-        Raises:
-            FileNotFoundError: If config file doesn't exist
-            ValueError: If required fields are missing or invalid
         """
-        yaml_path = Path(yaml_path)
-        if not yaml_path.exists():
-            raise FileNotFoundError(f"Config file not found: {yaml_path}")
-            
         with open(yaml_path) as f:
             yaml_dict = yaml.safe_load(f)
 
@@ -394,7 +479,7 @@ class GkmConfig:
                 return entry.get('value', default)
             return entry
 
-        # Extract gkm-SVM specific parameters
+        # Extract core parameters
         params = GkmParams(
             word_length=get_value('word_length', 11),
             informed_cols=get_value('informed_cols', 7),
@@ -402,57 +487,23 @@ class GkmConfig:
             kernel_type=get_value('kernel_type', 4)
         )
 
-        # Extract CNN pipeline paths and targets
-        train_data = get_value('train_data_paths', [])
-        train_targets = get_value('train_targets', [])
-        val_data = get_value('val_data_paths', [])
-        val_targets = get_value('val_targets', [])
-        additional_val_data = get_value('additional_val_data_paths', [])
-        additional_val_targets = get_value('additional_val_targets', [])
-
-        # Validate path/target pairs
-        if len(train_data) != len(train_targets):
-            raise ValueError("Number of training paths must match number of targets")
-        if len(val_data) != len(val_targets):
-            raise ValueError("Number of validation paths must match number of targets")
-        if len(additional_val_data) != len(additional_val_targets):
-            raise ValueError("Number of additional validation sets must match targets")
-
-        # Extract runtime parameters
-        class_weight = get_value('class_weight', 'none')
-        if class_weight not in [None, 'none', 'reciprocal', 'proportional']:
-            raise ValueError(f"Invalid class_weight: {class_weight}. "
-                           "Must be one of: none, reciprocal, proportional")
-
-        # Create config with all parameters
-        config = cls(
-            # Project metadata
+        # Create config instance
+        return cls(
             project=get_value('project', 'default-project'),
             name=get_value('name', 'gkm-svm'),
-            model_dir=get_value('model_dir'),
-            output_prefix=get_value('output_prefix'),
             dir=get_value('dir'),
-            class_weight=class_weight,
-            
-            # Core parameters and data paths
+            output_prefix=get_value('output_prefix'),
+            class_weight=get_value('class_weight'),
             params=params,
-            train_data_paths=train_data,
-            train_targets=train_targets,
-            val_data_paths=val_data,
-            val_targets=val_targets,
-            additional_val_data_paths=additional_val_data,
-            additional_val_targets=additional_val_targets,
-            
-            # Runtime parameters
+            train_data_paths=get_value('train_data_paths', []),
+            train_targets=get_value('train_targets', []),
+            val_data_paths=get_value('val_data_paths', []),
+            val_targets=get_value('val_targets', []),
+            additional_val_data_paths=get_value('additional_val_data_paths', []),
+            additional_val_targets=get_value('additional_val_targets', []),
             verbosity=get_value('verbosity', 2),
-            num_threads=get_value('num_threads', 1),
-            
-            # Optional parameters
-            genome_path=get_value('genome_path'),
-            save_predictions=get_value('save_predictions', True)
+            num_threads=get_value('num_threads', 1)
         )
-
-        return config
 
     def get_train_cmd(self, pos_file: str, neg_file: str, out_prefix: str) -> List[str]:
         """Build gkmtrain command with exact parameter matching."""
@@ -504,3 +555,131 @@ class GkmConfig:
             '-v', str(self.verbosity),
             '-T', str(self.num_threads)
         ]
+
+
+    def validate(self) -> None:
+        """Validate entire configuration.
+        
+        Raises:
+            ConfigValidationError: If validation fails
+        """
+        # Run all validations and collect results
+        result = ValidationResult(is_valid=True)
+        
+        # Core parameter validation
+        param_result = self._validate_parameters()
+        result.merge(param_result)
+        
+        # Data configuration validation
+        data_result = self._validate_data_config()
+        result.merge(data_result)
+        
+        # Path validation
+        path_result = self._validate_paths()
+        result.merge(path_result)
+        
+        # Handle validation outcome
+        if result.warnings:
+            for warning in result.warnings:
+                logger.warning(warning)
+                
+        if not result.is_valid:
+            raise ConfigValidationError("\n".join(result.errors))
+
+    def _validate_parameters(self) -> ValidationResult:
+        """Validate GkmParams configuration."""
+        result = ValidationResult(is_valid=True)
+        
+        # Validate word length
+        if not 3 <= self.params.word_length <= 12:
+            result.add_error(
+                f"word_length must be between 3 and 12, got {self.params.word_length}"
+            )
+            
+        # Validate informed columns
+        if self.params.informed_cols > self.params.word_length:
+            result.add_error(
+                f"informed_cols ({self.params.informed_cols}) must be <= "
+                f"word_length ({self.params.word_length})"
+            )
+            
+        # Validate max mismatch
+        if not 0 <= self.params.max_mismatch <= 4:
+            result.add_error(
+                f"max_mismatch must be between 0 and 4, got {self.params.max_mismatch}"
+            )
+        if self.params.max_mismatch > self.params.informed_cols:
+            result.add_error(
+                f"max_mismatch ({self.params.max_mismatch}) must be <= "
+                f"informed_cols ({self.params.informed_cols})"
+            )
+            
+        # Validate kernel type
+        if self.params.kernel_type not in [0, 1, 2, 3, 4, 5]:
+            result.add_error(
+                f"kernel_type must be one of [0,1,2,3,4,5], got {self.params.kernel_type}"
+            )
+            
+        return result
+
+    def _validate_data_config(self) -> ValidationResult:
+        """Validate data configuration."""
+        result = ValidationResult(is_valid=True)
+        
+        # Validate path/target pairs
+        if len(self.train_data_paths) != len(self.train_targets):
+            result.add_error("Number of training paths must match number of targets")
+            
+        if len(self.val_data_paths) != len(self.val_targets):
+            result.add_error("Number of validation paths must match number of targets")
+            
+        if len(self.additional_val_data_paths) != len(self.additional_val_targets):
+            result.add_error("Number of additional validation sets must match number of targets")
+            
+        # Validate class weights
+        if self.class_weight not in [None, 'none', 'reciprocal', 'proportional']:
+            result.add_error(
+                f"Invalid class_weight: {self.class_weight}. "
+                "Must be one of: none, reciprocal, proportional"
+            )
+            
+        return result
+
+    def _validate_paths(self) -> ValidationResult:
+        """Validate all data paths."""
+        result = ValidationResult(is_valid=True)
+        
+        # Validate training paths
+        for path in self._train_paths:
+            if not path.file_path.exists():
+                result.add_error(f"Training file does not exist: {path.file_path}")
+            # Validate FASTA format only if file exists
+            elif not path.genome_path:  # Only validate FASTA files, not BED files
+                try:
+                    FASTAHandler.validate_format(path.file_path)
+                except GkmError as e:
+                    result.add_error(str(e))
+                    
+        # Validate validation paths
+        for path in self._val_paths:
+            if not path.file_path.exists():
+                result.add_error(f"Validation file does not exist: {path.file_path}")
+            elif not path.genome_path:
+                try:
+                    FASTAHandler.validate_format(path.file_path)
+                except GkmError as e:
+                    result.add_error(str(e))
+                    
+        # Validate additional validation paths
+        for path_set in self._additional_val_paths:
+            for path in path_set:
+                if not path.file_path.exists():
+                    result.add_error(f"Additional validation file does not exist: {path.file_path}")
+                elif not path.genome_path:
+                    try:
+                        FASTAHandler.validate_format(path.file_path)
+                    except GkmError as e:
+                        result.add_error(str(e))
+                        
+        return result
+
