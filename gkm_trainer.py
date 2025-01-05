@@ -58,53 +58,48 @@ def count_sequences_in_fasta(fasta_file: str) -> int:
                 count += 1
     return count
 
+
 def train_model(config: GkmConfig) -> str:
     """Train a gkm-SVM model using config parameters."""
-    # Resolve and validate paths
-    config.resolve_paths()
+    # Get base output directory
+    base_dir = config.dir if config.dir else os.getcwd()
+    model_dir = os.path.join(base_dir, "lsgkm", config.name)
+    os.makedirs(model_dir, exist_ok=True)
     
-    # Get positive and negative files
-    pos_files, neg_files = config.get_train_files()
+    # Define combined file paths
+    train_pos_fa = os.path.join(model_dir, f"{config.name}-train-pos.fa")
+    train_neg_fa = os.path.join(model_dir, f"{config.name}-train-neg.fa")
     
-    # Create model directory structure
-    model_base_dir = Path(config.dir) if config.dir else Path.cwd()
-    model_dir = model_base_dir / "lsgkm" / config.name
-    model_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Create combined FASTA files
-    pos_output = model_dir / f"{config.name}-pos.fa"  
-    neg_output = model_dir / f"{config.name}-neg.fa"
-    
-    logger.info(f"Combining {len(pos_files)} positive files into {pos_output}")
-    with open(pos_output, 'w') as outfile:
-        for pos_file in pos_files:
-            with open(pos_file) as infile:
-                for line in infile:
-                    outfile.write(line)
+    # Check if combined files already exist
+    if not (os.path.exists(train_pos_fa) and os.path.exists(train_neg_fa)):
+        # Get and combine training files
+        pos_files, neg_files = _get_files_by_class(
+            config.train_data_paths, 
+            config.train_targets
+        )
+        
+        # Combine positive files
+        with open(train_pos_fa, 'w') as outfile:
+            for pos_file in pos_files:
+                with open(pos_file) as infile:
+                    outfile.write(infile.read())
                     
-    logger.info(f"Combining {len(neg_files)} negative files into {neg_output}")
-    with open(neg_output, 'w') as outfile:
-        for neg_file in neg_files:
-            with open(neg_file) as infile:
-                for line in infile:
-                    outfile.write(line)
-    
-    # Validate combined files
-    validate_fasta_file(pos_output)
-    validate_fasta_file(neg_output)
+        # Combine negative files  
+        with open(train_neg_fa, 'w') as outfile:
+            for neg_file in neg_files:
+                with open(neg_file) as infile:
+                    outfile.write(infile.read())
     
     # Get output prefix and prepare command
-    out_prefix = str(model_dir / config.get_run_prefix())
-    cmd = config.get_train_cmd(str(pos_output), str(neg_output), out_prefix)
+    out_prefix = os.path.join(model_dir, config.get_run_prefix())
+    cmd = config.get_train_cmd(train_pos_fa, train_neg_fa, out_prefix)
     cmd_str = ' '.join(cmd)
-    
-    logger.info(f"Training model with command: {cmd_str}")
     
     # Run training command
     exit_code = os.system(cmd_str)
     if exit_code != 0:
         raise ValueError(f"Training failed with exit code: {exit_code}")
-    
+        
     # Verify model file exists
     model_path = f"{out_prefix}.model.txt"
     if not os.path.exists(model_path):
@@ -113,47 +108,45 @@ def train_model(config: GkmConfig) -> str:
     return model_path
 
 
-def predict(config: GkmConfig, model_path: str, test_file: str) -> str:
-    """Run gkmpredict with configuration parameters.
+def predict(config: GkmConfig, model_path: str, test_file: str,
+           data_type: str = 'train', class_type: str = 'pos') -> str:
+    """Run gkmpredict with configuration parameters."""
+    # Get prediction directory
+    base_dir = config.dir if config.dir else os.getcwd()
+    model_dir = os.path.join(base_dir, "lsgkm", config.name)
+    pred_dir = os.path.join(model_dir, "predictions")
+    os.makedirs(pred_dir, exist_ok=True)
+
+    # Generate prediction filename based on model name and data type
+    model_base = os.path.splitext(os.path.basename(model_path))[0]
+    pred_name = f"{model_base}-{data_type}-{class_type}.prediction.txt"
+    pred_path = os.path.join(pred_dir, pred_name)
     
-    Args:
-        config: GkmConfig object containing parameters
-        model_path: Path to trained model file
-        test_file: Path to test sequences FASTA file
-        
-    Returns:
-        Path to predictions file
-        
-    Raises:
-        ValueError: If prediction fails
-    """
-    # Validate input files
-    validate_fasta_file(test_file)
+    # Check if valid prediction file already exists
+    if os.path.exists(pred_path):
+        # Verify file has content and correct format
+        try:
+            with open(pred_path) as f:
+                first_line = f.readline().strip()
+                # Check if file has tab-delimited format with score in second column
+                if first_line and len(first_line.split('\t')) >= 2:
+                    try:
+                        float(first_line.split('\t')[1])  # Verify score is float
+                        return pred_path  # File exists and is valid
+                    except ValueError:
+                        pass  # Score not valid float, will recreate file
+        except:
+            pass  # File not readable or empty, will recreate
     
-    # Get model directory structure
-    model_base_dir = Path(config.dir) if config.dir else Path.cwd()
-    model_dir = model_base_dir / "lsgkm" / config.name
-    
-    # Create predictions directory if needed
-    pred_dir = model_dir / "predictions"
-    pred_dir.mkdir(parents=True, exist_ok=True)
-    
-    # Generate unique prediction output path using timestamp
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    test_name = Path(test_file).stem
-    pred_path = str(pred_dir / f"{test_name}_{timestamp}_predictions.txt")
-    
-    # Get prediction command
+    # Run prediction command
     cmd = config.get_predict_cmd(test_file, model_path, pred_path)
     cmd_str = ' '.join(cmd)
     
-    logger.info(f"Running predictions with command: {cmd_str}")
-    
-    # Run prediction command
     exit_code = os.system(cmd_str)
     if exit_code != 0:
         raise ValueError(f"Prediction failed with exit code: {exit_code}")
         
+    # Verify prediction file exists and has correct format
     if not os.path.exists(pred_path):
         raise ValueError(f"Predictions file not created: {pred_path}")
         
@@ -198,60 +191,100 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray,
     return metrics
 
 def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
-    """Evaluate model on training, validation and additional sets.
-    
-    Args:
-        config: GkmConfig object with evaluation parameters
-        model_path: Path to trained model file
-        
-    Returns:
-        Dictionary of evaluation metrics
-    """
+    """Evaluate model on training, validation and additional sets."""
+    base_dir = config.dir if config.dir else os.getcwd()
+    model_dir = os.path.join(base_dir, "lsgkm", config.name)
     results = {}
-    
-    # Training set metrics
-    pos_train, neg_train = _get_files_by_class(
-        config.train_data_paths, config.train_targets)
-    
-    train_pred = predict(config, model_path, pos_train[0])
-    with open(train_pred) as f:
-        y_pred = np.array([float(line.strip()) for line in f])
-    y_true = np.concatenate([
-        np.ones(len(pos_train)), 
-        np.zeros(len(neg_train))
-    ])
-    results.update(compute_metrics(y_true, y_pred))
 
-    # Validation set metrics if available
-    if config.val_data_paths:
-        pos_val, neg_val = _get_files_by_class(
-            config.val_data_paths, config.val_targets)
+    # Evaluate training set
+    train_pos_fa = os.path.join(model_dir, f"{config.name}-train-pos.fa")
+    train_neg_fa = os.path.join(model_dir, f"{config.name}-train-neg.fa")
+    
+    # Get training predictions
+    train_pos_pred = predict(config, model_path, train_pos_fa, 'train', 'pos')
+    train_neg_pred = predict(config, model_path, train_neg_fa, 'train', 'neg')
+    
+    # Load predictions
+    with open(train_pos_pred) as f:
+        pos_pred = [float(line.split('\t')[1]) for line in f]
+    with open(train_neg_pred) as f:
+        neg_pred = [float(line.split('\t')[1]) for line in f]
         
-        val_pred = predict(config, model_path, pos_val[0]) 
-        with open(val_pred) as f:
-            y_pred = np.array([float(line.strip()) for line in f])
-        y_true = np.concatenate([
-            np.ones(len(pos_val)),
-            np.zeros(len(neg_val))
-        ])
+    # Calculate training metrics
+    y_true = np.concatenate([np.ones(len(pos_pred)), np.zeros(len(neg_pred))])
+    y_pred = np.concatenate([pos_pred, neg_pred])
+    results.update(compute_metrics(y_true, y_pred, prefix=''))
+
+    # Evaluate validation set
+    if config.val_data_paths:
+        # Create combined validation files
+        val_pos_fa = os.path.join(model_dir, f"{config.name}-val-pos.fa")
+        val_neg_fa = os.path.join(model_dir, f"{config.name}-val-neg.fa")
+        
+        pos_files, neg_files = _get_files_by_class(
+            config.val_data_paths, config.val_targets)
+            
+        # Combine validation files
+        with open(val_pos_fa, 'w') as outfile:
+            for f in pos_files:
+                with open(f) as infile:
+                    outfile.write(infile.read())
+        with open(val_neg_fa, 'w') as outfile:
+            for f in neg_files:
+                with open(f) as infile:
+                    outfile.write(infile.read())
+                    
+        # Get validation predictions
+        val_pos_pred = predict(config, model_path, val_pos_fa, 'val', 'pos')
+        val_neg_pred = predict(config, model_path, val_neg_fa, 'val', 'neg')
+        
+        with open(val_pos_pred) as f:
+            pos_pred = [float(line.split('\t')[1]) for line in f]
+        with open(val_neg_pred) as f:
+            neg_pred = [float(line.split('\t')[1]) for line in f]
+            
+        y_true = np.concatenate([np.ones(len(pos_pred)), np.zeros(len(neg_pred))])
+        y_pred = np.concatenate([pos_pred, neg_pred])
         results.update(compute_metrics(y_true, y_pred, prefix='val_'))
 
-    # Additional validation sets if available
+    # Evaluate additional validation sets
     if config.additional_val_data_paths:
-        for i, (paths, targets) in enumerate(zip(
+        for idx, (paths, targets) in enumerate(zip(
             config.additional_val_data_paths,
             config.additional_val_targets
         ), 1):
+            # Create combined files for this validation set
+            add_val_pos_fa = os.path.join(model_dir, 
+                f"{config.name}-val_{idx}-pos.fa")
+            add_val_neg_fa = os.path.join(model_dir,
+                f"{config.name}-val_{idx}-neg.fa")
+                
             pos_files, neg_files = _get_files_by_class(paths, targets)
             
-            pred_file = predict(config, model_path, pos_files[0])
-            with open(pred_file) as f:
-                y_pred = np.array([float(line.strip()) for line in f])
-            y_true = np.concatenate([
-                np.ones(len(pos_files)),
-                np.zeros(len(neg_files))
-            ])
-            results.update(compute_metrics(y_true, y_pred, prefix=f'val_{i}_'))
+            # Combine files
+            with open(add_val_pos_fa, 'w') as outfile:
+                for f in pos_files:
+                    with open(f) as infile:
+                        outfile.write(infile.read())
+            with open(add_val_neg_fa, 'w') as outfile:
+                for f in neg_files:
+                    with open(f) as infile:
+                        outfile.write(infile.read())
+                        
+            # Get predictions
+            val_pos_pred = predict(config, model_path, add_val_pos_fa, 
+                                 f'val_{idx}', 'pos')
+            val_neg_pred = predict(config, model_path, add_val_neg_fa,
+                                 f'val_{idx}', 'neg')
+            
+            with open(val_pos_pred) as f:
+                pos_pred = [float(line.split('\t')[1]) for line in f]
+            with open(val_neg_pred) as f:
+                neg_pred = [float(line.split('\t')[1]) for line in f]
+                
+            y_true = np.concatenate([np.ones(len(pos_pred)), np.zeros(len(neg_pred))])
+            y_pred = np.concatenate([pos_pred, neg_pred])
+            results.update(compute_metrics(y_true, y_pred, prefix=f'val_{idx}_'))
 
     return results
 

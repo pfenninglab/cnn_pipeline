@@ -17,54 +17,6 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: Optional[str] = None) -> float:
-    """Calculate positive class weight based on sequence counts.
-    
-    Args:
-        pos_count: Number of positive sequences
-        neg_count: Number of negative sequences
-        weighting_scheme: Strategy for weight calculation:
-            - 'reciprocal': weight = (N/k) / n_i where N is total samples, k is classes (2)
-            - 'proportional': weight = fraction of samples in other classes
-            - None or 'none': no weighting (weight = 1.0)
-        
-    Returns:
-        Weight value for positive class (SVM -w parameter)
-    """
-    if weighting_scheme in [None, 'none']:
-        return 1.0
-        
-    total_count = pos_count + neg_count
-    
-    if weighting_scheme == 'reciprocal':
-        # Chai's balancing method 
-        balanced_count = total_count / 2
-        return balanced_count / pos_count
-        
-    elif weighting_scheme == 'proportional':
-        # Irene's balancing method
-        return neg_count / total_count
-        
-    return 1.0  # Default to no weighting for unknown schemes
-
-def resolve_paths_with_config(config: GkmConfig) -> None:
-    """Resolve all paths in a GkmConfig object.
-    
-    Args:
-        config: GkmConfig object containing paths to resolve
-    """
-    config.resolve_paths()
-
-def validate_fasta_file(filepath: str) -> None:
-    """Basic FASTA file validation."""
-    if not os.path.exists(filepath):
-        raise ValueError(f"File does not exist: {filepath}")
-        
-    with open(filepath) as f:
-        first_line = f.readline().strip()
-        if not first_line.startswith('>'):
-            raise ValueError(f"Invalid FASTA format in {filepath}")
-
 @dataclass
 class GkmConfig:
     """Configuration for gkm-SVM models with CNN pipeline compatibility.
@@ -124,8 +76,28 @@ class GkmConfig:
     def __init__(self, word_length: int = 11, informed_cols: int = 7, **kwargs):
         if not (3 <= word_length <= 12) or informed_cols > word_length:
             raise ValueError(f"Invalid parameters: word_length must be 3-12 and informed_cols <= word_length")
+            
+        # Initialize core parameters
         self.word_length = word_length
         self.informed_cols = informed_cols
+        self.max_mismatch = kwargs.get('max_mismatch', 3)
+        self.kernel_type = kwargs.get('kernel_type', 4)
+        
+        # Initialize data paths
+        self.train_data_paths = kwargs.get('train_data_paths', [])
+        self.train_targets = kwargs.get('train_targets', [])
+        self.val_data_paths = kwargs.get('val_data_paths', [])
+        self.val_targets = kwargs.get('val_targets', [])
+        self.additional_val_data_paths = kwargs.get('additional_val_data_paths', [])
+        self.additional_val_targets = kwargs.get('additional_val_targets', [])
+        
+        # Initialize other parameters
+        self.project = kwargs.get('project', 'default-project')
+        self.name = kwargs.get('name', 'gkm-svm')
+        self.model_dir = kwargs.get('model_dir')
+        self.output_prefix = kwargs.get('output_prefix')
+        self.dir = kwargs.get('dir')
+        self.class_weight = kwargs.get('class_weight')
 
     def resolve_paths(self) -> None:
         """Resolve file paths to FASTA format."""
@@ -175,8 +147,6 @@ class GkmConfig:
     def validate(self) -> None:
         """Validate parameters against both gkm-SVM and CNN pipeline requirements."""
         # Core Parameter Validation
-        self._validate_word_length()
-        self._validate_informed_cols()
         self._validate_max_mismatch()
         self._validate_kernel_type()
         
@@ -433,4 +403,52 @@ class GkmConfig:
             '-T', str(self.num_threads)
         ]
 
+
+def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: Optional[str] = None) -> float:
+    """Calculate positive class weight based on sequence counts.
+    
+    Args:
+        pos_count: Number of positive sequences
+        neg_count: Number of negative sequences
+        weighting_scheme: Strategy for weight calculation:
+            - 'reciprocal': weight = (N/k) / n_i where N is total samples, k is classes (2)
+            - 'proportional': weight = fraction of samples in other classes
+            - None or 'none': no weighting (weight = 1.0)
+        
+    Returns:
+        Weight value for positive class (SVM -w parameter)
+    """
+    if weighting_scheme in [None, 'none']:
+        return 1.0
+        
+    total_count = pos_count + neg_count
+    
+    if weighting_scheme == 'reciprocal':
+        # Chai's balancing method 
+        balanced_count = total_count / 2
+        return balanced_count / pos_count
+        
+    elif weighting_scheme == 'proportional':
+        # Irene's balancing method
+        return neg_count / total_count
+        
+    return 1.0  # Default to no weighting for unknown schemes
+
+def resolve_paths_with_config(config: GkmConfig) -> None:
+    """Resolve all paths in a GkmConfig object.
+    
+    Args:
+        config: GkmConfig object containing paths to resolve
+    """
+    config.resolve_paths()
+
+def validate_fasta_file(filepath: str) -> None:
+    """Basic FASTA file validation."""
+    if not os.path.exists(filepath):
+        raise ValueError(f"File does not exist: {filepath}")
+        
+    with open(filepath) as f:
+        first_line = f.readline().strip()
+        if not first_line.startswith('>'):
+            raise ValueError(f"Invalid FASTA format in {filepath}")
 
