@@ -39,6 +39,28 @@ class DataPath:
     def is_bed(self) -> bool:
         return bool(self.genome_path)
 
+@dataclass
+class ValidationResult:
+    """Container for validation results with errors and warnings."""
+    is_valid: bool = True
+    errors: List[str] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+    
+    def add_error(self, message: str) -> None:
+        """Add error message and set is_valid to False."""
+        self.errors.append(message)
+        self.is_valid = False
+    
+    def add_warning(self, message: str) -> None:
+        """Add warning message."""
+        self.warnings.append(message)
+    
+    def merge(self, other: 'ValidationResult') -> None:
+        """Merge another ValidationResult into this one."""
+        self.is_valid = self.is_valid and other.is_valid
+        self.errors.extend(other.errors)
+        self.warnings.extend(other.warnings)
+        
 class PathManager:
     """Centralized path handling for gkm-SVM configuration."""
     
