@@ -186,17 +186,39 @@ class GkmConfig:
             raise ValueError(f"Invalid path specification: {path_spec}")
         return path_spec
 
+
+    def _validate_resolved_paths(self) -> None:
+        """Validate all resolved paths exist and are in correct format."""
+        for path in self.train_data_paths:
+            Validator.validate_input_file(path)
+            Validator.validate_fasta_format(path)
+            Validator.validate_sequence_length(path)
+            
+        for path in self.val_data_paths:
+            Validator.validate_input_file(path)
+            Validator.validate_fasta_format(path)
+            Validator.validate_sequence_length(path)
+            
+        for path_set in self.additional_val_data_paths:
+            for path in path_set:
+                Validator.validate_input_file(path)
+                Validator.validate_fasta_format(path)
+                Validator.validate_sequence_length(path)
+
+
     def resolve_paths(self) -> None:
-        """Resolve and validate all input paths using gkm-utils."""
+        """Resolve and validate all input paths."""
+        self.train_data_paths = self._resolve_data_paths(self.train_data_paths)
+        self.val_data_paths = self._resolve_data_paths(self.val_data_paths)
         
-        self.train_data_paths = resolve_input_files(
-            self.train_data_paths, 
-            self.genome_path
-        )
-        self.val_data_paths = resolve_input_files(
-            self.val_data_paths,
-            self.genome_path
-        )
+        if self.additional_val_data_paths:
+            self.additional_val_data_paths = [
+                self._resolve_data_paths(paths) 
+                for paths in self.additional_val_data_paths
+            ]
+        
+        # Validate all resolved paths
+        self._validate_resolved_paths()
 
     def get_run_prefix(self) -> str:
         """Generate unique prefix incorporating key parameters and config name."""
@@ -228,22 +250,6 @@ class GkmConfig:
             return os.path.join(self.model_dir, prefix)
         return prefix
 
-
-    def resolve_paths(self) -> None:
-        """Resolve and validate all input paths using gkm-utils."""
-        # Resolve training data paths
-        self.train_data_paths = resolve_input_files(
-            self.train_data_paths,
-            self.genome_path
-        )
-        
-        # Resolve validation data paths if present
-        if self.val_data_paths:
-            self.val_data_paths = resolve_input_files(
-                self.val_data_paths,
-                self.genome_path
-            )
-            
         # Resolve additional validation sets if present
         if self.additional_val_data_paths:
             resolved_additional = []
@@ -254,24 +260,6 @@ class GkmConfig:
             
         # Validate all resolved paths
         self._validate_resolved_paths()
-    
-    def _validate_resolved_paths(self) -> None:
-        """Validate all resolved paths exist and are in correct format."""
-        for path in self.train_data_paths:
-            PathValidator.validate_input_file(path)
-            PathValidator.validate_fasta_format(path)
-            SequenceValidator.validate_sequence_length(path)
-            
-        for path in self.val_data_paths:
-            PathValidator.validate_input_file(path)
-            PathValidator.validate_fasta_format(path)
-            SequenceValidator.validate_sequence_length(path)
-            
-        for path_set in self.additional_val_data_paths:
-            for path in path_set:
-                PathValidator.validate_input_file(path)
-                PathValidator.validate_fasta_format(path)
-                SequenceValidator.validate_sequence_length(path)
     
     def get_train_files(self) -> Tuple[List[str], List[str]]:
         """Get positive and negative training files.
@@ -414,8 +402,8 @@ class GkmUtilsError(Exception):
     """Base exception class for gkm-utils errors."""
     pass
 
-class PathValidator:
-    """Validates file paths and formats matching CNN pipeline."""
+class Validator:
+    """Validates file paths and sequences for gkm-SVM processing."""
     
     @staticmethod
     def validate_input_file(filepath: Union[str, Path]) -> None:
@@ -444,9 +432,6 @@ class PathValidator:
             first_line = f.readline().strip()
             if not first_line.startswith('>'):
                 raise GkmUtilsError(f"Invalid FASTA format in {filepath}")
-
-class SequenceValidator:
-    """Validates sequences for gkm-SVM processing."""
 
     @staticmethod
     def validate_sequence_length(filepath: Union[str, Path]) -> None:
@@ -477,6 +462,16 @@ class FASTAHandler:
     """Handles FASTA file operations for gkm-SVM pipeline."""
     
     @staticmethod
+    def count_sequences_in_fasta(fasta_file: str) -> int:
+        """Count number of sequences in a FASTA file by counting header lines."""
+        count = 0
+        with open(fasta_file) as f:
+            for line in f:
+                if line.startswith('>'):
+                    count += 1
+        return count
+
+    @staticmethod
     def bed_to_fasta(bed_file: Union[str, Path], 
                      genome_file: Union[str, Path],
                      output_path: Union[str, Path]) -> None:
@@ -491,18 +486,28 @@ class FASTAHandler:
             GkmUtilsError: If conversion fails or requirements not met
         """
         # Validate input and output paths
-        PathValidator.validate_input_file(bed_file)
-        PathValidator.validate_input_file(genome_file)
-        PathValidator.validate_output_path(output_path)
+        Validator.validate_input_file(bed_file)
+        Validator.validate_input_file(genome_file)
+        Validator.validate_output_path(output_path)
 
         # Check if bedtools is available
         exit_code = os.system("which bedtools > /dev/null 2>&1")
         if exit_code != 0:
-            raise GkmUtilsError("bedtools command not found. Please install bedtools and ensure it's in your PATH")
+            raise GkmUtilsError("bedtools command not found. Please install bedtools")
 
         try:
-            # Construct and run bedtools getfasta command
-            cmd = f"bedtools getfasta -fi {genome_file} -bed {bed_file} -fo {output_path}"
+            # Check if bed file has a name column (4th column)
+            has_name_column = False
+            with open(bed_file) as f:
+                first_line = f.readline().strip().split('\t')
+                has_name_column = len(first_line) >= 4
+            
+            # Construct bedtools command
+            if has_name_column:
+                cmd = f"bedtools getfasta -fi {genome_file} -bed {bed_file} -name -fo {output_path}"
+            else:
+                cmd = f"bedtools getfasta -fi {genome_file} -bed {bed_file} -fo {output_path}"
+                
             logger.info(f"Running command: {cmd}")
             
             exit_code = os.system(cmd)
@@ -514,99 +519,28 @@ class FASTAHandler:
                 raise GkmUtilsError(f"FASTA file not created: {output_path}")
                 
             # Validate the output FASTA file
-            SequenceValidator.validate_sequence_length(output_path)
+            Validator.validate_sequence_length(output_path)
             
         except Exception as e:
             raise GkmUtilsError(f"BED to FASTA conversion failed: {str(e)}")
 
-
-def resolve_input_files(config_files: List[Union[str, Dict]],
-                       genome: Optional[str] = None) -> List[str]:
-    """Resolve input files to FASTA format matching CNN pipeline.
-    
-    Args:
-        config_files: List of file paths or dicts from config
-        genome: Optional genome path for BED conversion
-        
-    Returns:
-        List of paths to FASTA files
-    """
-    fasta_files = []
-    
-    for file_entry in config_files:
-        if isinstance(file_entry, dict):
-            # Handle dictionary format from CNN pipeline config
-            if 'genome' in file_entry and 'intervals' in file_entry:
-                # BED/narrowPeak with reference genome
-                PathValidator.validate_input_file(file_entry['genome'])
-                PathValidator.validate_input_file(file_entry['intervals'])
-                
-                fasta_path = str(Path(file_entry['intervals']).with_suffix('.fa'))
-                
-                # Check if FASTA already exists and is valid
-                if os.path.exists(fasta_path):
-                    try:
-                        PathValidator.validate_fasta_format(fasta_path)
-                        SequenceValidator.validate_sequence_length(fasta_path)
-                        logger.info(f"Using existing FASTA file: {fasta_path}")
-                    except GkmUtilsError:
-                        logger.info(f"Existing FASTA file {fasta_path} is invalid. Regenerating...")
-                        FASTAHandler.bed_to_fasta(
-                            file_entry['intervals'],
-                            file_entry['genome'],
-                            fasta_path
-                        )
-                else:
-                    logger.info(f"Converting BED to FASTA: {file_entry['intervals']} -> {fasta_path}")
+def _resolve_data_paths(self, paths: List[Union[str, Dict]]) -> List[str]:
+    """Internal method to resolve individual data paths."""
+    resolved = []
+    for path in paths:
+        if isinstance(path, dict):
+            if 'genome' in path and 'intervals' in path:
+                fasta_path = str(Path(path['intervals']).with_suffix('.fa'))
+                if not os.path.exists(fasta_path):
                     FASTAHandler.bed_to_fasta(
-                        file_entry['intervals'],
-                        file_entry['genome'],
+                        path['intervals'],
+                        path['genome'],
                         fasta_path
                     )
-                fasta_files.append(fasta_path)
+                resolved.append(fasta_path)
             else:
-                # Direct FASTA path
-                PathValidator.validate_input_file(file_entry['path'])
-                PathValidator.validate_fasta_format(file_entry['path'])
-                fasta_files.append(file_entry['path'])
+                resolved.append(path['path'])
         else:
-            # Handle direct file path
-            if genome and str(file_entry).endswith(('.bed', '.narrowPeak')):
-                # Convert BED to FASTA
-                PathValidator.validate_input_file(genome)
-                PathValidator.validate_input_file(file_entry)
-                
-                fasta_path = str(Path(file_entry).with_suffix('.fa'))
-                
-                # Check if FASTA already exists and is valid
-                if os.path.exists(fasta_path):
-                    try:
-                        PathValidator.validate_fasta_format(fasta_path)
-                        SequenceValidator.validate_sequence_length(fasta_path)
-                        logger.info(f"Using existing FASTA file: {fasta_path}")
-                    except GkmUtilsError:
-                        logger.info(f"Existing FASTA file {fasta_path} is invalid. Regenerating...")
-                        FASTAHandler.bed_to_fasta(
-                            file_entry,
-                            genome,
-                            fasta_path
-                        )
-                else:
-                    logger.info(f"Converting BED to FASTA: {file_entry} -> {fasta_path}")
-                    FASTAHandler.bed_to_fasta(
-                        file_entry,
-                        genome,
-                        fasta_path
-                    )
-                fasta_files.append(fasta_path)
-            else:
-                # Direct FASTA file
-                PathValidator.validate_input_file(file_entry)
-                PathValidator.validate_fasta_format(file_entry)
-                fasta_files.append(str(file_entry))
-                
-    # Final validation of all FASTA files
-    for fasta_file in fasta_files:
-        SequenceValidator.validate_sequence_length(fasta_file)
-        
-    return fasta_files
+            resolved.append(str(path))
+    return resolved
+
