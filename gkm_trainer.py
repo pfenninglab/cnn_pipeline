@@ -24,13 +24,10 @@ from sklearn.metrics import (
     f1_score
 )
 
-from gkm_config import GkmConfig, PathValidator, SequenceValidator
+from gkm_config import GkmConfig, validate_fasta_file
+from gkm_config import calculate_class_weight
 
 logger = logging.getLogger(__name__)
-
-class GkmTrainerError(Exception):
-    """Base exception class for gkm-trainer errors."""
-    pass
 
 def _get_files_by_class(paths: List[str], targets: List[int]) -> Tuple[List[str], List[str]]:
     """Split files into positive and negative sets.
@@ -46,9 +43,9 @@ def _get_files_by_class(paths: List[str], targets: List[int]) -> Tuple[List[str]
     neg_files = [p for p, t in zip(paths, targets) if t == 0]
     
     if not pos_files:
-        raise GkmTrainerError("No positive examples found")
+        raise ValueError("No positive examples found")
     if not neg_files:
-        raise GkmTrainerError("No negative examples found")
+        raise ValueError("No negative examples found")
         
     return pos_files, neg_files
 
@@ -61,52 +58,8 @@ def count_sequences_in_fasta(fasta_file: str) -> int:
                 count += 1
     return count
 
-def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: str = 'reciprocal') -> float:
-    """Calculate positive class weight based on sequence counts.
-    
-    Args:
-        pos_count: Number of positive sequences
-        neg_count: Number of negative sequences
-        weighting_scheme: Strategy for weight calculation ('reciprocal' or 'proportional')
-        
-    Returns:
-        Weight value for positive class (SVM -w parameter)
-        
-    Based on CNN pipeline class weighting schemes:
-    - reciprocal: weight = (total_samples / num_classes) / class_count
-    - proportional: weight = fraction of samples in other classes
-    """
-    total_count = pos_count + neg_count
-    
-    if weighting_scheme == 'reciprocal':
-        # Chai's balancing method: weight = (N/k) / n_i
-        # Where N is total samples, k is number of classes (2), n_i is class count
-        balanced_count = total_count / 2
-        weight = balanced_count / pos_count
-        
-    elif weighting_scheme == 'proportional':
-        # Irene's balancing method: weight = fraction of samples in other classes
-        weight = neg_count / total_count
-        
-    else:
-        # No weighting
-        weight = 1.0
-        
-    return weight
-
-
 def train_model(config: GkmConfig) -> str:
-    """Train a gkm-SVM model using config parameters.
-    
-    Args:
-        config: GkmConfig object containing model parameters
-        
-    Returns:
-        Path to trained model file
-        
-    Raises:
-        GkmTrainerError: If training fails
-    """
+    """Train a gkm-SVM model using config parameters."""
     # Resolve and validate paths
     config.resolve_paths()
     
@@ -119,7 +72,7 @@ def train_model(config: GkmConfig) -> str:
     model_dir.mkdir(parents=True, exist_ok=True)
     
     # Create combined FASTA files
-    pos_output = model_dir / f"{config.name}-pos.fa"
+    pos_output = model_dir / f"{config.name}-pos.fa"  
     neg_output = model_dir / f"{config.name}-neg.fa"
     
     logger.info(f"Combining {len(pos_files)} positive files into {pos_output}")
@@ -137,27 +90,8 @@ def train_model(config: GkmConfig) -> str:
                     outfile.write(line)
     
     # Validate combined files
-    PathValidator.validate_fasta_format(pos_output)
-    PathValidator.validate_fasta_format(neg_output)
-    SequenceValidator.validate_sequence_length(pos_output)
-    SequenceValidator.validate_sequence_length(neg_output)
-    
-    # Calculate class weights based on sequence counts
-    pos_count = count_sequences_in_fasta(pos_output)
-    neg_count = count_sequences_in_fasta(neg_output)
-    total_count = pos_count + neg_count
-    
-    logger.info(f"Training set composition:")
-    logger.info(f"  Positive sequences: {pos_count:,} ({pos_count/total_count:.1%})")
-    logger.info(f"  Negative sequences: {neg_count:,} ({neg_count/total_count:.1%})")
-    
-    # Set positive class weight if weighting scheme specified
-    if hasattr(config, 'class_weight') and config.class_weight not in [None, 'none']:
-        weight = calculate_class_weight(pos_count, neg_count, config.class_weight)
-        logger.info(f"Using {config.class_weight} weighting scheme, positive weight = {weight:.3f}")
-        config.pos_weight = weight
-    else:
-        logger.info("No class weighting applied")
+    validate_fasta_file(pos_output)
+    validate_fasta_file(neg_output)
     
     # Get output prefix and prepare command
     out_prefix = str(model_dir / config.get_run_prefix())
@@ -169,12 +103,12 @@ def train_model(config: GkmConfig) -> str:
     # Run training command
     exit_code = os.system(cmd_str)
     if exit_code != 0:
-        raise GkmTrainerError(f"Training failed with exit code: {exit_code}")
+        raise ValueError(f"Training failed with exit code: {exit_code}")
     
     # Verify model file exists
     model_path = f"{out_prefix}.model.txt"
     if not os.path.exists(model_path):
-        raise GkmTrainerError(f"Model file not created: {model_path}")
+        raise ValueError(f"Model file not created: {model_path}")
         
     return model_path
 
@@ -191,12 +125,10 @@ def predict(config: GkmConfig, model_path: str, test_file: str) -> str:
         Path to predictions file
         
     Raises:
-        GkmTrainerError: If prediction fails
+        ValueError: If prediction fails
     """
     # Validate input files
-    PathValidator.validate_input_file(model_path)
-    PathValidator.validate_input_file(test_file)
-    PathValidator.validate_fasta_format(test_file)
+    validate_fasta_file(test_file)
     
     # Get model directory structure
     model_base_dir = Path(config.dir) if config.dir else Path.cwd()
@@ -220,10 +152,10 @@ def predict(config: GkmConfig, model_path: str, test_file: str) -> str:
     # Run prediction command
     exit_code = os.system(cmd_str)
     if exit_code != 0:
-        raise GkmTrainerError(f"Prediction failed with exit code: {exit_code}")
+        raise ValueError(f"Prediction failed with exit code: {exit_code}")
         
     if not os.path.exists(pred_path):
-        raise GkmTrainerError(f"Predictions file not created: {pred_path}")
+        raise ValueError(f"Predictions file not created: {pred_path}")
         
     return pred_path
 
@@ -242,12 +174,12 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray,
     """
     # Verify inputs
     if len(y_true) != len(y_pred):
-        raise GkmTrainerError(
+        raise ValueError(
             f"Length mismatch: y_true ({len(y_true)}) != y_pred ({len(y_pred)})"
         )
     
     if not len(y_true):
-        raise GkmTrainerError("Empty prediction arrays")
+        raise ValueError("Empty prediction arrays")
         
     # Compute threshold-independent metrics
     metrics = {
@@ -323,52 +255,14 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
 
     return results
 
-def save_results(config: GkmConfig,
-                results: Dict[str, float],
-                model_path: str) -> str:
-    """Save evaluation results matching CNN pipeline format."""
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    output_path = f"{os.path.splitext(model_path)[0]}_results_{timestamp}.json"
-    
-    # Format results matching CNN pipeline
-    output = {
-        'model_config': {
-            # Core parameters
-            'word_length': config.word_length,
-            'informed_cols': config.informed_cols, 
-            'max_mismatch': config.max_mismatch,
-            'kernel_type': config.kernel_type,
-            'regularization': config.regularization,
-            
-            # Kernel parameters
-            'gamma': config.gamma,
-            'init_decay': config.init_decay,
-            'half_life': config.half_life,
-            
-            # Runtime parameters
-            'num_threads': config.num_threads,
-            'use_shrinking': config.use_shrinking,
-            
-            # Paths
-            'model_path': str(model_path)
-        },
-        'results': {
-            k: float(f'{v:.4f}') for k, v in results.items()
-        },
-        'metadata': {
-            'timestamp': timestamp,
-            'project': config.project,
-            'name': config.name
-        }
-    }
-    
-    # Save results
-    try:
-        with open(output_path, 'w') as f:
-            json.dump(output, f, indent=2)
-    except IOError as e:
-        raise GkmTrainerError(f"Failed to save results: {e}")
-        
+def save_results(config: GkmConfig, results: Dict[str, float], model_path: str) -> str:
+    """Save evaluation results to JSON."""
+    output_path = f"{os.path.splitext(model_path)[0]}_results.json"
+    with open(output_path, 'w') as f:
+        json.dump({
+            'config': vars(config),
+            'results': results
+        }, f, indent=2)
     return output_path
 
 
@@ -559,7 +453,7 @@ def main():
         if args.predict:
             # Prediction mode
             if not os.path.exists(args.predict):
-                raise GkmTrainerError(f"Input file not found: {args.predict}")
+                raise ValueError(f"Input file not found: {args.predict}")
                 
             # Find latest model file if not specified
             model_dir = config.model_dir or os.getcwd()
@@ -568,7 +462,7 @@ def main():
                 key=os.path.getmtime
             )
             if not model_files:
-                raise GkmTrainerError(f"No model files found in {model_dir}")
+                raise ValueError(f"No model files found in {model_dir}")
             model_path = str(model_files[-1])
             
             # Run prediction

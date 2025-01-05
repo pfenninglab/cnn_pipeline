@@ -17,6 +17,54 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: Optional[str] = None) -> float:
+    """Calculate positive class weight based on sequence counts.
+    
+    Args:
+        pos_count: Number of positive sequences
+        neg_count: Number of negative sequences
+        weighting_scheme: Strategy for weight calculation:
+            - 'reciprocal': weight = (N/k) / n_i where N is total samples, k is classes (2)
+            - 'proportional': weight = fraction of samples in other classes
+            - None or 'none': no weighting (weight = 1.0)
+        
+    Returns:
+        Weight value for positive class (SVM -w parameter)
+    """
+    if weighting_scheme in [None, 'none']:
+        return 1.0
+        
+    total_count = pos_count + neg_count
+    
+    if weighting_scheme == 'reciprocal':
+        # Chai's balancing method 
+        balanced_count = total_count / 2
+        return balanced_count / pos_count
+        
+    elif weighting_scheme == 'proportional':
+        # Irene's balancing method
+        return neg_count / total_count
+        
+    return 1.0  # Default to no weighting for unknown schemes
+
+def resolve_paths_with_config(config: GkmConfig) -> None:
+    """Resolve all paths in a GkmConfig object.
+    
+    Args:
+        config: GkmConfig object containing paths to resolve
+    """
+    config.resolve_paths()
+
+def validate_fasta_file(filepath: str) -> None:
+    """Basic FASTA file validation."""
+    if not os.path.exists(filepath):
+        raise ValueError(f"File does not exist: {filepath}")
+        
+    with open(filepath) as f:
+        first_line = f.readline().strip()
+        if not first_line.startswith('>'):
+            raise ValueError(f"Invalid FASTA format in {filepath}")
+
 @dataclass
 class GkmConfig:
     """Configuration for gkm-SVM models with CNN pipeline compatibility.
@@ -73,6 +121,57 @@ class GkmConfig:
     gkm_executable: str = "gkmtrain"
     pred_executable: str = "gkmpredict"
 
+    def __init__(self, word_length: int = 11, informed_cols: int = 7, **kwargs):
+        if not (3 <= word_length <= 12) or informed_cols > word_length:
+            raise ValueError(f"Invalid parameters: word_length must be 3-12 and informed_cols <= word_length")
+        self.word_length = word_length
+        self.informed_cols = informed_cols
+
+    def resolve_paths(self) -> None:
+        """Resolve file paths to FASTA format."""
+        self.train_data_paths = self._resolve_input_files(self.train_data_paths)
+        if self.val_data_paths:
+            self.val_data_paths = self._resolve_input_files(self.val_data_paths)
+        if self.additional_val_data_paths:
+            self.additional_val_data_paths = [
+                self._resolve_input_files(paths) 
+                for paths in self.additional_val_data_paths
+            ]
+
+    def _resolve_input_files(self, file_paths: List[Union[str, Dict]]) -> List[str]:
+        """Convert input paths to FASTA files."""
+        resolved = []
+        for entry in file_paths:
+            if isinstance(entry, dict):
+                # Handle BED/narrowPeak conversion
+                if 'genome' in entry and 'intervals' in entry:
+                    bed_file = entry['intervals']
+                    fasta_path = bed_file.rsplit('.', 1)[0] + '.fa'
+                    
+                    # Convert if needed
+                    if not os.path.exists(fasta_path):
+                        cmd = f"bedtools getfasta -fi {entry['genome']} -bed {bed_file} -fo {fasta_path}"
+                        exit_code = os.system(cmd)
+                        if exit_code != 0:
+                            raise ValueError(f"BED to FASTA conversion failed: {bed_file}")
+                    resolved.append(fasta_path)
+                else:
+                    # Direct FASTA path
+                    resolved.append(entry['path'])
+            else:
+                # Handle string path
+                if entry.endswith(('.bed', '.narrowPeak')) and self.genome_path:
+                    fasta_path = entry.rsplit('.', 1)[0] + '.fa'
+                    if not os.path.exists(fasta_path):
+                        cmd = f"bedtools getfasta -name -fi {self.genome_path} -bed {entry} -fo {fasta_path}"
+                        exit_code = os.system(cmd)
+                        if exit_code != 0:
+                            raise ValueError(f"BED to FASTA conversion failed: {entry}")
+                    resolved.append(fasta_path)
+                else:
+                    resolved.append(entry)
+        return resolved
+
     def validate(self) -> None:
         """Validate parameters against both gkm-SVM and CNN pipeline requirements."""
         # Core Parameter Validation
@@ -89,19 +188,6 @@ class GkmConfig:
         
         # Data Path Validation
         self._validate_data_paths()
-
-    def _validate_word_length(self) -> None:
-        """Validate word length (l) parameter."""
-        if not 3 <= self.word_length <= 12:
-            raise ValueError(f"word_length (l={self.word_length}) must be between 3 and 12")
-
-    def _validate_informed_cols(self) -> None:
-        """Validate informative columns (k) parameter."""
-        if self.informed_cols > self.word_length:
-            raise ValueError(
-                f"informed_cols (k={self.informed_cols}) must be <= "
-                f"word_length (l={self.word_length})"
-            )
 
     def _validate_max_mismatch(self) -> None:
         """Validate maximum mismatches (d) parameter."""
@@ -186,17 +272,6 @@ class GkmConfig:
             raise ValueError(f"Invalid path specification: {path_spec}")
         return path_spec
 
-    def resolve_paths(self) -> None:
-        """Resolve and validate all input paths using gkm-utils."""
-        
-        self.train_data_paths = resolve_input_files(
-            self.train_data_paths, 
-            self.genome_path
-        )
-        self.val_data_paths = resolve_input_files(
-            self.val_data_paths,
-            self.genome_path
-        )
 
     def get_run_prefix(self) -> str:
         """Generate unique prefix incorporating key parameters and config name."""
@@ -228,50 +303,14 @@ class GkmConfig:
             return os.path.join(self.model_dir, prefix)
         return prefix
 
-
-    def resolve_paths(self) -> None:
-        """Resolve and validate all input paths using gkm-utils."""
-        # Resolve training data paths
-        self.train_data_paths = resolve_input_files(
-            self.train_data_paths,
-            self.genome_path
-        )
-        
-        # Resolve validation data paths if present
-        if self.val_data_paths:
-            self.val_data_paths = resolve_input_files(
-                self.val_data_paths,
-                self.genome_path
-            )
-            
-        # Resolve additional validation sets if present
-        if self.additional_val_data_paths:
-            resolved_additional = []
-            for paths in self.additional_val_data_paths:
-                resolved = resolve_input_files(paths, self.genome_path)
-                resolved_additional.append(resolved)
-            self.additional_val_data_paths = resolved_additional
-            
-        # Validate all resolved paths
-        self._validate_resolved_paths()
-    
     def _validate_resolved_paths(self) -> None:
         """Validate all resolved paths exist and are in correct format."""
-        for path in self.train_data_paths:
-            PathValidator.validate_input_file(path)
-            PathValidator.validate_fasta_format(path)
-            SequenceValidator.validate_sequence_length(path)
-            
-        for path in self.val_data_paths:
-            PathValidator.validate_input_file(path)
-            PathValidator.validate_fasta_format(path)
-            SequenceValidator.validate_sequence_length(path)
+        for path in self.train_data_paths + self.val_data_paths:
+            validate_fasta_file(path)
             
         for path_set in self.additional_val_data_paths:
             for path in path_set:
-                PathValidator.validate_input_file(path)
-                PathValidator.validate_fasta_format(path)
-                SequenceValidator.validate_sequence_length(path)
+                validate_fasta_file(path)
     
     def get_train_files(self) -> Tuple[List[str], List[str]]:
         """Get positive and negative training files.
@@ -394,219 +433,4 @@ class GkmConfig:
             '-T', str(self.num_threads)
         ]
 
-def resolve_paths_with_config(config: GkmConfig) -> None:
-    """Resolve all paths in a GkmConfig object.
-    
-    Args:
-        config: GkmConfig object containing paths to resolve
-    """
-    config.resolve_paths()
 
-def validate_config_paths(config: GkmConfig) -> None:
-    """Validate all paths in a GkmConfig object.
-    
-    Args:
-        config: GkmConfig object containing paths to validate
-    """
-    config._validate_resolved_paths()
-
-class GkmUtilsError(Exception):
-    """Base exception class for gkm-utils errors."""
-    pass
-
-class PathValidator:
-    """Validates file paths and formats matching CNN pipeline."""
-    
-    @staticmethod
-    def validate_input_file(filepath: Union[str, Path]) -> None:
-        """Check if input file exists and is readable."""
-        path = Path(filepath)
-        if not path.exists():
-            raise GkmUtilsError(f"File does not exist: {filepath}")
-        if not os.access(path, os.R_OK):
-            raise GkmUtilsError(f"File is not readable: {filepath}")
-            
-    @staticmethod
-    def validate_output_path(filepath: Union[str, Path]) -> None:
-        """Validate output path is writable."""
-        path = Path(filepath)
-        if path.exists() and not os.access(path, os.W_OK):
-            raise GkmUtilsError(f"Path exists but is not writable: {filepath}")
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            raise GkmUtilsError(f"Cannot create parent directories for {filepath}: {e}")
-
-    @staticmethod
-    def validate_fasta_format(filepath: Union[str, Path]) -> None:
-        """Validate FASTA file format."""
-        with open(filepath) as f:
-            first_line = f.readline().strip()
-            if not first_line.startswith('>'):
-                raise GkmUtilsError(f"Invalid FASTA format in {filepath}")
-
-class SequenceValidator:
-    """Validates sequences for gkm-SVM processing."""
-
-    @staticmethod
-    def validate_sequence_length(filepath: Union[str, Path]) -> None:
-        """Validate all sequences have same length."""
-        lengths = set()
-        current_seq = []
-        
-        with open(filepath) as f:
-            for line in f:
-                line = line.strip()
-                if line.startswith('>'):
-                    if current_seq:
-                        lengths.add(len(''.join(current_seq)))
-                        current_seq = []
-                else:
-                    current_seq.append(line)
-                    
-        if current_seq:
-            lengths.add(len(''.join(current_seq)))
-            
-        if len(lengths) > 1:
-            raise GkmUtilsError(f"Sequences have different lengths in {filepath}: {lengths}")
-            
-        if not lengths:
-            raise GkmUtilsError(f"No sequences found in {filepath}")
-
-class FASTAHandler:
-    """Handles FASTA file operations for gkm-SVM pipeline."""
-    
-    @staticmethod
-    def bed_to_fasta(bed_file: Union[str, Path], 
-                     genome_file: Union[str, Path],
-                     output_path: Union[str, Path]) -> None:
-        """Convert BED file to FASTA using command line bedtools.
-        
-        Args:
-            bed_file: Path to input BED file
-            genome_file: Path to reference genome FASTA
-            output_path: Path to output FASTA file
-            
-        Raises:
-            GkmUtilsError: If conversion fails or requirements not met
-        """
-        # Validate input and output paths
-        PathValidator.validate_input_file(bed_file)
-        PathValidator.validate_input_file(genome_file)
-        PathValidator.validate_output_path(output_path)
-
-        # Check if bedtools is available
-        exit_code = os.system("which bedtools > /dev/null 2>&1")
-        if exit_code != 0:
-            raise GkmUtilsError("bedtools command not found. Please install bedtools and ensure it's in your PATH")
-
-        try:
-            # Construct and run bedtools getfasta command
-            cmd = f"bedtools getfasta -fi {genome_file} -bed {bed_file} -fo {output_path}"
-            logger.info(f"Running command: {cmd}")
-            
-            exit_code = os.system(cmd)
-            if exit_code != 0:
-                raise GkmUtilsError(f"bedtools command failed with exit code: {exit_code}")
-            
-            # Check if output file was created
-            if not os.path.exists(output_path):
-                raise GkmUtilsError(f"FASTA file not created: {output_path}")
-                
-            # Validate the output FASTA file
-            SequenceValidator.validate_sequence_length(output_path)
-            
-        except Exception as e:
-            raise GkmUtilsError(f"BED to FASTA conversion failed: {str(e)}")
-
-
-def resolve_input_files(config_files: List[Union[str, Dict]],
-                       genome: Optional[str] = None) -> List[str]:
-    """Resolve input files to FASTA format matching CNN pipeline.
-    
-    Args:
-        config_files: List of file paths or dicts from config
-        genome: Optional genome path for BED conversion
-        
-    Returns:
-        List of paths to FASTA files
-    """
-    fasta_files = []
-    
-    for file_entry in config_files:
-        if isinstance(file_entry, dict):
-            # Handle dictionary format from CNN pipeline config
-            if 'genome' in file_entry and 'intervals' in file_entry:
-                # BED/narrowPeak with reference genome
-                PathValidator.validate_input_file(file_entry['genome'])
-                PathValidator.validate_input_file(file_entry['intervals'])
-                
-                fasta_path = str(Path(file_entry['intervals']).with_suffix('.fa'))
-                
-                # Check if FASTA already exists and is valid
-                if os.path.exists(fasta_path):
-                    try:
-                        PathValidator.validate_fasta_format(fasta_path)
-                        SequenceValidator.validate_sequence_length(fasta_path)
-                        logger.info(f"Using existing FASTA file: {fasta_path}")
-                    except GkmUtilsError:
-                        logger.info(f"Existing FASTA file {fasta_path} is invalid. Regenerating...")
-                        FASTAHandler.bed_to_fasta(
-                            file_entry['intervals'],
-                            file_entry['genome'],
-                            fasta_path
-                        )
-                else:
-                    logger.info(f"Converting BED to FASTA: {file_entry['intervals']} -> {fasta_path}")
-                    FASTAHandler.bed_to_fasta(
-                        file_entry['intervals'],
-                        file_entry['genome'],
-                        fasta_path
-                    )
-                fasta_files.append(fasta_path)
-            else:
-                # Direct FASTA path
-                PathValidator.validate_input_file(file_entry['path'])
-                PathValidator.validate_fasta_format(file_entry['path'])
-                fasta_files.append(file_entry['path'])
-        else:
-            # Handle direct file path
-            if genome and str(file_entry).endswith(('.bed', '.narrowPeak')):
-                # Convert BED to FASTA
-                PathValidator.validate_input_file(genome)
-                PathValidator.validate_input_file(file_entry)
-                
-                fasta_path = str(Path(file_entry).with_suffix('.fa'))
-                
-                # Check if FASTA already exists and is valid
-                if os.path.exists(fasta_path):
-                    try:
-                        PathValidator.validate_fasta_format(fasta_path)
-                        SequenceValidator.validate_sequence_length(fasta_path)
-                        logger.info(f"Using existing FASTA file: {fasta_path}")
-                    except GkmUtilsError:
-                        logger.info(f"Existing FASTA file {fasta_path} is invalid. Regenerating...")
-                        FASTAHandler.bed_to_fasta(
-                            file_entry,
-                            genome,
-                            fasta_path
-                        )
-                else:
-                    logger.info(f"Converting BED to FASTA: {file_entry} -> {fasta_path}")
-                    FASTAHandler.bed_to_fasta(
-                        file_entry,
-                        genome,
-                        fasta_path
-                    )
-                fasta_files.append(fasta_path)
-            else:
-                # Direct FASTA file
-                PathValidator.validate_input_file(file_entry)
-                PathValidator.validate_fasta_format(file_entry)
-                fasta_files.append(str(file_entry))
-                
-    # Final validation of all FASTA files
-    for fasta_file in fasta_files:
-        SequenceValidator.validate_sequence_length(fasta_file)
-        
-    return fasta_files
