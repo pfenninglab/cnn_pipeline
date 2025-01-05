@@ -29,18 +29,21 @@ from gkm_config import calculate_class_weight
 
 logger = logging.getLogger(__name__)
 
-def _get_files_by_class(paths: List[str], targets: List[int]) -> Tuple[List[str], List[str]]:
-    """Split files into positive and negative sets.
-    
-    Args:
-        paths: List of file paths
-        targets: List of binary targets (0/1)
-        
-    Returns:
-        Tuple of (positive_files, negative_files)
-    """
-    pos_files = [p for p, t in zip(paths, targets) if t == 1]
-    neg_files = [p for p, t in zip(paths, targets) if t == 0]
+def _get_files_by_class(paths, targets):
+    """Split files into positive and negative sets handling both dict and str paths."""
+    # Extract actual file paths from potential dictionaries
+    def _get_path(path_entry):
+        if isinstance(path_entry, dict):
+            if 'intervals' in path_entry:
+                return path_entry['intervals']
+            elif 'path' in path_entry:
+                return path_entry['path']
+            else:
+                raise ValueError(f"Invalid path dictionary format: {path_entry}")
+        return path_entry
+
+    pos_files = [_get_path(p) for p, t in zip(paths, targets) if t == 1]
+    neg_files = [_get_path(p) for p, t in zip(paths, targets) if t == 0]
     
     if not pos_files:
         raise ValueError("No positive examples found")
@@ -58,14 +61,19 @@ def count_sequences_in_fasta(fasta_file: str) -> int:
                 count += 1
     return count
 
-
-def train_model(config: GkmConfig) -> str:
+def train_model(config):
     """Train a gkm-SVM model using config parameters."""
     # Get base output directory
     base_dir = config.dir if config.dir else os.getcwd()
     model_dir = os.path.join(base_dir, "lsgkm", config.name)
     os.makedirs(model_dir, exist_ok=True)
     
+    # Check if model already exists
+    out_prefix = os.path.join(model_dir, config.get_run_prefix())
+    model_path = f"{out_prefix}.model.txt"
+    if os.path.exists(model_path):
+        return model_path
+
     # Define combined file paths
     train_pos_fa = os.path.join(model_dir, f"{config.name}-train-pos.fa")
     train_neg_fa = os.path.join(model_dir, f"{config.name}-train-neg.fa")
@@ -91,7 +99,6 @@ def train_model(config: GkmConfig) -> str:
                     outfile.write(infile.read())
     
     # Get output prefix and prepare command
-    out_prefix = os.path.join(model_dir, config.get_run_prefix())
     cmd = config.get_train_cmd(train_pos_fa, train_neg_fa, out_prefix)
     cmd_str = ' '.join(cmd)
     
@@ -480,8 +487,6 @@ def main():
         # Load and validate config
         logger.info(f"Loading configuration from {args.config}")
         config = GkmConfig.from_yaml(args.config)
-        config = update_config_from_args(config, args)
-        config.validate()
         
         if args.predict:
             # Prediction mode

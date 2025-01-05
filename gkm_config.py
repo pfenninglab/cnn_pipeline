@@ -17,6 +17,17 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+def validate_fasta_file(filepath: str) -> None:
+    """Basic FASTA file validation."""
+    if not os.path.exists(filepath):
+        raise ValueError(f"File does not exist: {filepath}")
+        
+    with open(filepath) as f:
+        first_line = f.readline().strip()
+        if not first_line.startswith('>'):
+            raise ValueError(f"Invalid FASTA format in {filepath}")
+
+
 @dataclass
 class GkmConfig:
     """Configuration for gkm-SVM models with CNN pipeline compatibility.
@@ -110,38 +121,44 @@ class GkmConfig:
                 for paths in self.additional_val_data_paths
             ]
 
-    def _resolve_input_files(self, file_paths: List[Union[str, Dict]]) -> List[str]:
-        """Convert input paths to FASTA files."""
+    def _resolve_input_files(self, file_paths):
+        """Convert input paths to FASTA files if needed."""
         resolved = []
         for entry in file_paths:
+            # Handle dictionary paths
             if isinstance(entry, dict):
-                # Handle BED/narrowPeak conversion
                 if 'genome' in entry and 'intervals' in entry:
                     bed_file = entry['intervals']
-                    fasta_path = bed_file.rsplit('.', 1)[0] + '.fa'
+                    fasta_path = f"{os.path.splitext(bed_file)[0]}.fa"
                     
-                    # Convert if needed
-                    if not os.path.exists(fasta_path):
-                        cmd = f"bedtools getfasta -fi {entry['genome']} -bed {bed_file} -fo {fasta_path}"
-                        exit_code = os.system(cmd)
-                        if exit_code != 0:
-                            raise ValueError(f"BED to FASTA conversion failed: {bed_file}")
+                    # Check if valid FASTA exists
+                    try:
+                        validate_fasta_file(fasta_path)
+                    except ValueError:
+                        # Convert BED to FASTA
+                        os.system(f"bedtools getfasta -name -fi {entry['genome']} -bed {bed_file} -fo {fasta_path}")
                     resolved.append(fasta_path)
                 else:
-                    # Direct FASTA path
-                    resolved.append(entry['path'])
+                    # Direct path in dict
+                    path = entry.get('path', entry)
+                    validate_fasta_file(path)
+                    resolved.append(path)
+                    
+            # Handle string paths
             else:
-                # Handle string path
-                if entry.endswith(('.bed', '.narrowPeak')) and self.genome_path:
-                    fasta_path = entry.rsplit('.', 1)[0] + '.fa'
-                    if not os.path.exists(fasta_path):
-                        cmd = f"bedtools getfasta -name -fi {self.genome_path} -bed {entry} -fo {fasta_path}"
-                        exit_code = os.system(cmd)
-                        if exit_code != 0:
-                            raise ValueError(f"BED to FASTA conversion failed: {entry}")
+                if entry.endswith(('.bed', '.narrowPeak')):
+                    fasta_path = f"{os.path.splitext(entry)[0]}.fa"
+                    try:
+                        validate_fasta_file(fasta_path)
+                    except ValueError:
+                        # Convert BED to FASTA
+                        os.system(f"bedtools getfasta -name -fi {self.genome_path} -bed {entry} -fo {fasta_path}")
                     resolved.append(fasta_path)
                 else:
+                    # Should be direct FASTA path
+                    validate_fasta_file(entry)
                     resolved.append(entry)
+                    
         return resolved
 
     def validate(self) -> None:
@@ -155,7 +172,10 @@ class GkmConfig:
         
         # Runtime Validation
         self._validate_runtime_params()
-        
+
+        # Resolve paths and validate
+        self.resolve_paths()
+
         # Data Path Validation
         self._validate_data_paths()
 
@@ -433,22 +453,3 @@ def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: Opt
         return neg_count / total_count
         
     return 1.0  # Default to no weighting for unknown schemes
-
-def resolve_paths_with_config(config: GkmConfig) -> None:
-    """Resolve all paths in a GkmConfig object.
-    
-    Args:
-        config: GkmConfig object containing paths to resolve
-    """
-    config.resolve_paths()
-
-def validate_fasta_file(filepath: str) -> None:
-    """Basic FASTA file validation."""
-    if not os.path.exists(filepath):
-        raise ValueError(f"File does not exist: {filepath}")
-        
-    with open(filepath) as f:
-        first_line = f.readline().strip()
-        if not first_line.startswith('>'):
-            raise ValueError(f"Invalid FASTA format in {filepath}")
-
