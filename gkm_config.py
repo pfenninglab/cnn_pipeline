@@ -241,28 +241,38 @@ class FASTAHandler:
     """Handles reading and validation of FASTA files."""
     
     @staticmethod
-    def combine_files(input_files: List[PathLike], output_file: PathLike) -> int:
+    def combine_files(input_files: List, output_file: str) -> int:
         """Combine multiple FASTA files into one and return sequence count.
         
         Args:
-            input_files: List of input FASTA files
+            input_files: List of input FASTA files (can be strings or dicts)
             output_file: Path for combined output
             
         Returns:
             Number of sequences in combined file
         """
+        def get_file_path(file_input):
+            """Extract file path from different input types."""
+            if isinstance(file_input, str):
+                return file_input
+            if isinstance(file_input, dict):
+                # Try to extract path from dictionary
+                return file_input.get('intervals') or file_input.get('genome')
+            raise ValueError(f"Cannot extract file path from {file_input}")
+        
         count = 0
         with open(output_file, 'w') as outfile:
             for file in input_files:
-                with open(file) as infile:
+                file_path = get_file_path(file)
+                with open(file_path) as infile:
                     for line in infile:
                         if line.startswith('>'):
                             count += 1
                         outfile.write(line)
-        return count
-        
+        return count        
+    
     @staticmethod
-    def count_sequences(fasta_file: PathLike) -> int:
+    def count_sequences(fasta_file: str) -> int:
         """Count number of sequences in a FASTA file."""
         count = 0
         with open(fasta_file) as f:
@@ -272,54 +282,86 @@ class FASTAHandler:
         return count
     
     @staticmethod
-    def validate_format(fasta_file: PathLike) -> None:
+    def validate_format(fasta_file: str) -> None:
         """Validate FASTA file format."""
         with open(fasta_file) as f:
             first_line = f.readline().strip()
             if not first_line.startswith('>'):
                 raise GkmError(f"Invalid FASTA format in {fasta_file}")
-
+    
     @staticmethod
-    def bed_to_fasta(bed_file: PathLike, 
-                     genome_file: PathLike,
-                     output_path: PathLike) -> None:
-        """Convert BED file to FASTA using bedtools."""
-        bed_file = Path(bed_file)
-        genome_file = Path(genome_file)
-        output_path = Path(output_path)
+    def bed_to_fasta(bed_file: str, 
+                     genome_file: str,
+                     output_path: str) -> str:
+        """Convert BED file to FASTA using bedtools.
         
-        # Validate paths
-        Validator.validate_input_file(bed_file)
-        Validator.validate_input_file(genome_file)
-        Validator.validate_output_path(output_path)
-
-        # Check bedtools
-        if subprocess.run(['which', 'bedtools'], capture_output=True).returncode != 0:
+        Args:
+            bed_file: Path to input BED file
+            genome_file: Path to genome file
+            output_path: Desired output FASTA path
+        
+        Returns:
+            Path to the FASTA file (either newly created or existing)
+        """
+        def check_input_file(file_path):
+            """Simple input file validation."""
+            if not os.path.exists(file_path):
+                raise GkmError(f"File does not exist: {file_path}")
+            if not os.access(file_path, os.R_OK):
+                raise GkmError(f"File is not readable: {file_path}")
+        
+        # Check if FASTA file already exists and is valid
+        if os.path.exists(output_path):
+            try:
+                FASTAHandler.validate_format(output_path)
+                # If validation passes, return the existing file path
+                return output_path
+            except GkmError:
+                # If existing file is invalid, proceed with conversion
+                pass
+        
+        # Validate input paths
+        check_input_file(bed_file)
+        check_input_file(genome_file)
+        
+        # Ensure output directory exists
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # Check bedtools availability
+        if os.system(['which bedtools']).returncode != 0:
             raise GkmError("bedtools command not found")
-
+        
         try:
             # Check for name column
             with open(bed_file) as f:
                 has_name_column = len(f.readline().strip().split('\t')) >= 4
             
+            # Prepare bedtools command
             cmd = ['bedtools', 'getfasta', 
-                  '-fi', str(genome_file), 
-                  '-bed', str(bed_file)]
+                  '-fi', genome_file, 
+                  '-bed', bed_file]
             if has_name_column:
                 cmd.append('-name')
-            cmd.extend(['-fo', str(output_path)])
-                
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            cmd.extend(['-fo', output_path])
+            
+            print(cmd)
+            print(type(cmd))
+            # Run conversion
+            result = os.system(' '.join(cmd))
             if result.returncode != 0:
                 raise GkmError(f"bedtools failed: {result.stderr}")
             
-            if not output_path.exists():
+            # Verify file creation
+            if not os.path.exists(output_path):
                 raise GkmError(f"FASTA file not created: {output_path}")
+            
+            # Validate FASTA format
             FASTAHandler.validate_format(output_path)
+            
+            return output_path
             
         except Exception as e:
             raise GkmError(f"BED to FASTA conversion failed: {str(e)}")
-
 
 @dataclass
 class GkmParams:
@@ -366,7 +408,7 @@ class GkmConfig:
     val_targets: List[Union[int, Dict[str, int]]] = field(default_factory=list)
     additional_val_data_paths: List[List[Union[str, Dict[str, str]]]] = field(default_factory=list)
     additional_val_targets: List[List[int]] = field(default_factory=list)
-    
+        
     def __post_init__(self):
         """Initialize path manager and resolve data paths."""
         self.path_manager = PathManager(self.dir)
@@ -406,10 +448,28 @@ class GkmConfig:
             )
         return pred_dir / f"{self.name}_{test_name}_predictions.txt"
 
-    def get_train_files(self) -> Tuple[List[Path], List[Path]]:
-        """Get positive and negative training files."""
-        pos_files = [p for p, t in zip(self.train_data_paths, self.train_targets) if t == 1]
-        neg_files = [p for p, t in zip(self.train_data_paths, self.train_targets) if t == 0]
+    def _get_file_path(self, path_spec: Union[str, Dict[str, str]]) -> str:
+        """Extract file path from CNN pipeline path specification."""
+        if isinstance(path_spec, dict):
+            if 'intervals' in path_spec:
+                return path_spec['intervals']
+            elif 'genome' in path_spec:
+                return path_spec['genome']
+            raise ValueError(f"Invalid path specification: {path_spec}")
+        return path_spec
+
+    def get_train_files(self) -> Tuple[List[str], List[str]]:
+        """Get positive and negative training files as FASTA."""
+        pos_files = [
+            str(path.file_path) 
+            for path, t in zip(self._train_paths, self.train_targets) 
+            if t == 1
+        ]
+        neg_files = [
+            str(path.file_path) 
+            for path, t in zip(self._train_paths, self.train_targets) 
+            if t == 0
+        ]
         
         if not pos_files:
             raise ValueError("No positive training files found")
@@ -418,11 +478,33 @@ class GkmConfig:
             
         return pos_files, neg_files
 
-    def get_val_files(self) -> Tuple[List[Path], List[Path]]:
-        """Get positive and negative validation files."""
-        pos_files = [p for p, t in zip(self.val_data_paths, self.val_targets) if t == 1]
-        neg_files = [p for p, t in zip(self.val_data_paths, self.val_targets) if t == 0]
+    def get_val_files(self) -> Tuple[List[str], List[str]]:
+        """Get positive and negative validation files as FASTA."""
+        pos_files = [
+            str(path.file_path) 
+            for path, t in zip(self._val_paths, self.val_targets) 
+            if t == 1
+        ]
+        neg_files = [
+            str(path.file_path) 
+            for path, t in zip(self._val_paths, self.val_targets) 
+            if t == 0
+        ]
         return pos_files, neg_files
+
+    def get_additional_val_files(self) -> List[Tuple[List[str], List[int]]]:
+        """Get additional validation files with their targets."""
+        additional_val_files = []
+        
+        for paths, targets in zip(self._additional_val_paths, self.additional_val_targets):
+            # Convert paths to strings
+            files = [str(path.file_path) for path in paths]
+            
+            # Match files to targets
+            additional_val_files.append((files, targets))
+        
+        return additional_val_files
+
 
     def get_run_prefix(self) -> str:
         """Generate unique prefix incorporating key parameters and config name."""
@@ -578,35 +660,35 @@ class GkmConfig:
             '-T', str(self.num_threads)
         ]
 
-
     def validate(self) -> None:
-        """Validate entire configuration.
+        """Validate entire configuration."""
+        # Validate data path structure
+        if len(self.train_data_paths) != len(self.train_targets):
+            raise ValueError("Number of training paths must match number of targets")
+            
+        if len(self.val_data_paths) != len(self.val_targets):
+            raise ValueError("Number of validation paths must match number of targets")
+            
+        if len(self.additional_val_data_paths) != len(self.additional_val_targets):
+            raise ValueError("Number of additional validation sets must match number of targets")
         
-        Raises:
-            ConfigValidationError: If validation fails
-        """
-        # Run all validations and collect results
-        result = ValidationResult(is_valid=True)
-        
-        # Core parameter validation
-        param_result = self._validate_parameters()
-        result.merge(param_result)
-        
-        # Data configuration validation
-        data_result = self._validate_data_config()
-        result.merge(data_result)
-        
-        # Path validation
-        path_result = self._validate_paths()
-        result.merge(path_result)
-        
-        # Handle validation outcome
-        if result.warnings:
-            for warning in result.warnings:
-                logger.warning(warning)
-                
-        if not result.is_valid:
-            raise ConfigValidationError("\n".join(result.errors))
+        # Validate individual paths
+        for paths in [self.train_data_paths, self.val_data_paths]:
+            for path in paths:
+                file_path = self._get_file_path(path)
+                if not os.path.exists(file_path):
+                    raise FileNotFoundError(f"Data file not found: {file_path}")
+
+        for path_set in self.additional_val_data_paths:
+            for path in path_set:
+                file_path = self._get_file_path(path)
+                if not os.path.exists(file_path):
+                    raise FileNotFoundError(f"Additional validation file not found: {file_path}")
+
+        # Validate other parameters using existing validation logic
+        self._validate_paths()
+        self._validate_parameters()
+
 
     def _validate_parameters(self) -> ValidationResult:
         """Validate GkmParams configuration."""
@@ -668,40 +750,77 @@ class GkmConfig:
         return result
 
     def _validate_paths(self) -> ValidationResult:
-        """Validate all data paths."""
+        """Validate all data paths and convert BED files to FASTA."""
         result = ValidationResult(is_valid=True)
         
         # Validate training paths
+        validated_train_paths = []
         for path in self._train_paths:
-            if not path.file_path.exists():
-                result.add_error(f"Training file does not exist: {path.file_path}")
-            # Validate FASTA format only if file exists
-            elif not path.genome_path:  # Only validate FASTA files, not BED files
-                try:
-                    FASTAHandler.validate_format(path.file_path)
-                except GkmError as e:
-                    result.add_error(str(e))
-                    
-        # Validate validation paths
-        for path in self._val_paths:
-            if not path.file_path.exists():
-                result.add_error(f"Validation file does not exist: {path.file_path}")
-            elif not path.genome_path:
-                try:
-                    FASTAHandler.validate_format(path.file_path)
-                except GkmError as e:
-                    result.add_error(str(e))
-                    
-        # Validate additional validation paths
-        for path_set in self._additional_val_paths:
-            for path in path_set:
-                if not path.file_path.exists():
-                    result.add_error(f"Additional validation file does not exist: {path.file_path}")
-                elif not path.genome_path:
+            try:
+                # Convert to FASTA and get the path
+                fasta_path = path.get_fasta()
+                
+                if not fasta_path.exists():
+                    result.add_error(f"Training file does not exist: {fasta_path}")
+                else:
                     try:
-                        FASTAHandler.validate_format(path.file_path)
+                        FASTAHandler.validate_format(fasta_path)
+                        validated_train_paths.append(DataPath(file_path=fasta_path))
                     except GkmError as e:
                         result.add_error(str(e))
-                        
+            except Exception as e:
+                result.add_error(f"Error processing training path {path.file_path}: {str(e)}")
+        
+        # Overwrite training paths with validated FASTA paths
+        self._train_paths = validated_train_paths
+
+        # Validate validation paths
+        validated_val_paths = []
+        for path in self._val_paths:
+            try:
+                # Convert to FASTA and get the path
+                fasta_path = path.get_fasta()
+                
+                if not fasta_path.exists():
+                    result.add_error(f"Validation file does not exist: {fasta_path}")
+                else:
+                    try:
+                        # Assuming FASTAHandler exists - replace with appropriate validation
+                        FASTAHandler.validate_format(fasta_path)
+                        validated_val_paths.append(DataPath(file_path=fasta_path))
+                    except GkmError as e:
+                        result.add_error(str(e))
+            except Exception as e:
+                result.add_error(f"Error processing validation path {path.file_path}: {str(e)}")
+        
+        # Overwrite validation paths with validated FASTA paths
+        self._val_paths = validated_val_paths
+
+        # Validate additional validation paths
+        validated_additional_val_paths = []
+        for path_set in self._additional_val_paths:
+            validated_set = []
+            for path in path_set:
+                try:
+                    # Convert to FASTA and get the path
+                    fasta_path = path.get_fasta()
+                    
+                    if not fasta_path.exists():
+                        result.add_error(f"Additional validation file does not exist: {fasta_path}")
+                    else:
+                        try:
+                            # Assuming FASTAHandler exists - replace with appropriate validation
+                            FASTAHandler.validate_format(fasta_path)
+                            validated_set.append(DataPath(file_path=fasta_path))
+                        except GkmError as e:
+                            result.add_error(str(e))
+                except Exception as e:
+                    result.add_error(f"Error processing additional validation path {path.file_path}: {str(e)}")
+            
+            validated_additional_val_paths.append(validated_set)
+        
+        # Overwrite additional validation paths with validated FASTA paths
+        self._additional_val_paths = validated_additional_val_paths
+
         return result
 
