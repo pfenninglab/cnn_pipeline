@@ -118,7 +118,14 @@ def train_model(config: GkmConfig) -> str:
     model_dir = model_base_dir / "lsgkm" / config.name
     model_dir.mkdir(parents=True, exist_ok=True)
     
-    # Create combined FASTA files
+    # Check if model already exists
+    model_prefix = config.get_run_prefix()
+    expected_model_path = f"{model_dir / model_prefix}.model.txt"
+    if os.path.exists(expected_model_path):
+        logger.info(f"Model already exists at {expected_model_path}, skipping training")
+        return expected_model_path
+
+    # Rest of the training code remains the same...
     pos_output = model_dir / f"{config.name}-pos.fa"
     neg_output = model_dir / f"{config.name}-neg.fa"
     
@@ -265,43 +272,100 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray,
 
     return metrics
 
-def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
-    """Evaluate model on training, validation and additional sets.
+
+def parse_prediction_file(pred_file: str) -> np.ndarray:
+    """Parse prediction file handling both single-column and tab-separated formats.
     
     Args:
-        config: GkmConfig object with evaluation parameters
-        model_path: Path to trained model file
+        pred_file: Path to prediction file
         
     Returns:
-        Dictionary of evaluation metrics
+        numpy array of prediction scores
     """
+    predictions = []
+    with open(pred_file) as f:
+        for line in f:
+            # Split on tab and take the last field which contains the score
+            score = line.strip().split('\t')[-1]
+            try:
+                predictions.append(float(score))
+            except ValueError as e:
+                raise GkmTrainerError(f"Invalid prediction score format in {pred_file}: {line.strip()}")
+    return np.array(predictions)
+
+
+def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
+    """Evaluate model on training, validation and additional sets."""
     results = {}
     
     # Training set metrics
     pos_train, neg_train = _get_files_by_class(
         config.train_data_paths, config.train_targets)
+        
+    # Count sequences in each file
+    pos_count = sum(count_sequences_in_fasta(f) for f in pos_train)
+    neg_count = sum(count_sequences_in_fasta(f) for f in neg_train)
     
-    train_pred = predict(config, model_path, pos_train[0])
-    with open(train_pred) as f:
-        y_pred = np.array([float(line.strip()) for line in f])
+    # Predict on all files
+    all_predictions = []
+    for file in pos_train + neg_train:
+        pred_file = predict(config, model_path, file)
+        predictions = parse_prediction_file(pred_file)
+        all_predictions.extend(predictions)
+    
+    y_pred = np.array(all_predictions)
     y_true = np.concatenate([
-        np.ones(len(pos_train)), 
-        np.zeros(len(neg_train))
+        np.ones(pos_count),
+        np.zeros(neg_count)
     ])
+    
+    # Verify lengths match
+    if len(y_true) != len(y_pred):
+        raise GkmTrainerError(
+            f"Length mismatch after combining all files:\n"
+            f"Total predictions: {len(y_pred)}\n"
+            f"Expected total (pos + neg): {len(y_true)}\n"
+            f"Positive count: {pos_count}\n"
+            f"Negative count: {neg_count}\n"
+            f"Positive files: {pos_train}\n"
+            f"Negative files: {neg_train}"
+        )
+    
     results.update(compute_metrics(y_true, y_pred))
 
     # Validation set metrics if available
     if config.val_data_paths:
         pos_val, neg_val = _get_files_by_class(
             config.val_data_paths, config.val_targets)
+            
+        # Count sequences in validation files
+        pos_count = sum(count_sequences_in_fasta(f) for f in pos_val)
+        neg_count = sum(count_sequences_in_fasta(f) for f in neg_val)
         
-        val_pred = predict(config, model_path, pos_val[0]) 
-        with open(val_pred) as f:
-            y_pred = np.array([float(line.strip()) for line in f])
+        # Predict on all validation files
+        all_predictions = []
+        for file in pos_val + neg_val:
+            pred_file = predict(config, model_path, file)
+            predictions = parse_prediction_file(pred_file)
+            all_predictions.extend(predictions)
+        
+        y_pred = np.array(all_predictions)
         y_true = np.concatenate([
-            np.ones(len(pos_val)),
-            np.zeros(len(neg_val))
+            np.ones(pos_count),
+            np.zeros(neg_count)
         ])
+        
+        if len(y_true) != len(y_pred):
+            raise GkmTrainerError(
+                f"Validation set length mismatch:\n"
+                f"Total predictions: {len(y_pred)}\n"
+                f"Expected total (pos + neg): {len(y_true)}\n"
+                f"Positive count: {pos_count}\n"
+                f"Negative count: {neg_count}\n"
+                f"Positive files: {pos_val}\n"
+                f"Negative files: {neg_val}"
+            )
+            
         results.update(compute_metrics(y_true, y_pred, prefix='val_'))
 
     # Additional validation sets if available
@@ -312,13 +376,34 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
         ), 1):
             pos_files, neg_files = _get_files_by_class(paths, targets)
             
-            pred_file = predict(config, model_path, pos_files[0])
-            with open(pred_file) as f:
-                y_pred = np.array([float(line.strip()) for line in f])
+            # Count sequences in additional validation files
+            pos_count = sum(count_sequences_in_fasta(f) for f in pos_files)
+            neg_count = sum(count_sequences_in_fasta(f) for f in neg_files)
+            
+            # Predict on all files in this validation set
+            all_predictions = []
+            for file in pos_files + neg_files:
+                pred_file = predict(config, model_path, file)
+                predictions = parse_prediction_file(pred_file)
+                all_predictions.extend(predictions)
+            
+            y_pred = np.array(all_predictions)
             y_true = np.concatenate([
-                np.ones(len(pos_files)),
-                np.zeros(len(neg_files))
+                np.ones(pos_count),
+                np.zeros(neg_count)
             ])
+            
+            if len(y_true) != len(y_pred):
+                raise GkmTrainerError(
+                    f"Additional validation set {i} length mismatch:\n"
+                    f"Total predictions: {len(y_pred)}\n"
+                    f"Expected total (pos + neg): {len(y_true)}\n"
+                    f"Positive count: {pos_count}\n"
+                    f"Negative count: {neg_count}\n"
+                    f"Positive files: {pos_files}\n"
+                    f"Negative files: {neg_files}"
+                )
+                
             results.update(compute_metrics(y_true, y_pred, prefix=f'val_{i}_'))
 
     return results
