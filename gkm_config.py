@@ -28,6 +28,36 @@ def validate_fasta_file(filepath: str) -> None:
             raise ValueError(f"Invalid FASTA format in {filepath}")
 
 
+def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: Optional[str] = None) -> float:
+    """Calculate positive class weight based on sequence counts.
+    
+    Args:
+        pos_count: Number of positive sequences
+        neg_count: Number of negative sequences
+        weighting_scheme: Strategy for weight calculation:
+            - 'reciprocal': weight = (N/k) / n_i where N is total samples, k is classes (2)
+            - 'proportional': weight = fraction of samples in other classes
+            - None or 'none': no weighting (weight = 1.0)
+        
+    Returns:
+        Weight value for positive class (SVM -w parameter)
+    """
+    if weighting_scheme in [None, 'none']:
+        return 1.0
+        
+    total_count = pos_count + neg_count
+    
+    if weighting_scheme == 'reciprocal':
+        # Chai's balancing method 
+        balanced_count = total_count / 2
+        return balanced_count / pos_count
+        
+    elif weighting_scheme == 'proportional':
+        # Irene's balancing method
+        return neg_count / total_count
+        
+    return 1.0  # Default to no weighting for unknown schemes
+
 @dataclass
 class GkmConfig:
     """Configuration for gkm-SVM models with CNN pipeline compatibility.
@@ -336,22 +366,7 @@ class GkmConfig:
             'output_prefix': yaml_dict.get('output_prefix', {}).get('value'),
             'dir': yaml_dict.get('dir', {}).get('value'),
             'class_weight': yaml_dict.get('class_weight', {}).get('value', 'none'),  # Add class_weight
-            
-            # Core parameters
-            'word_length': yaml_dict.get('word_length', {}).get('value', 11),
-            'informed_cols': yaml_dict.get('informed_cols', {}).get('value', 7),
-            'max_mismatch': yaml_dict.get('max_mismatch', {}).get('value', 3),
-            'kernel_type': yaml_dict.get('kernel_type', {}).get('value', 4),
-            
-            # Kernel parameters
-            'gamma': yaml_dict.get('gamma', {}).get('value', 1.0),
-            'init_decay': yaml_dict.get('init_decay', {}).get('value', 50),
-            'half_life': yaml_dict.get('half_life', {}).get('value', 50.0),
-            
-            # Runtime parameters
-            'verbosity': yaml_dict.get('verbosity', {}).get('value', 2),
-            'num_threads': yaml_dict.get('num_threads', {}).get('value', 1),
-            
+                       
             # Data paths
             'train_data_paths': yaml_dict.get('train_data_paths', {}).get('value', []),
             'train_targets': yaml_dict.get('train_targets', {}).get('value', []),
@@ -422,34 +437,3 @@ class GkmConfig:
             '-v', str(self.verbosity),
             '-T', str(self.num_threads)
         ]
-
-
-def calculate_class_weight(pos_count: int, neg_count: int, weighting_scheme: Optional[str] = None) -> float:
-    """Calculate positive class weight based on sequence counts.
-    
-    Args:
-        pos_count: Number of positive sequences
-        neg_count: Number of negative sequences
-        weighting_scheme: Strategy for weight calculation:
-            - 'reciprocal': weight = (N/k) / n_i where N is total samples, k is classes (2)
-            - 'proportional': weight = fraction of samples in other classes
-            - None or 'none': no weighting (weight = 1.0)
-        
-    Returns:
-        Weight value for positive class (SVM -w parameter)
-    """
-    if weighting_scheme in [None, 'none']:
-        return 1.0
-        
-    total_count = pos_count + neg_count
-    
-    if weighting_scheme == 'reciprocal':
-        # Chai's balancing method 
-        balanced_count = total_count / 2
-        return balanced_count / pos_count
-        
-    elif weighting_scheme == 'proportional':
-        # Irene's balancing method
-        return neg_count / total_count
-        
-    return 1.0  # Default to no weighting for unknown schemes
