@@ -210,7 +210,48 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray,
     return metrics
 
 def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
-    """Evaluate model on validation and additional validation sets only."""
+    """Evaluate model on validation and additional validation sets only.
+    If results JSON already exists and is valid, return those results instead.
+    """
+    # Check for existing results
+    results_path = f"{os.path.splitext(model_path)[0]}_results.json"
+    if os.path.exists(results_path):
+        try:
+            with open(results_path) as f:
+                saved_results = json.load(f)
+                
+            # Basic validation of results structure
+            if isinstance(saved_results, dict) and 'results' in saved_results:
+                results = saved_results['results']
+                
+                # Verify results contain expected metrics
+                expected_metrics = []
+                
+                # Main validation metrics
+                if config.val_data_paths:
+                    expected_metrics.extend([
+                        'val_auroc', 'val_auprc', 'val_precision',
+                        'val_recall', 'val_f1'
+                    ])
+                
+                # Additional validation metrics
+                if config.additional_val_data_paths:
+                    for idx in range(1, len(config.additional_val_data_paths) + 1):
+                        expected_metrics.extend([
+                            f'val_{idx}_auroc', f'val_{idx}_auprc',
+                            f'val_{idx}_precision', f'val_{idx}_recall',
+                            f'val_{idx}_f1'
+                        ])
+                
+                # Check if all expected metrics exist
+                if all(metric in results for metric in expected_metrics):
+                    return results
+
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # If any error occurs reading/validating results, regenerate them
+            pass
+
+    # If we get here, need to generate results
     base_dir = config.dir if config.dir else os.getcwd()
     model_dir = os.path.join(base_dir, "lsgkm", config.name)
     results = {}
@@ -297,13 +338,20 @@ def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
 
 
 def save_results(config: GkmConfig, results: Dict[str, float], model_path: str) -> str:
-    """Save evaluation results to JSON."""
+    """Save evaluation results to JSON if not already saved."""
     output_path = f"{os.path.splitext(model_path)[0]}_results.json"
+    
+    # Skip if results file already exists
+    if os.path.exists(output_path):
+        return output_path
+        
+    # Save new results file
     with open(output_path, 'w') as f:
         json.dump({
             'config': vars(config),
             'results': results
         }, f, indent=2)
+    
     return output_path
 
 
