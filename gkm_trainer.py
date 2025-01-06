@@ -210,49 +210,10 @@ def compute_metrics(y_true: np.ndarray, y_pred: np.ndarray,
     return metrics
 
 def evaluate_model(config: GkmConfig, model_path: str) -> Dict[str, float]:
-    """Evaluate model on training, validation and additional sets."""
+    """Evaluate model on validation and additional validation sets only."""
     base_dir = config.dir if config.dir else os.getcwd()
     model_dir = os.path.join(base_dir, "lsgkm", config.name)
     results = {}
-
-    # Evaluate training set
-    train_pos_fa = os.path.join(model_dir, f"{config.name}-train-pos.fa")
-    train_neg_fa = os.path.join(model_dir, f"{config.name}-train-neg.fa")
-    
-    # Create combined training files if needed
-    pos_files, neg_files = _get_files_by_class(
-        config.train_data_paths, config.train_targets)
-
-    # Create positive training file
-    if not os.path.exists(train_pos_fa):
-        with open(train_pos_fa, 'w') as outfile:
-            for f in pos_files:
-                with open(f) as infile:
-                    outfile.write(infile.read())
-                    
-    # Create negative training file
-    if not os.path.exists(train_neg_fa):
-        with open(train_neg_fa, 'w') as outfile:
-            for f in neg_files:
-                with open(f) as infile:
-                    outfile.write(infile.read())
-    
-    # Get training predictions
-    train_pos_pred = predict(config, model_path, train_pos_fa, 'train', 'pos')
-    train_neg_pred = predict(config, model_path, train_neg_fa, 'train', 'neg')
-    
-    # Load scores from predictions
-    with open(train_pos_pred) as f:
-        pos_pred = [float(line.split('\t')[1] if '\t' in line else line.split()[1]) 
-                   for line in f if line.strip()]
-    with open(train_neg_pred) as f:
-        neg_pred = [float(line.split('\t')[1] if '\t' in line else line.split()[1])
-                   for line in f if line.strip()]
-        
-    # Calculate training metrics
-    y_true = np.concatenate([np.ones(len(pos_pred)), np.zeros(len(neg_pred))])
-    y_pred = np.concatenate([pos_pred, neg_pred])
-    results.update(compute_metrics(y_true, y_pred, prefix=''))
 
     # Evaluate validation set if present
     if config.val_data_paths:
