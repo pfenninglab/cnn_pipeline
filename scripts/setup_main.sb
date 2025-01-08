@@ -7,7 +7,7 @@
 # Check arguments
 cluster_name=$1
 if [ "$cluster_name" = "lane" ]; then
-	env_vars="PARTITION_GPU=pfen3 GRES=gpu:1 EXTRA=--mem=16000 PARTITION_NO_GPU=pool1 TIME_LIMIT=24:00:00 CLUSTER_NAME=lane"
+	env_vars="PARTITION_GPU=pfen3 GRES=gpu:1 EXTRA=--mem=16000 PARTITION_NO_GPU=pool1 TIME_LIMIT=1000:00:00 CLUSTER_NAME=lane"
 elif [ "$cluster_name" = "bridges" ]; then
 	env_vars="PARTITION_GPU=GPU-shared GRES=gpu:v100-32:1 EXTRA=--nodes=1 PARTITION_NO_GPU=RM-shared TIME_LIMIT=8:00:00 CLUSTER_NAME=bridges"
 else
