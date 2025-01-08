@@ -2,14 +2,21 @@
 #
 # Usage: bash train.sh <path to config>
 
-# Activate environment
-source activate keras2-tf27
+# If training env isn't already activated, then activate it
+if [ "$CONDA_DEFAULT_ENV" != "keras2-tf27" ]; then
+        source activate keras2-tf27
+fi
 
 # Check environment variables
 if [[ -z $PARTITION_GPU ]]
 then
     echo "Error: \$PARTITION_GPU is not set."
     exit 1
+fi
+
+if [[ -z $TIME_LIMIT ]]
+then
+    TIME_LIMIT="8:00:00"
 fi
 
 # Check arguments
@@ -22,4 +29,4 @@ then
     exit 1
 fi
 
-sbatch -p $PARTITION_GPU --gres $GRES $EXTRA scripts/train_main.sb $config_path
+sbatch -p $PARTITION_GPU -t $TIME_LIMIT --gres $GRES $EXTRA scripts/train_main.sb $config_path
