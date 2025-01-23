@@ -27,7 +27,7 @@ def train(args):
 	# Start `wandb`
 	config, project = utils.get_config(args.config)
 	#########################################################
-	wandb.init(config=config, project=project, mode=args.wandb_mode,dir='/projects/pfenninggroup/ad_mpra_ml/wandb')#20240508
+	wandb.init(config=config, project=project, mode=args.wandb_mode,dir='/ocean/projects/bio210062p/zihengc')#20240729
 	#########################################################
 	utils.validate_config(wandb.config)
 

@@ -22,4 +22,6 @@ then
     exit 1
 fi
 
+export PARTITION_GPU="GPU-shared"
+
 sbatch -p $PARTITION_GPU scripts/train_main.sb $config_path #-w compute-4-20 

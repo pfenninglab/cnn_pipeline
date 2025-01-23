@@ -1,6 +1,6 @@
 #!/bin/bash
-
-#SBATCH --gres gpu:1
+#SBATCH -t 3:00:00
+#SBATCH --gres=gpu:v100-32
 #SBATCH -n 1
 #SBATCH -o logs/out.txt
 #SBATCH -e logs/err.txt

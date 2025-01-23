@@ -36,8 +36,8 @@ CONFIG_EXPECTED_KEYS = {
 	'dense_filters': [int, list],
 	'shap_num_bg': int,
 	'shap_num_fg': int,
-	'shap_pos_label': int,
-	'modisco_normalization': str
+	#'shap_pos_label': int,
+	#'modisco_normalization': str
 }
 
 def validate_config(config_dict):
