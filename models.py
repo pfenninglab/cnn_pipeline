@@ -260,130 +260,153 @@ def validate(config, model):
 	return res
 
 def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=None, use_reverse_complement=True,
-	write_csv=False, score_column=None, batch_size=constants.DEFAULT_BATCH_SIZE, bayesian=False):
-	"""Use the model to predict on all sequences, and save the activations.
+    write_csv=False, score_column=None, batch_size=constants.DEFAULT_BATCH_SIZE, bayesian=False, include_names=False,
+    aggregate_method=None):
+    """Use the model to predict on all sequences, and save the activations.
+    
+    Added Args:
+        aggregate_method (str): How to combine sequence and reverse complement predictions
+            None: Keep separate predictions (default)
+            'average': Simple arithmetic mean
+            'logit_average': Average in logit space then transform back
+    """
+    import scipy.special
 
-	Args:
-		model (keras model or str)
-		in_files (str or list of str): paths to input .fa, .bed, or .narrowPeak files.
-		in_genomes (str or list of str): paths to corresponding genome .fa files,
-			if in_files are .bed or .narrowPeak. You must pass the same number of
-			in_genomes as in_files.
-		out_file (str): path to output file, .npy or .csv
-		layer_name (str): layer of model to get activations from. Default is the output layer.
-		use_reverse_complement (bool): if True, then evaluate on reverse complement sequences as well.
-			The order of the output predictions is then:
-			pred(example_1), pred(revcomp(example_1)), ..., pred(example_n), pred(revcomp(example_n))
-		write_csv (bool): whether to write activations to csv
-			if False, then activations will be saved as a numpy array, dimension [num_examples, dim_1, ..., dim_n]
-			if True, then activations will be saved as rows in a csv. This can only be used with
-			a layer whose output shape is rank 2, i.e. a layer with output shape (None, N).
-		score_column (int, string, or None): which unit of the layer to get the score from.
-			if int: select the unit with that index. for example:
-				choose 0 to get the first unit (e.g. single-output regression)
-				choose 1 to get the second unit (e.g. probability of positive class for binary classification)
-			if 'all': return all the scores for this layer (e.g. intermediate layer activations)
-			if None: behavior is based on the layer_name:
-				if layer_name is None (output layer), then get the last unit in the output layer
-				if layer_name is an intermediate layer, then equivalent to 'all'
-		bayesian (bool): whether to run model in Bayesian inference mode.
-			if False, then output fixed predictions
-			if True, then output Bayesian predictions (N=64 trials) for each input
-	"""
-	score_column_all = 'all'
+    def logit(x):
+        return np.log(x/(1-x))
+        
+    def logistic(x):
+        return scipy.special.expit(x)
 
-	# Check combination of inputs
-	if write_csv and (score_column == score_column_all) and bayesian:
-		raise IOError('Invalid argument combination. If doing Bayesian inference and writing to csv, then choose a single score_column, or pass score_column=None for default behavior.')
-	if write_csv and (layer_name is not None) and bayesian:
-		raise IOError('Invalid argument combination. If doing Bayesian inference and getting inner layer activations, then there are too many dimensions to write to .csv file. Omit --write_csv to save to .npy file instead.')
+    score_column_all = 'all'
 
-	# Load model from path, if necessary
-	if isinstance(model, str):
-		model = load_model(model)
+    # Validation checks
+    if write_csv and (score_column == score_column_all) and bayesian:
+        raise IOError('Invalid argument combination. If doing Bayesian inference and writing to csv, then choose a single score_column.')
+    if write_csv and (layer_name is not None) and bayesian:
+        raise IOError('Invalid argument combination. If doing Bayesian inference and getting inner layer activations, use .npy format.')
+    if aggregate_method not in [None, 'average', 'logit_average']:
+        raise ValueError("aggregate_method must be None, 'average', or 'logit_average'")
 
-	# Convert score column to numeric, if possible
-	try:
-		# "1" -> 1
-		# 1 -> 1
-		score_column = int(score_column)
-	except:
-		# None -> None
-		# "all" -> "all"
-		pass
+    # Load model if needed
+    if isinstance(model, str):
+        model = load_model(model)
 
-	# Get output layer and score column
-	if layer_name is None:
-		out_layer = model.layers[-1]
-		# Apply score_column default
-		if score_column is None:
-			# The last unit in the output layer
-			score_column = out_layer.output_shape[1] - 1
-	else:
-		out_layer = model.get_layer(layer_name)
-		# Apply score_column default
-		if score_column is None:
-			# The entire layer
-			score_column = 'all'
-	out_shape = out_layer.output_shape
-	if write_csv and len(out_shape) != 2:
-		raise ValueError(f"Wrong layer shape for write_csv. Required shape is rank 2, i.e. [None, N], got layer {layer_name} with shape {out_shape}")
-	
-	# Check score column
-	if isinstance(score_column, int):
-		if score_column >= out_shape[1]:
-			raise ValueError(f"Invalid score_column, got {score_column} but layer shape is {out_shape}")
+    # Setup model and get predictions
+    if isinstance(score_column, str):
+        try:
+            score_column = int(score_column)
+        except:
+            pass
 
-	# Get model to evaluate
-	if layer_name is not None:
-		model = keras.Model(inputs=model.inputs, outputs=out_layer.output)
+    if layer_name is None:
+        out_layer = model.layers[-1]
+        if score_column is None:
+            score_column = out_layer.output_shape[1] - 1
+    else:
+        out_layer = model.get_layer(layer_name)
+        if score_column is None:
+            score_column = 'all'
+            
+    out_shape = out_layer.output_shape
+    if write_csv and len(out_shape) != 2:
+        raise ValueError(f"Wrong layer shape for write_csv. Required shape is rank 2, got layer {layer_name} with shape {out_shape}")
 
-	# Get dataset
-	if isinstance(in_files, str):
-		in_files = [in_files]
-	if isinstance(in_genomes, str):
-		in_genomes = [in_genomes]
-	if in_genomes is not None:
-		source_files = [
-			{"genome": in_genome, "intervals": in_file}
-			for (in_file, in_genome) in zip(in_files, in_genomes)]
-	else:
-		# in_files are .fa files
-		source_files = in_files
-	# Only the input sequences will be used, target is fake
-	data = dataset.SequenceTfDataset(
-		source_files, [0 for _ in source_files], targets_are_classes=True, endless=False, reverse_complement=use_reverse_complement)
+    if isinstance(score_column, int) and score_column >= out_shape[1]:
+        raise ValueError(f"Invalid score_column {score_column}, layer shape is {out_shape}")
 
-	# Generate predictions
-	print("Predicting...")
-	if bayesian:
-		predictions = predict_with_uncertainty(model, data.dataset[0], batch_size=batch_size, num_trials=64, return_trials=True)
-		# [num_examples, num_bayesian_trials, num_classes]
-		predictions = predictions['trials']
-	else:
-		# [num_examplesl, num_classes]
-		predictions = model.predict(data.dataset[0], batch_size=batch_size, verbose=1)
+    if layer_name is not None:
+        model = keras.Model(inputs=model.inputs, outputs=out_layer.output)
 
-	# Write to file
-	if out_file is not None:
-		print("Saving...")
-		if write_csv:
-			if score_column == score_column_all:
-				# Write entire activation as row
-				lines = predictions
-			else:
-				# Extract single value
-				if bayesian:
-					# [num_examples, num_bayesian_trials]
-					lines = predictions[:, :, score_column]
-				else:
-					# [num_examples,]
-					lines = predictions[:, score_column]
-			np.savetxt(out_file, lines, delimiter='\t', fmt='%.8e')
-		else:
-			np.save(out_file, predictions)
+    # Setup dataset
+    if isinstance(in_files, str):
+        in_files = [in_files]
+    if isinstance(in_genomes, str):
+        in_genomes = [in_genomes]
+        
+    if in_genomes is not None:
+        source_files = [{"genome": g, "intervals": f} for f, g in zip(in_files, in_genomes)]
+    else:
+        source_files = in_files
 
-	return predictions
+    data = dataset.SequenceTfDataset(
+        source_files, [0] * len(source_files),
+        targets_are_classes=True, endless=False,
+        reverse_complement=use_reverse_complement)
+
+    # Get sequence names if needed
+    seq_names = []
+    if include_names or aggregate_method:
+        if isinstance(source_files[0], dict):
+            for source in source_files:
+                with open(source["intervals"]) as f:
+                    seq_names.extend(line.split()[3] if len(line.split()) > 3 else f"region_{i}" 
+                                   for i, line in enumerate(f))
+        else:
+            for fasta in source_files:
+                with open(fasta) as f:
+                    seq_names.extend(line.strip()[1:] for line in f if line.startswith(">"))
+
+    # Generate predictions
+    print("Predicting...")
+    if bayesian:
+        predictions = predict_with_uncertainty(model, data.dataset[0], batch_size=batch_size, 
+                                            num_trials=64, return_trials=True)
+        predictions = predictions['trials']
+    else:
+        predictions = model.predict(data.dataset[0], batch_size=batch_size, verbose=1)
+
+    # Aggregate predictions if requested
+    if aggregate_method and use_reverse_complement:
+        if score_column == score_column_all:
+            forward = predictions[::2]
+            reverse = predictions[1::2]
+        else:
+            if bayesian:
+                forward = predictions[::2, :, score_column]
+                reverse = predictions[1::2, :, score_column]
+            else:
+                forward = predictions[::2, score_column]
+                reverse = predictions[1::2, score_column]
+                
+        if aggregate_method == 'average':
+            predictions = (forward + reverse) / 2
+        elif aggregate_method == 'logit_average':
+            predictions = logistic((logit(forward) + logit(reverse)) / 2)
+            
+        if use_reverse_complement:
+            seq_names = seq_names[::2]  # Keep only forward sequence names
+
+    # Write results
+    if out_file is not None:
+        print("Saving...")
+        if write_csv:
+            if score_column == score_column_all:
+                lines = predictions
+                if include_names:
+                    header = ["sequence_name"] + [f"score_{i}" for i in range(lines.shape[1])]
+                    with open(out_file, 'w') as f:
+                        f.write('\t'.join(header) + '\n')
+                        for name, scores in zip(seq_names, lines):
+                            f.write(f"{name}\t" + '\t'.join(f"{s:.8e}" for s in scores) + '\n')
+                else:
+                    np.savetxt(out_file, lines, delimiter='\t', fmt='%.8e')
+            else:
+                if bayesian:
+                    lines = predictions[:, :, score_column] if not aggregate_method else predictions
+                else:
+                    lines = predictions[:, score_column] if not aggregate_method else predictions
+                if include_names:
+                    with open(out_file, 'w') as f:
+                        f.write("sequence_name\tscore\n")
+                        for name, score in zip(seq_names, lines):
+                            f.write(f"{name}\t{score:.8e}\n")
+                else:
+                    np.savetxt(out_file, lines, delimiter='\t', fmt='%.8e')
+        else:
+            np.save(out_file, predictions)
+
+    return predictions
 
 class AdditionalValidation:
     """Validate on additional validation sets.

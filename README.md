@@ -235,12 +235,11 @@ additional_val_targets:
     - [0, 1]
 ```
 
-### Get activations from a trained model
+### Get activations from a trained model's layers
 
-Get the outputs of a trained model, or the inner-layer activations, using `scripts/get_activations.py`:
 ```
 Usage: python scripts/get_activations.py \
-  -model <path to model .h5>
+  -model <path to model .h5> \
   -in_files <paths to input .fa, .bed, or .narrowPeak file> \
   [-in_genomes <paths to genome .fa file, if in_file is .bed or .narrowPeak>] \
   -out_file <path to output file, .npy or .csv> \
@@ -248,27 +247,35 @@ Usage: python scripts/get_activations.py \
   [--no_reverse_complement, don't evaluate on reverse complement sequences] \
   [--write_csv, write activations as .csv file instead of .npy] \
   [-score_column <output unit to extract score, e.g. 1>. use 'all' to write all units in the layer] \
-  [--bayesian, do Bayesian inference with N=64 trials]
+  [--bayesian, do Bayesian inference with N=64 trials] \
+  [--name, include sequence names in CSV output] \
+  [--aggregate <average|logit_average>, combine forward/reverse predictions]
 
 Examples:
-
-1. Model is a binary classifier, output .csv file of probabilities for the positive class:
-  [don't pass -layer_name]
+1. Binary classifier with sequence names and logit-averaged predictions:
   --write_csv
-  (optional: --bayesian to get Bayesian predictions)
+  --name
+  --aggregate logit_average
+  -score_column 1
 
-2. Model is a regression model, output .csv file of predicted values:
-  [don't pass -layer_name]
+2. Binary classifier with raw predictions:
   --write_csv
-  (optional: --bayesian to get Bayesian predictions)
+  -score_column 1
+  (optional: --bayesian)
 
-3. Model is classification or regression, output .npy file of inner-layer activations:
+3. Regression model:
+  --write_csv
+  -score_column 0
+  (optional: --bayesian)
+
+4. Inner-layer activations:
   -layer_name <layer_name>
   -score_column all
-  [don't pass --write_csv]
 ```
 
-**NOTE:** By default, reverse complement sequences are included. The output file will have twice as many activations as the input file has sequences. The order of results is:
+## Prediction Handling
+
+By default, reverse complement sequences are included. The output contains:
 ```
 pred(example_1)
 pred(revcomp(example_1))
@@ -276,4 +283,31 @@ pred(revcomp(example_1))
 pred(example_n)
 pred(revcomp(example_n))
 ```
-To exclude reverse complement sequences, pass `--no_reverse_complement`.
+
+### Aggregation Options
+
+--aggregate controls how forward/reverse predictions are combined:
+
+- None (default): Keep separate predictions
+- average: `(pred(seq) + pred(revcomp))/2`
+- logit_average: `logistic((logit(pred(seq)) + logit(pred(revcomp)))/2)`
+
+### Output Format
+
+CSV output columns with --name and without aggregation:
+```
+sequence_name score
+seq1         pred(seq1)
+seq1_rev     pred(revcomp(seq1))
+seq2         pred(seq2)
+seq2_rev     pred(revcomp(seq2))
+```
+
+With --name and --aggregate:
+```
+sequence_name score
+seq1         aggregated_pred(seq1)
+seq2         aggregated_pred(seq2)
+```
+
+Use --no_reverse_complement to exclude reverse complement sequences.
