@@ -120,12 +120,37 @@ class BedSource:
         return res
 
     @staticmethod
-    def get_intervals(bed_file, genome_file=None):
-        """Get pybedtools.BedTool object from .bed or .narrowPeak file"""
-        with open(bed_file, "r") as f:
-            intervals = pybedtools.BedTool(f.read(), from_string=True)
-        if genome_file is not None:
-            intervals = intervals.sequence(fi=genome_file)
+    def get_intervals(self, bed_file, genome_file):
+        """Get intervals from a BED file.
+        
+        Args:
+            bed_file (str): path to BED file, can be gzipped
+            genome_file (str): path to genome FASTA file
+        """
+        import gzip
+        
+        # Check if file is gzipped
+        is_gzipped = bed_file.endswith('.gz')
+        
+        try:
+            if is_gzipped:
+                with gzip.open(bed_file, 'rt') as f:
+                    intervals = pybedtools.BedTool(f.read(), from_string=True)
+            else:
+                with open(bed_file, 'r') as f:
+                    intervals = pybedtools.BedTool(f.read(), from_string=True)
+        except UnicodeDecodeError:
+            # Handle gzipped files that don't have .gz extension
+            try:
+                with gzip.open(bed_file, 'rt') as f:
+                    intervals = pybedtools.BedTool(f.read(), from_string=True)
+            except:
+                raise IOError(f"Could not read file {bed_file} as text or gzipped file")
+                
+        # Set chromsizes from genome FASTA
+        genome = pybedtools.BedTool(genome_file)
+        intervals = intervals.set_chromsizes(genome_file)
+        
         return intervals
 
     @staticmethod
