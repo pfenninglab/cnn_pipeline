@@ -1,8 +1,9 @@
 # Project
+# Copied parameters from /home/araje/mouse_sst/configs/arian-motor-cortex-regression-config.yaml
 
 project:
   desc: Name of `wandb` project for tracking.
-  value: default-project
+  value: liver-regression
 
 entity:
   desc: Name of `wandb` account for tracking.
@@ -31,10 +32,10 @@ train_data_paths:
   #     - genome: genome.fa
   #       intervals: positives.bed
   value:
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_TRAIN.bed
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_TRAIN.bed
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseGenome/mm10.fa 
+      intervals: /home/azstephe/regression_liver/data/sorted_log_20615/splits/mousePos/mouse_liver_TRAINONLY.narrowPeak
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseGenome/mm10.fa
+      intervals: /home/azstephe/regression_liver/data/splits/negatives/nonMouse_liver_andRat_andCow_andPig_andMacaque_TRAIN_500bp.bed
 
 train_targets:
   desc: Targets corresponding to each training data path.
@@ -42,26 +43,26 @@ train_targets:
   # To extract the value from each line of a BED or NarrowPeak file, put:
   #     column: <column number>
   value:
+    - column: 4
     - 0
-    - 1
 
 val_data_paths:
   desc: Paths to FASTA, BED, or NarrowPeak files for validation data.
   value:
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_VAL.bed
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseGenome/mm10.fa 
+      intervals: /home/azstephe/regression_liver/data/sorted_log_20615/splits/mousePos/mouse_liver_VAL.narrowPeak
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseGenome/mm10.fa
+      intervals: /home/azstephe/regression_liver/data/splits/negatives/nonMouse_liver_andRat_andCow_andPig_andMacaque_VAL_500bp.bed
 
 val_targets:
   desc: Targets corresponding to each validation data path.
   value:
+    - column: 4
     - 0
-    - 1
 
 targets_are_classes:
   desc: Whether to treat targets as a set of discrete classes (classification) or as continuous values (regression).
-  value: true
+  value: false
 
 additional_val_data_paths:
   desc: Paths to additional validation datasets. Metrics will be reported for each set separately.
@@ -78,29 +79,15 @@ additional_val_data_paths:
   # it is fine to include a dataset with only negative or only positive examples, e.g.
   # - [set1_negatives.fa]
   value:
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval1_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval2_hg38_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval3_hg38_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval4_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval5_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval6_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval7_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval8_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval9_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval10_mm10_VAL.fa]
+    - [{genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseGenome/mm10.fa,
+        intervals: /home/azstephe/regression_liver/data/sorted_log_20615/splits/mousePos/mouse_liver_VAL.narrowPeak}]
+    - [{genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/MouseGenome/mm10.fa,
+        intervals: /home/azstephe/regression_liver/data/splits/negatives/nonMouse_liver_andRat_andCow_andPig_andMacaque_VAL_500bp.bed}]
 
 additional_val_targets:
   desc: Targets corresponding to additional validation paths.
   value:
-    - [1]
-    - [0]
-    - [1]
-    - [0]
-    - [1]
-    - [1]
-    - [0]
-    - [1]
-    - [1]
+    - [column: 4]
     - [0]
 
 # Training
@@ -111,7 +98,7 @@ model_checkpoint:
 
 batch_size:
   desc: Batch size for training and validation.
-  value: 512
+  value: 100
 
 num_epochs:
   desc: Number of training epochs.
@@ -124,10 +111,10 @@ metric_pos_label:
 early_stopping_callbacks:
   desc: Callbacks to use for early stopping. Use arguments as in tf.keras.callbacks.EarlyStopping.
   value:
-    - monitor: val_auprc
-      patience: 5
+    - monitor: val_loss
+      patience: 8
       verbose: 1
-      mode: max
+      mode: min
 
 use_exact_val_metrics:
   desc: If true, use exact validation metrics during training (requires loading whole validation set into RAM). If false, use a close approximation (+/- ~2%) that streams the validation set without loading into RAM.
@@ -147,7 +134,7 @@ loss_function:
   # classification: use 'sparse_categorical_crossentropy'
   # regression: use 'mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', or 'huber'
   allowed_values: ['sparse_categorical_crossentropy', 'mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', 'huber']
-  value: sparse_categorical_crossentropy
+  value: mean_squared_error
 
 # Optimization
 
@@ -179,15 +166,15 @@ lr_cyc_scale_fn:
 
 lr_init:
   desc: Initial learning rate.
-  value: 4.e-4
+  value: 5.e-4
 
 lr_max:
   desc: Maximum learning rate for cyclic LR schedule.
-  value: 1.e-2
+  value: 1.e-1
 
 lr_exp_decay_per_epoch:
   desc: Float in [0, 1]. Decay per epoch, for exponential LR schedule.
-  value: 0.95
+  value: 0.99
 
 lr_cyc_num_cycles:
   desc: Float > 0. Number of cycles, for cyclic LR schedule.
@@ -204,7 +191,7 @@ momentum_schedule:
 
 momentum_base:
   desc: Minimum momentum for cyclic momentum schedule.
-  value: 0.875
+  value: 0.85
 
 momentum_max:
   desc: Maximum momentum for cyclic momentum schedule.
@@ -243,25 +230,25 @@ l2_reg_final:
 
 dropout_rate_conv:
   desc: Float in [0, 1]. Rate for dropout after each convolutional layer.
-  value: 0.3
+  value: 0.2
 
 dropout_rate_dense:
   desc: Float in [0, 1]. Rate for dropout after each dense layer.
-  value: 0.3
+  value: 0.2
 
 # Architecture
 
 num_conv_layers:
   desc: Number of 1D convolutional layers. Each is followed by a dropout layer.
-  value: 2
+  value: 5
 
 conv_filters:
   desc: Number of filters in each convolutional layer.
-  value: 500
+  value: 200
 
 conv_width:
   desc: Width of 1D convolutional kernels.
-  value: 11
+  value: 7
 
 conv_stride:
   desc: Stride of convolutional layers.
@@ -277,7 +264,7 @@ max_pool_stride:
 
 num_dense_layers:
   desc: Number of dense layers, not including the final layer. Each is followed by a dropout layer.
-  value: 1
+  value: 2
 
 dense_filters:
   desc: Number of filters in dense layer.

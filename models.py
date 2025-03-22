@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 import constants
 import dataset
-from metrics import MulticlassMetric
+from metrics import MulticlassMetric, tf_pearson, tf_spearman
 import lr_schedules
 
 LOSS_MAPPING_REGRESSION = {
@@ -190,7 +190,7 @@ def get_optimizer(lr_schedule, config):
 def get_metrics(num_classes, class_to_idx_mapping, config):
 	if num_classes is None:
 		# regression
-		metrics = [MeanSquaredError(), MeanAbsoluteError(), MeanAbsolutePercentageError()]
+		metrics = [MeanSquaredError(), MeanAbsoluteError(), MeanAbsolutePercentageError(), tf_pearson, tf_spearman]
 	else:
 		# classification
 		pos_label = class_to_idx_mapping[config.metric_pos_label]
@@ -242,6 +242,8 @@ def validate(config, model):
 	"""
 	# Load model from path, if necessary
 	if isinstance(model, str):
+		custom_objects = {'tf_pearson': tf_pearson, 'tf_spearman': tf_spearman}
+		tf.keras.utils.get_custom_objects().update(custom_objects)
 		model = load_model(model)
 
 	# Evaluate on main validation set
@@ -251,7 +253,7 @@ def validate(config, model):
 		reverse_complement=config.use_reverse_complement)
 	res = model.evaluate(x=val_data.dataset[0], y=val_data.dataset[1],
 		batch_size=config.batch_size, return_dict=True, verbose=0)
-
+	print(res)
 	# Evaluate on additional validation sets
 	additional_val = get_additional_validation(config, model)
 	if additional_val is not None:
@@ -300,6 +302,8 @@ def get_activations(model, in_files, in_genomes=None, out_file=None, layer_name=
 
 	# Load model from path, if necessary
 	if isinstance(model, str):
+		custom_objects = {'tf_pearson': tf_pearson, 'tf_spearman': tf_spearman}
+		tf.keras.utils.get_custom_objects().update(custom_objects)
 		model = load_model(model)
 
 	# Convert score column to numeric, if possible
@@ -393,6 +397,7 @@ class AdditionalValidation:
         self.model = model
         self.val_datasets = val_datasets
         self.metrics = metrics or ['acc']
+        print(self.metrics)
         self.batch_size = batch_size
 
     def evaluate(self):
@@ -430,7 +435,7 @@ def get_additional_validation(config, model):
     if config.targets_are_classes:
     	metrics = ['acc', 'auroc', 'auprc', 'precision', 'sensitivity', 'f1', 'npv', 'specificity', 'npvsc']
     else:
-    	metrics = ['mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error']
+    	metrics = ['mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', 'tf_pearson', 'tf_spearman']
     return AdditionalValidation(model, val_datasets, metrics=metrics, batch_size=config.batch_size)
 
 

@@ -1,7 +1,24 @@
 import tensorflow as tf
 import tensorflow.keras.metrics
 import tensorflow_addons.metrics
+import keras.backend as K
+from scipy.stats import spearmanr
 
+def tf_pearson(y_true, y_pred):
+    x = y_true
+    y = y_pred
+    mx = K.mean(x, axis=0)
+    my = K.mean(y, axis=0)
+    xm, ym = x - mx, y - my
+    r_num = K.sum(xm * ym)
+    x_square_sum = K.sum(xm * xm)
+    y_square_sum = K.sum(ym * ym)
+    r_den = K.sqrt(x_square_sum * y_square_sum)
+    r = r_num / r_den
+    return K.mean(r)
+
+def tf_spearman(y_true, y_pred):
+    return tf.py_function(spearmanr, [tf.cast(y_pred, tf.float32), tf.cast(y_true, tf.float32)], Tout=tf.float32)
 
 class MulticlassAUC(tensorflow.keras.metrics.AUC):
     # adapted from https://stackoverflow.com/a/63604257
@@ -149,6 +166,43 @@ class MulticlassMetric(tensorflow.keras.metrics.Metric):
         # 1. Tensorflow keras metrics
         # 2. Tensorflow Addons metrics
         # 3. Custom metrics from this module
+        current_module = __import__(__name__)
+        for module in [tensorflow.keras.metrics, tensorflow_addons.metrics, current_module]:
+            k_metric = getattr(module, self.k_metric_name, None)
+            if k_metric is not None:
+                break
+
+        if k_metric is None:
+            raise ValueError(f"Could not find keras metric {self.k_metric_name}")
+        return k_metric(**kwargs)
+
+class DAMetrics(tensorflow.keras.metrics.Metric):
+    def __init__(self, k_metric_name, **kwargs):
+        super().__init__(name=kwargs['name'])
+        self.k_metric_name = k_metric_name
+        self.k_metric = self._get_k_metric(**kwargs)
+
+    def update_state(self,  y_true, y_pred, **kwargs):
+        y_pred = tf.boolean_mask(y_pred, tf.not_equal(y_true, -1))
+        y_true = tf.boolean_mask(y_true, tf.not_equal(y_true, -1))
+
+        self.k_metric.update_state(y_true, y_pred, **kwargs)
+
+    def result(self):
+        res = self.k_metric.result()
+        return res
+
+    def reset_state(self):
+        self.k_metric.reset_state()
+
+    def get_config(self):
+        config = self.k_metric.get_config()
+        config.update({
+            "k_metric_name": self.k_metric_name
+        })
+        return config
+
+    def _get_k_metric(self, **kwargs):
         current_module = __import__(__name__)
         for module in [tensorflow.keras.metrics, tensorflow_addons.metrics, current_module]:
             k_metric = getattr(module, self.k_metric_name, None)

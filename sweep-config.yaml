@@ -15,24 +15,34 @@ command:
   - "config-base.yaml"
   - ${args}
 
-project: default-project
+project: liver-regression
 
 method: random
 
 metric:
-  name: val_auroc
-  goal: maximize
+  name: val_mean_squared_error
+  goal: minimize
 
 parameters:
   lr_init:
     distribution: log_uniform_values
-    min: 6.e-5
-    max: 5.e-3
+    min: 1.e-5
+    max: 3.e-3
 
-  lr_exp_decay_per_epoch:
-    distribution: uniform
-    min: 0.75
-    max: 0.98
+  conv_filters:
+    values: [200, 250, 300, 400, 500]
+
+  dense_filters:
+    values: [50, 100, 150, 200, 250]
 
   num_conv_layers:
-    values: [1, 2, 3, 4, 5]
+    values: [3, 4, 5, 6, 7]
+
+  num_dense_layers:
+    values: [0, 1, 2]
+  
+  dropout_rate_dense:
+    values: [0.05, 0.1, 0.2]
+
+  dropout_rate_conv:
+    values: [0.3, 0.4, 0.5]
