@@ -332,7 +332,7 @@ class SequenceCollection:
         for source in self.sources:
             shape = shape or source.seq_shape
             if source.seq_shape != shape:
-                raise ValueError("Sources have inconsistent shapes, found {shape} and {source.seq_shape}")
+                raise ValueError(f"Sources have inconsistent shapes, found {shape} and {source.seq_shape}")
         return shape
 
     def _get_example(self, data, target_spec):
