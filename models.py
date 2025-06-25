@@ -36,9 +36,9 @@ LAYERWISE_PARAMS_CONV = ['conv_filters', 'conv_width', 'conv_stride', 'dropout_r
 LAYERWISE_PARAMS_DENSE = ['dense_filters', 'dropout_rate_dense', 'l2_reg_dense']
 
 
-def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config):
+def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, config, model_uncertainty=False):
 	if config.get('model_checkpoint') in [None, 'none']:
-		model = get_model_architecture(input_shape, num_classes, config)
+		model = get_model_architecture(input_shape, num_classes, config, model_uncertainty=model_uncertainty)
 	else:
 		model = load_model(config.model_checkpoint)
 	optimizer = get_optimizer(lr_schedule, config)
@@ -63,13 +63,61 @@ def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, confi
 		except KeyError:
 			raise KeyError(f"Invalid loss function for classification problem: {loss_str}. Try 'sparse_categorical_crossentropy'")
 
+	if model_uncertainty:
+		loss = {
+			# The sigma loss function gets applied to the sigma output head
+			'sigma_outputs': get_sigma_loss(loss),
+			# The prediction head just gets a loss of 0, cancelling it out of the total loss
+			'pred': get_constant_loss(0)}
+		metrics = {'pred': metrics}
+
 	model.compile(loss=loss,
 		optimizer=optimizer,
 		metrics=metrics)
 
 	return model
 
-def get_model_architecture(input_shape, num_classes, config):
+def get_sigma_loss(orig_loss_fn):
+	def sigma_loss_fn(y_true, y_pred):
+		"""Sigma loss: Loss function that accounts for predicted variance (sigma)
+		Equation 8 from https://arxiv.org/pdf/1703.04977.pdf
+
+		When log_variance is:
+			< 0: sigma loss is "more strict" than original loss
+			= 0: sigma loss is equal to original loss
+			> 0: sigma loss is "more permissive" than original loss
+
+		Inputs:
+			y_true, shape [num_examples, 1]
+			y_pred, shape [num_examples, num_classes + 1]
+				each row of y_pred is assumed to be:
+					(pr_class_0, ..., pr_class_N, log_variance) for classification
+					(pred_target, log_variance) for regression
+		"""
+		loss_fn = orig_loss_fn
+		try:
+			loss_fn = keras.losses.get(orig_loss_fn)
+		except Exception as e:
+			pass
+
+		# evaluate the original loss function on the original output of the network (all except last unit)
+		orig_loss = loss_fn(y_true, y_pred[:, :-1])
+
+		# get uncertainty estimate
+		# last unit represents s = log(sigma^2) (equation 8)
+		# where sigma^2 is the estimated variance associated with this prediction
+		log_variance = y_pred[:, -1]
+		sigma_loss = tf.math.exp(-log_variance) * orig_loss + log_variance
+
+		return sigma_loss
+	return sigma_loss_fn
+
+def get_constant_loss(constant_val):
+	def constant_loss(y_true, y_pred):
+		return constant_val
+	return constant_loss
+
+def get_model_architecture(input_shape, num_classes, config, model_uncertainty=False):
 	"""Get 1-dimensional CNN model architecture.
 	Properties:
 		- Inputs are 1-hot encoded sequences of shape [sequence_len, encoding_dim]
@@ -120,15 +168,32 @@ def get_model_architecture(input_shape, num_classes, config):
 
 	# Final (output) layer
 	if num_classes is None:
+		# Single-variable regression
 		num_output_units = 1
 		activation = None
 	elif isinstance(num_classes, int):
+		# Classification with N classes
+		# We model binary classification as [P(class = 0 | x), P(class = 1 | x)]
 		num_output_units = num_classes
 		activation = "softmax"
 	else:
 		raise ValueError(f"Invalid num_classes: {num_classes}")
-	outputs = layers.Dense(num_output_units, activation=activation,
-		kernel_regularizer=l2(l=config['l2_reg_final']))(x)
+	prediction_outputs = layers.Dense(num_output_units, activation=activation,
+		kernel_regularizer=l2(l=config['l2_reg_final']), name='pred')(x)
+
+	if model_uncertainty:
+		# Add additional output unit to model uncertainty
+		log_variance = layers.Dense(1, activation=None)(x)
+		# We are going to have 2 output heads:
+		# 'pred': the un-affected output of the network, predicted class or target value
+		# 'sigma_outputs': a copy of the prediction outputs, with the estimated log-variance concatenated at the end
+		# Justification:
+		# 'pred' will be used in metrics
+		# 'sigma_outputs' will be used in loss
+		sigma_outputs = layers.Concatenate(axis=1, name='sigma_outputs')([prediction_outputs, log_variance])
+		outputs = [prediction_outputs, sigma_outputs]
+	else:
+		outputs = prediction_outputs
 
 	return keras.Model(inputs=inputs, outputs=outputs)
 
@@ -229,7 +294,9 @@ def load_model(model_path):
 	# and construct this dict dynamically before load.
 	custom_objects = {
 		"MulticlassMetric": MulticlassMetric,
-		"scale_fn": lr_schedules.ClrScaleFn.scale_fn
+		"scale_fn": lr_schedules.ClrScaleFn.scale_fn,
+		"sigma_loss_fn": get_sigma_loss(None),
+		"constant_loss": get_constant_loss(0)
 	}
 	return tf.keras.models.load_model(model_path, custom_objects=custom_objects)
 

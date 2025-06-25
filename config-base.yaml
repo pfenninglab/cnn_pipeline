@@ -149,6 +149,13 @@ loss_function:
   allowed_values: ['sparse_categorical_crossentropy', 'mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', 'huber']
   value: sparse_categorical_crossentropy
 
+model_uncertainty:
+  desc: Include "sigma loss" that optimizes uncertainty estimate for each prediction.
+  # See https://arxiv.org/pdf/1703.04977.pdf
+  # Set to false to disable uncertainty modeling (standard CNN behavior)
+  # Set to true to model uncertainty in the loss function
+  value: false
+
 # Optimization
 
 optimizer:
