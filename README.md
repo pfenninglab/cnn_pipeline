@@ -1,4 +1,5 @@
-# CNN Training Platform
+# CNN Pipeline: Training, Evaluation, Inference, and Interpretation
+[Pfenning Lab][https://www.pfenninglab.org]
 
 ## About
 This tool enables you to train a CNN model on DNA sequences.
