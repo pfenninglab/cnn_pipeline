@@ -277,3 +277,11 @@ pred(example_n)
 pred(revcomp(example_n))
 ```
 To exclude reverse complement sequences, pass `--no_reverse_complement`.
+
+## Authors
+Heather Sestili - Implemented pipeline.  
+Ziheng (Calvin) Chen - Model interpretation, SHAP, TF-MoDISCO.  
+Badoi Phan - Advised on pipeline architecture. Advised on cyclic learning rate, cyclic momentum, cyclic learning rate finder, wandb integration.  
+Irene Kaplow - Advised on pipeline architecture. Advised on “proportional” class weighting scheme.  
+Chaitanya Srinivasan - Advised on “reciprocal” class weighting scheme.  
+Spencer Gibson - Experimented with interpretation of Bayesian approximation.
