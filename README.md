@@ -1,6 +1,8 @@
 # CNN Pipeline: Training, Evaluation, Inference, and Interpretation
 [Pfenning Lab](https://www.pfenninglab.org)
 
+![CNN model illustration](https://github.com/pfenninglab/cnn_pipeline/blob/main/cnn%20model%20illustration.svg)
+
 ## About
 This tool enables you to train a CNN model on DNA sequences.
 Classification (2 or more classes) and regression (single variable) are both supported.
