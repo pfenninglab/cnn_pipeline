@@ -16,7 +16,7 @@ the `wandb` framework.
 ## Publications
 ### Context-dependent regulatory variants in Alzheimer’s disease
 Ziheng Chen, Yaxuan Liu, Ashley R. Brown, Heather H. Sestili, Easwaran Ramamurthy, Xushen Xiong, Dmitry Prokopenko, BaDoi N. Phan, Lahari Gadey, Peinan Hu, Li-HueiTsai, Lars Bertram, Winston Hide, Rudolph E. Tanzi, Manolis Kellis, Andreas R. Pfenning  
-bioRxiv 2025.07.11.659973; doi: [https://doi.org/10.1101/2025.07.11.659973]()https://doi.org/10.1101/2025.07.11.659973  
+bioRxiv 2025.07.11.659973; doi: [https://doi.org/10.1101/2025.07.11.659973](https://doi.org/10.1101/2025.07.11.659973)  
 [https://www.biorxiv.org/content/10.1101/2025.07.11.659973v2.abstract](https://www.biorxiv.org/content/10.1101/2025.07.11.659973v2.abstract)
 
 ### Combining Machine Learning and Multiplexed, In Situ Profiling to Engineer Cell Type and Behavioral Specificity
