@@ -13,6 +13,17 @@ from a text configuration file.
 Track experiments, visualize performance metrics, and search hyperparameters using
 the `wandb` framework.
 
+## Publications
+### Context-dependent regulatory variants in Alzheimer’s disease
+Ziheng Chen, Yaxuan Liu, Ashley R. Brown, Heather H. Sestili, Easwaran Ramamurthy, Xushen Xiong, Dmitry Prokopenko, BaDoi N. Phan, Lahari Gadey, Peinan Hu, Li-HueiTsai, Lars Bertram, Winston Hide, Rudolph E. Tanzi, Manolis Kellis, Andreas R. Pfenning  
+bioRxiv 2025.07.11.659973; doi: [https://doi.org/10.1101/2025.07.11.659973]()https://doi.org/10.1101/2025.07.11.659973  
+[https://www.biorxiv.org/content/10.1101/2025.07.11.659973v2.abstract](https://www.biorxiv.org/content/10.1101/2025.07.11.659973v2.abstract)
+
+### Combining Machine Learning and Multiplexed, In Situ Profiling to Engineer Cell Type and Behavioral Specificity
+Michael J. Leone, Robert van de Weerd, Ashley R. Brown, Myung-Chul Noh, BaDoi N.Phan, Andrew Z. Wang, Kelly A. Corrigan, Deepika Yeramosu, Heather H. Sestili, Cynthia M. Arokiaraj, Bettega C. Lopes, Vijay Kiran Cherupally, Daryl Fields, SudhagarBabu, Chaitanya Srinivasan, Riya Podder, Lahari Gadey, Daniel Headrick, Ziheng Chen, Michael E. Franusich, Richard Dum, David A. Lewis, Hansruedi Mathys, William R.Stauffer, Rebecca P. Seal, Andreas R. Pfenning  
+bioRxiv 2025.06.20.660790; doi: [https://doi.org/10.1101/2025.06.20.660790](https://doi.org/10.1101/2025.06.20.660790)  
+[https://www.biorxiv.org/content/10.1101/2025.06.20.660790v1.abstract](https://www.biorxiv.org/content/10.1101/2025.06.20.660790v1.abstract)
+
 ## Cloning this repo
 It is recommended that you use the SSH authentication method to clone this repo.
 
