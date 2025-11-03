@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 import constants
 import dataset
-from metrics import MulticlassMetric
+from metrics import MulticlassMetric, PearsonCorrelation, SpearmanCorrelation
 import lr_schedules
 
 LOSS_MAPPING_REGRESSION = {
@@ -190,7 +190,9 @@ def get_optimizer(lr_schedule, config):
 def get_metrics(num_classes, class_to_idx_mapping, config):
 	if num_classes is None:
 		# regression
-		metrics = [MeanSquaredError(), MeanAbsoluteError(), MeanAbsolutePercentageError()]
+		metrics = [MeanSquaredError(), MeanAbsoluteError(), MeanAbsolutePercentageError(),
+			PearsonCorrelation(name='pearson_correlation'),
+			SpearmanCorrelation(name='spearman_correlation')]
 	else:
 		# classification
 		pos_label = class_to_idx_mapping[config.metric_pos_label]
@@ -199,7 +201,9 @@ def get_metrics(num_classes, class_to_idx_mapping, config):
 			MulticlassMetric('AUC', name='auprc', pos_label=pos_label, curve='PR'),
 			MulticlassMetric('Precision',  name='precision', pos_label=pos_label),
 			MulticlassMetric('Recall', name='sensitivity', pos_label=pos_label),
-			MulticlassMetric('F1Score', name='f1', pos_label=pos_label, make_dense=True, num_classes=num_classes)]
+			MulticlassMetric('F1Score', name='f1', pos_label=pos_label, make_dense=True, num_classes=num_classes),
+			PearsonCorrelation(name='pearson_correlation'),
+			SpearmanCorrelation(name='spearman_correlation')]
 		if num_classes == 2:
 			# This is a binary classification problem, so "negative" metrics apply
 			neg_label = [idx for idx in class_to_idx_mapping.values() if idx != pos_label][0]
@@ -229,6 +233,8 @@ def load_model(model_path):
 	# and construct this dict dynamically before load.
 	custom_objects = {
 		"MulticlassMetric": MulticlassMetric,
+		"PearsonCorrelation": PearsonCorrelation,
+		"SpearmanCorrelation": SpearmanCorrelation,
 		"scale_fn": lr_schedules.ClrScaleFn.scale_fn
 	}
 	return tf.keras.models.load_model(model_path, custom_objects=custom_objects)
@@ -428,9 +434,9 @@ def get_additional_validation(config, model):
         for paths, targets in zip(config.additional_val_data_paths, config.additional_val_targets)
     ]
     if config.targets_are_classes:
-    	metrics = ['acc', 'auroc', 'auprc', 'precision', 'sensitivity', 'f1', 'npv', 'specificity', 'npvsc']
+    	metrics = ['acc', 'auroc', 'auprc', 'precision', 'sensitivity', 'f1', 'npv', 'specificity', 'npvsc', 'pearson_correlation', 'spearman_correlation']
     else:
-    	metrics = ['mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error']
+    	metrics = ['mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', 'pearson_correlation', 'spearman_correlation']
     return AdditionalValidation(model, val_datasets, metrics=metrics, batch_size=config.batch_size)
 
 

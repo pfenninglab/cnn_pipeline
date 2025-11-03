@@ -1,6 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras.metrics
 import tensorflow_addons.metrics
+import numpy as np
 
 
 class MulticlassAUC(tensorflow.keras.metrics.AUC):
@@ -158,3 +159,141 @@ class MulticlassMetric(tensorflow.keras.metrics.Metric):
         if k_metric is None:
             raise ValueError(f"Could not find keras metric {self.k_metric_name}")
         return k_metric(**kwargs)
+
+
+class PearsonCorrelation(tensorflow.keras.metrics.Metric):
+    """Pearson correlation coefficient metric for TensorFlow.
+    
+    This metric computes the Pearson correlation coefficient between true and predicted values.
+    It works for both regression and classification problems (using predicted probabilities).
+    """
+    
+    def __init__(self, name='pearson_correlation', **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.sum_x = self.add_weight(name='sum_x', initializer='zeros')
+        self.sum_y = self.add_weight(name='sum_y', initializer='zeros')
+        self.sum_x_squared = self.add_weight(name='sum_x_squared', initializer='zeros')
+        self.sum_y_squared = self.add_weight(name='sum_y_squared', initializer='zeros')
+        self.sum_xy = self.add_weight(name='sum_xy', initializer='zeros')
+        self.count = self.add_weight(name='count', initializer='zeros')
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        """Update the correlation statistics.
+        
+        Args:
+            y_true: Ground truth values
+            y_pred: Predicted values
+            sample_weight: Optional weighting of samples
+        """
+        # Handle classification case - use predicted probabilities for positive class
+        if len(y_pred.shape) > 1 and y_pred.shape[-1] > 1:
+            # For classification, use the probability of the positive class
+            y_pred = y_pred[..., -1]  # Take the last column (positive class probability)
+        
+        # Flatten tensors
+        y_true = tf.reshape(y_true, [-1])
+        y_pred = tf.reshape(y_pred, [-1])
+        
+        if sample_weight is not None:
+            sample_weight = tf.reshape(sample_weight, [-1])
+            y_true = y_true * sample_weight
+            y_pred = y_pred * sample_weight
+            weight_sum = tf.reduce_sum(sample_weight)
+        else:
+            weight_sum = tf.cast(tf.size(y_true), tf.float32)
+        
+        # Update running statistics
+        self.sum_x.assign_add(tf.reduce_sum(y_true))
+        self.sum_y.assign_add(tf.reduce_sum(y_pred))
+        self.sum_x_squared.assign_add(tf.reduce_sum(y_true * y_true))
+        self.sum_y_squared.assign_add(tf.reduce_sum(y_pred * y_pred))
+        self.sum_xy.assign_add(tf.reduce_sum(y_true * y_pred))
+        self.count.assign_add(weight_sum)
+
+    def result(self):
+        """Compute the Pearson correlation coefficient."""
+        # Avoid division by zero
+        count = tf.maximum(self.count, 1.0)
+        
+        # Compute means
+        mean_x = self.sum_x / count
+        mean_y = self.sum_y / count
+        
+        # Compute correlation coefficient
+        numerator = self.sum_xy / count - mean_x * mean_y
+        denominator_x = tf.sqrt(tf.maximum(self.sum_x_squared / count - mean_x * mean_x, 1e-8))
+        denominator_y = tf.sqrt(tf.maximum(self.sum_y_squared / count - mean_y * mean_y, 1e-8))
+        
+        correlation = numerator / (denominator_x * denominator_y)
+        return correlation
+
+    def reset_state(self):
+        """Reset all statistics."""
+        self.sum_x.assign(0.0)
+        self.sum_y.assign(0.0)
+        self.sum_x_squared.assign(0.0)
+        self.sum_y_squared.assign(0.0)
+        self.sum_xy.assign(0.0)
+        self.count.assign(0.0)
+
+
+class SpearmanCorrelation(tensorflow.keras.metrics.Metric):
+    """TensorFlow implementation of Spearman rank correlation coefficient.
+    
+    Note: This is an approximation that computes correlation on batch-level ranks.
+    For exact Spearman correlation across the entire dataset, consider using
+    a callback that computes it at the end of each epoch.
+    """
+
+    def __init__(self, name='spearman_correlation', **kwargs):
+        super().__init__(name=name, **kwargs)
+        # Store running statistics for batch-level correlation
+        self.sum_x = self.add_weight(name='sum_x', initializer='zeros')
+        self.sum_y = self.add_weight(name='sum_y', initializer='zeros')
+        self.sum_x_sq = self.add_weight(name='sum_x_sq', initializer='zeros')
+        self.sum_y_sq = self.add_weight(name='sum_y_sq', initializer='zeros')
+        self.sum_xy = self.add_weight(name='sum_xy', initializer='zeros')
+        self.count = self.add_weight(name='count', initializer='zeros')
+
+    def update_state(self, y_true, y_pred, sample_weight=None):
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.cast(y_pred, tf.float32)
+        
+        # For Spearman correlation, we need to compute ranks
+        # Since we can't store all values across batches in graph mode,
+        # we'll use a batch-level approximation
+        y_true_flat = tf.reshape(y_true, [-1])
+        y_pred_flat = tf.reshape(y_pred, [-1])
+        
+        # Compute ranks within this batch
+        y_true_rank = tf.cast(tf.argsort(tf.argsort(y_true_flat)), tf.float32)
+        y_pred_rank = tf.cast(tf.argsort(tf.argsort(y_pred_flat)), tf.float32)
+        
+        # Normalize ranks to [0, 1] range for better batch-level correlation
+        batch_size = tf.cast(tf.shape(y_true_rank)[0], tf.float32)
+        y_true_rank = y_true_rank / tf.maximum(batch_size - 1, 1)
+        y_pred_rank = y_pred_rank / tf.maximum(batch_size - 1, 1)
+        
+        # Update running sums
+        self.sum_x.assign_add(tf.reduce_sum(y_true_rank))
+        self.sum_y.assign_add(tf.reduce_sum(y_pred_rank))
+        self.sum_x_sq.assign_add(tf.reduce_sum(tf.square(y_true_rank)))
+        self.sum_y_sq.assign_add(tf.reduce_sum(tf.square(y_pred_rank)))
+        self.sum_xy.assign_add(tf.reduce_sum(y_true_rank * y_pred_rank))
+        self.count.assign_add(batch_size)
+
+    def result(self):
+        n = self.count
+        numerator = n * self.sum_xy - self.sum_x * self.sum_y
+        denominator_x = n * self.sum_x_sq - tf.square(self.sum_x)
+        denominator_y = n * self.sum_y_sq - tf.square(self.sum_y)
+        denominator = tf.sqrt(denominator_x * denominator_y)
+        return tf.math.divide_no_nan(numerator, denominator)
+
+    def reset_state(self):
+        self.sum_x.assign(0.0)
+        self.sum_y.assign(0.0)
+        self.sum_x_sq.assign(0.0)
+        self.sum_y_sq.assign(0.0)
+        self.sum_xy.assign(0.0)
+        self.count.assign(0.0)

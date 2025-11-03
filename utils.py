@@ -8,6 +8,7 @@ from models import LAYERWISE_PARAMS_CONV, LAYERWISE_PARAMS_DENSE
 
 CONFIG_EXPECTED_KEYS = {
 	'project': str,
+	'run_name': str,
 	'train_data_paths': list,
 	'train_targets': list,
 	'val_data_paths': list,
@@ -76,8 +77,10 @@ def get_config(yaml_path):
 	with open(yaml_path, "r") as f:
 		config = yaml.safe_load(f)
 	config = {k: v['value'] for k, v in config.items()}
-	project = config['project']
-	return config, project
+	# Use consistent project name for all runs
+	project = "cnn_pipeline_cortex_enhancers"
+	run_name = config['run_name']
+	return config, project, run_name
 
 def get_step_size(config, train_data, val_data):
 	batch_size = config.batch_size

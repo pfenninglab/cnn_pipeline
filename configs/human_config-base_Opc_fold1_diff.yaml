@@ -6,112 +6,69 @@ project:
 
 run_name:
   desc: Name of this specific run within the project.
-  value: default-run
+  value: Corces_Enh_Opc_fold1_first
 
 entity:
   desc: Name of `wandb` account for tracking.
-  value: cmu-cbd-pfenninglab
-
-# WandB logging
-dir:
-  desc: Directory to create the wandb folder to save model checkpoints and logs.
-  value: none
-
-name:
-  desc: Short descriptive name of this run to show on the wandb.ai logger.
-  value: none
+  value: isuru-herath10-carnegie-mellon-university
 
 # Data
 
 train_data_paths:
   desc: Paths to FASTA, BED, or NarrowPeak files for training data.
-  # fasta or bed format:
-  #   fasta:
-  #     - negatives.fa
-  #     - positives.fa
-  #   bed:
-  #     - genome: genome.fa
-  #       intervals: negatives.bed
-  #     - genome: genome.fa
-  #       intervals: positives.bed
+  # To use FASTA files with sequences already extracted, just put the file path.
+  # To use a reference genome and a BED or NarrowPeak file with intervals, put:
+  #     genome: <path to genome .fa>
+  #     intervals: <path to interval .bed or .narrowPeak>
   value:
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_TRAIN.bed
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_TRAIN.bed
-
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/HumanGenome/hg38.fa
+      intervals: /projects/pfenninggroup/heather/COPY-Cortex_Cell-TACIT/Corces_EnhRegression/Opc/fold1/train.bed
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/HumanGenome/hg38.fa
+      intervals: /projects/pfenninggroup/heather/COPY-Cortex_Cell-TACIT/GC_Negatives_Corces_Cell-TACIT/Opc/fold1/gc_neg_subset_train.bed
+   
+   
 train_targets:
   desc: Targets corresponding to each training data path.
   # To use a constant value per file, e.g. 0 or "neg", just put the value here.
   # To extract the value from each line of a BED or NarrowPeak file, put:
   #     column: <column number>
   value:
-    - 0
-    - 1
-
+    - column: 4
+    - column: 4
+  
 val_data_paths:
   desc: Paths to FASTA, BED, or NarrowPeak files for validation data.
   value:
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_neg_VAL.bed
-    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/halLiftover_chains/data/raw_data/fasta/Mus_musculus.fa
-      intervals: /projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/mouse_SST/FinalModelData/mouse_SST_pos_VAL.bed
-
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/HumanGenome/hg38.fa
+      intervals: /projects/pfenninggroup/heather/COPY-Cortex_Cell-TACIT/Corces_EnhRegression/Opc/fold1/valid.bed
+    - genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/HumanGenome/hg38.fa
+      intervals: /projects/pfenninggroup/heather/COPY-Cortex_Cell-TACIT/GC_Negatives_Corces_Cell-TACIT/Opc/fold1/gc_neg_subset_valid.bed    
 val_targets:
   desc: Targets corresponding to each validation data path.
   value:
-    - 0
-    - 1
-
-targets_are_classes:
-  desc: Whether to treat targets as a set of discrete classes (classification) or as continuous values (regression).
-  value: true
+    - column: 4
+    - column: 4
 
 additional_val_data_paths:
-  desc: Paths to additional validation datasets. Metrics will be reported for each set separately.
-  # fasta or bed format:
-  #   fasta:
-  #     - [set1_negatives.fa, set1_positives.fa]
-  #     - [set2_negatives.fa, set2_positives.fa]
-  #   bed:
-  #     - [{genome: genome.fa, intervals: set1_negatives.bed},
-  #        {genome: genome.fa, intervals: set1_positives.bed}
-  #     - [{genome: genome.fa, intervals: set2_negatives.bed},
-  #        {genome: genome.fa, intervals: set2_positives.bed}
-  #
-  # it is fine to include a dataset with only negative or only positive examples, e.g.
-  # - [set1_negatives.fa]
+  desc: null
   value:
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval1_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval2_hg38_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval3_hg38_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval4_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval5_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval6_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval7_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval8_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval9_mm10_VAL.fa]
-    - [/projects/pfenninggroup/mouseCxStr/NeuronSubtypeATAC/Zoonomia_CNN/evaluations/SST/Eval10_mm10_VAL.fa]
+    - [{genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/HumanGenome/hg38.fa,
+      intervals: /projects/pfenninggroup/heather/COPY-Cortex_Cell-TACIT/Corces_EnhRegression/Opc/fold1/valid.bed}]
+    - [{genome: /projects/pfenninggroup/machineLearningForComputationalBiology/regElEvoGrant/HumanGenome/hg38.fa,
+      intervals: /projects/pfenninggroup/heather/COPY-Cortex_Cell-TACIT/GC_Negatives_Corces_Cell-TACIT/Opc/fold1/gc_neg_subset_valid.bed}]
 
 additional_val_targets:
-  desc: Targets corresponding to additional validation paths.
+  desc: null
   value:
-    - [1]
-    - [0]
-    - [1]
-    - [0]
-    - [1]
-    - [1]
-    - [0]
-    - [1]
-    - [1]
-    - [0]
+    - [column: 4]
+    - [column: 4]
+
+  
+targets_are_classes:
+  desc: Whether to treat targets as a set of discrete classes (classification) or as continuous values (regression).
+  value: false
 
 # Training
-
-model_checkpoint:
-  desc: Path to saved model file (.h5). Use this if you want to resume training from this checkpoint.
-  value: none
 
 batch_size:
   desc: Batch size for training and validation.
@@ -128,10 +85,10 @@ metric_pos_label:
 early_stopping_callbacks:
   desc: Callbacks to use for early stopping. Use arguments as in tf.keras.callbacks.EarlyStopping.
   value:
-    - monitor: val_auprc
+    - monitor: val_loss
       patience: 5
       verbose: 1
-      mode: max
+      mode: min
 
 use_exact_val_metrics:
   desc: If true, use exact validation metrics during training (requires loading whole validation set into RAM). If false, use a close approximation (+/- ~2%) that streams the validation set without loading into RAM.
@@ -140,18 +97,6 @@ use_exact_val_metrics:
 use_reverse_complement:
   desc: If true, add reverse complement sequences to the training set, doubling the training set size.
   value: true
-
-class_weight:
-  desc: Scheme to weight the loss function according to the class.
-  allowed_values: ['none', 'reciprocal', 'proportional']
-  value: none
-
-loss_function:
-  desc: Loss function to use during training.
-  # classification: use 'sparse_categorical_crossentropy'
-  # regression: use 'mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', or 'huber'
-  allowed_values: ['sparse_categorical_crossentropy', 'mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error', 'huber']
-  value: sparse_categorical_crossentropy
 
 # Optimization
 
@@ -162,11 +107,6 @@ optimizer:
 
 optimizer_args:
   desc: Arguments for optimizer.
-  # Default values for adam:
-  #   beta_1: 0.9
-  #   beta_2: 0.999
-  # Default values for sgd:
-  #   momentum: 0.9
   value:
     beta_1: 0.9
     beta_2: 0.999
@@ -196,10 +136,6 @@ lr_exp_decay_per_epoch:
 lr_cyc_num_cycles:
   desc: Float > 0. Number of cycles, for cyclic LR schedule.
   value: 1.0
-
-clr_tail_epochs:
-  desc: Int >= 0. Number of epochs to fine-tune model following cyclic LR training. Learning rate will decrease linearly from lr_init to lr_init / 10.
-  value: 5
 
 momentum_schedule:
   desc: Momentum schedule to use.
@@ -261,11 +197,11 @@ num_conv_layers:
 
 conv_filters:
   desc: Number of filters in each convolutional layer.
-  value: 500
+  value: 300
 
 conv_width:
   desc: Width of 1D convolutional kernels.
-  value: 11
+  value: 7
 
 conv_stride:
   desc: Stride of convolutional layers.
