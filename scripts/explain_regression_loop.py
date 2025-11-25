@@ -124,7 +124,8 @@ def run_modisco():
         '-s', os.path.join(report_dir, 'onehot_encoded_sequences.npz'),
         '-a', os.path.join(report_dir, 'attributions_from_shap.npz'),
         '-n', str(max_seqlets_per_metacluster),
-        '-o', output_h5
+        '-o', output_h5,
+#        '-w 2000'
     ]
     print('Running MoDISco-lite command:', ' '.join(cmd))
     subprocess.run(cmd, check=True)

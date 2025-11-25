@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -t 3:00:00
+#SBATCH -t 48:00:00
 #SBATCH --gres=gpu:v100-32
 #SBATCH -n 1
 #SBATCH -o logs/out.txt
