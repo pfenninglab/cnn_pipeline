@@ -64,21 +64,48 @@ class BedSource:
         return length
 
     def _get_seq_len(self):
-        seq_len = None
-        for interval in self.intervals:
-            seq_len = seq_len or len(interval)
-            if len(interval) != seq_len:
-                raise ValueError(f"BED file contains sequences of different lengths! Found {seq_len} and {len(interval)}")
-            if seq_len < 1:
-                raise ValueError(f"Empty sequence in BED file: {self.bed_file}")
-        return seq_len
+        """
+        Get maximum interval length in this BED file from coordinates only.
+
+        对于变长 peak，取该 BED 文件中最长的区间长度作为 seq_len，
+        短的在 _onehot() 里右侧 0-padding。
+        """
+        print(f"Scanning {self.bed_file} to determine max peak length...")
+        max_len = 0
+
+        for interval in tqdm(self.intervals, desc=f"Intervals ({self.bed_file})"):
+            # interval.start / interval.end 是 bed 坐标
+            cur_len = int(interval.end) - int(interval.start)
+            if cur_len < 1:
+                raise ValueError(f"Empty interval in BED file: {self.bed_file}")
+            if cur_len > max_len:
+                max_len = cur_len
+
+        if max_len == 0:
+            raise ValueError(f"No intervals in BED file: {self.bed_file}")
+        return max_len
+
 
     def _load_gen(self):
+        """
+        Build generator over one-hot encoded sequences.
+
+        这里才调用 bedtools getfasta（.sequence），根据 self.intervals + genome 提 FASTA。
+        """
+        # 调用 .sequence 生成带 FASTA 的 BedTool 对象
+        if self.genome_file is None:
+            raise ValueError("genome_file must be provided for BedSource")
+
+        seq_intervals = self.intervals.sequence(fi=self.genome_file)
+
         def seq_gen():
-            for seq in SeqIO.parse(self.intervals.seqfn, "fasta"):
+            # 逐条读取 FASTA 并转 one-hot
+            for record in SeqIO.parse(seq_intervals.seqfn, "fasta"):
+                seq = record.seq  # Biopython Seq 对象
                 yield self._onehot(seq)
                 if self.reverse_complement:
                     yield self._onehot(seq.reverse_complement())
+
         seq_gen = seq_gen()
 
         if not self.bedfile_columns:
@@ -121,12 +148,13 @@ class BedSource:
 
     @staticmethod
     def get_intervals(bed_file, genome_file=None):
-        """Get pybedtools.BedTool object from .bed or .narrowPeak file"""
-        with open(bed_file, "r") as f:
-            intervals = pybedtools.BedTool(f.read(), from_string=True)
-        if genome_file is not None:
-            intervals = intervals.sequence(fi=genome_file)
-        return intervals
+        """
+        Get pybedtools.BedTool object from .bed or .narrowPeak(.gz) file.
+
+        这里只读 interval 坐标，不在这里调用 .sequence，
+        这样计算长度的时候不会提前跑 bedtools getfasta。
+        """
+        return pybedtools.BedTool(bed_file)
 
     @staticmethod
     def get_interval_seq(chrom, start, stop, genome_file):
@@ -183,14 +211,16 @@ class FastaSource:
         return fa_len
 
     def _get_seq_len(self):
-        seq_len = None
+        max_len = 0
         for seq in SeqIO.parse(self.fa_file, "fasta"):
-            seq_len = seq_len or len(seq)
-            if len(seq) != seq_len:
-                raise ValueError("FASTA file contains sequences of different lengths! Found {seq_len} and {len(seq)}")
-            if seq_len < 1:
-                raise ValueError("Empty sequence in FASTA file: {self.fa_file}")
-        return seq_len
+            cur_len = len(seq)
+            if cur_len < 1:
+                raise ValueError(f"Empty sequence in FASTA file: {self.fa_file}")
+            if cur_len > max_len:
+                max_len = cur_len
+        if max_len == 0:
+            raise ValueError(f"No sequences in FASTA file: {self.fa_file}")
+        return max_len
 
     def _load_gen(self):
         def gen():
@@ -328,12 +358,37 @@ class SequenceCollection:
         return freqs
 
     def _get_seq_shape(self):
-        shape = None
+        """
+        Determine a common sequence shape across all sources.
+
+        We allow each source (BedSource/FastaSource) to have its own max_len,
+        then take the global max over all sources and pad shorter ones to this length.
+        """
+        # 1) 找出所有 source 中最大的长度
+        max_len = 0
+        num_bases = None
         for source in self.sources:
-            shape = shape or source.seq_shape
+            seq_shape = source.seq_shape  # e.g. (len, 4)
+            if num_bases is None:
+                num_bases = seq_shape[1]
+            if seq_shape[0] > max_len:
+                max_len = seq_shape[0]
+
+        if max_len <= 0:
+            raise ValueError("Could not determine a valid sequence length from sources")
+
+        # 统一的全局 shape
+        shape = (max_len, num_bases)
+
+        # 2) 把所有 source 的 seq_shape/seq_len 都改成这个统一长度
+        for source in self.sources:
             if source.seq_shape != shape:
-                raise ValueError("Sources have inconsistent shapes, found {shape} and {source.seq_shape}")
+                # 更新 BedSource/FastaSource 的长度信息
+                source.seq_len = max_len
+                source.seq_shape = shape
+
         return shape
+
 
     def _get_example(self, data, target_spec):
         if isinstance(target_spec, dict):
@@ -458,12 +513,35 @@ class FastaCollection:
         self.class_freqs = freqs
 
     def _get_seq_shape(self):
-        shape = None
+        """
+        Determine a common sequence shape across all FASTA sources.
+
+        We allow each FastaSource to have its own max_len, then take the global
+        max over all sources and pad shorter ones to this length.
+        """
+        max_len = 0
+        num_bases = None
+
         for source in self.fa_sources:
-            shape = shape or source.seq_shape
+            seq_shape = source.seq_shape  # e.g. (len, 4)
+            if num_bases is None:
+                num_bases = seq_shape[1]
+            if seq_shape[0] > max_len:
+                max_len = seq_shape[0]
+
+        if max_len <= 0:
+            raise ValueError("Could not determine a valid sequence length from FASTA sources")
+
+        shape = (max_len, num_bases)
+
+        # 统一所有 FastaSource 的长度信息
+        for source in self.fa_sources:
             if source.seq_shape != shape:
-                raise ValueError("FASTA sources have inconsistent shapes, found {shape} and {source.seq_shape}")
+                source.seq_len = max_len
+                source.seq_shape = shape
+
         return shape
+
 
     def __iter__(self):
         if self.endless:

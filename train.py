@@ -24,54 +24,71 @@ os.environ["WANDB_START_METHOD"] = "thread"
 import datetime
 ##################################################
 def train(args):
-	# Start `wandb`
-	config, project = utils.get_config(args.config)
-	#########################################################
-	wandb.init(config=config, project=project, mode=args.wandb_mode,dir='/ocean/projects/bio210062p/zihengc')#20240729
-	#########################################################
-	utils.validate_config(wandb.config)
+    # Start `wandb`
+    config, project = utils.get_config(args.config)
+    wandb.init(config=config, project=project,
+               mode=args.wandb_mode,
+               dir='/ocean/projects/bio210062p/zihengc')
+    utils.validate_config(wandb.config)
 
-	# Get datasets
-	train_data = dataset.SequenceTfDataset(
-		wandb.config.train_data_paths, wandb.config.train_targets,
-		targets_are_classes=wandb.config.targets_are_classes, endless=True,
-		batch_size=wandb.config.batch_size,
-		reverse_complement=wandb.config.use_reverse_complement)
-	val_data = dataset.SequenceTfDataset(
-		wandb.config.val_data_paths, wandb.config.val_targets,
-		targets_are_classes=wandb.config.targets_are_classes,
-		endless=not wandb.config.use_exact_val_metrics,
-		batch_size=wandb.config.batch_size,
-		reverse_complement=wandb.config.use_reverse_complement)
+    # Get datasets
+    train_data = dataset.SequenceTfDataset(
+        wandb.config.train_data_paths, wandb.config.train_targets,
+        targets_are_classes=wandb.config.targets_are_classes, endless=True,
+        batch_size=wandb.config.batch_size,
+        reverse_complement=wandb.config.use_reverse_complement)
+    val_data = dataset.SequenceTfDataset(
+        wandb.config.val_data_paths, wandb.config.val_targets,
+        targets_are_classes=wandb.config.targets_are_classes,
+        endless=not wandb.config.use_exact_val_metrics,
+        batch_size=wandb.config.batch_size,
+        reverse_complement=wandb.config.use_reverse_complement)
 
-	utils.validate_datasets([train_data, val_data])
+    utils.validate_datasets([train_data, val_data])
 
-	# Get training details
-	steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
-		wandb.config, train_data, val_data)
-	class_weight = utils.get_class_weight(wandb.config, train_data)
-	
-	# Get model
-	lr_schedule = lr_schedules.get_lr_schedule(steps_per_epoch_train, wandb.config)
-	model = models.get_model(
-		train_data.seq_shape, train_data.num_classes, train_data.class_to_idx_mapping, lr_schedule, wandb.config)
+    # Get training details
+    steps_per_epoch_train, steps_per_epoch_val = utils.get_step_size(
+        wandb.config, train_data, val_data)
+    class_weight = utils.get_class_weight(wandb.config, train_data)
+    
+    # Get model
+    lr_schedule = lr_schedules.get_lr_schedule(steps_per_epoch_train, wandb.config)
+    model = models.get_model(
+        train_data.seq_shape, train_data.num_classes,
+        train_data.class_to_idx_mapping, lr_schedule, wandb.config)
 
-	# Train
-	callback_fns = callbacks.get_training_callbacks(wandb.config, model, steps_per_epoch_train)
+    # Train
+    callback_fns = callbacks.get_training_callbacks(
+        wandb.config, model, steps_per_epoch_train)
 
-	model.fit(
-		train_data.dataset,
-		epochs=wandb.config.num_epochs,
-		steps_per_epoch=steps_per_epoch_train,
-		validation_data=val_data.dataset,
-		validation_steps=steps_per_epoch_val,
-		callbacks=callback_fns,
-		class_weight=class_weight)
+    model.fit(
+        train_data.dataset,
+        epochs=wandb.config.num_epochs,
+        steps_per_epoch=steps_per_epoch_train,
+        validation_data=val_data.dataset,
+        validation_steps=steps_per_epoch_val,
+        callbacks=callback_fns,
+        class_weight=class_weight)
 
-	# CLR tail
-	if wandb.config.lr_schedule == 'cyclic':
-		finetune_clr_tail(steps_per_epoch_train, steps_per_epoch_val, class_weight, train_data, val_data, model, wandb.config)
+    # CLR tail
+    if wandb.config.lr_schedule == 'cyclic':
+        finetune_clr_tail(
+            steps_per_epoch_train, steps_per_epoch_val,
+            class_weight, train_data, val_data, model, wandb.config)
 
+    # ===== 训练结束后：保存最后一个模型，并上传 best 和 last 到 wandb =====
+    run_dir = wandb.run.dir or '/tmp'
+
+    # best 模型（前面 ModelCheckpoint 已经在训练过程中写好了）
+    best_path = os.path.join(run_dir, "model-best.h5")
+
+    # last 模型（用当前 model 保存）
+    last_path = os.path.join(run_dir, "model-last.h5")
+    model.save(last_path)
+
+    # 显式把两份模型上传到 wandb
+    wandb.save(best_path)
+    wandb.save(last_path)
 
 def finetune_clr_tail(steps_per_epoch_train, steps_per_epoch_val, class_weight, train_data, val_data, model, config):
 	"""Train with a linear LR decay at the end of a one-cycle LR schedule.

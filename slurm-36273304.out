@@ -1,0 +1,26 @@
+wandb: Currently logged in as: da1111110. Use `wandb login --relogin` to force relogin
+wandb: wandb version 0.23.0 is available!  To upgrade, please run:
+wandb:  $ pip install wandb --upgrade
+wandb: Tracking run with wandb version 0.12.20
+wandb: Run data is saved locally in /ocean/projects/bio210062p/zihengc/wandb/run-20251127_232745-1u0pocyz
+wandb: Run `wandb offline` to turn off syncing.
+wandb: Syncing run polar-haze-11
+wandb: ⭐️ View project at https://wandb.ai/da1111110/THP1_IFNB_2024728
+wandb: 🚀 View run at https://wandb.ai/da1111110/THP1_IFNB_2024728/runs/1u0pocyz
+Traceback (most recent call last):
+  File "/jet/home/zihengc/src/cnn_pipeline/train.py", line 128, in <module>
+    train(get_args())
+  File "/jet/home/zihengc/src/cnn_pipeline/train.py", line 35, in train
+    train_data = dataset.SequenceTfDataset(
+  File "/jet/home/zihengc/src/cnn_pipeline/dataset.py", line 581, in __init__
+    self.sc = SequenceCollection(source_files, targets, targets_are_classes, endless=endless,
+  File "/jet/home/zihengc/src/cnn_pipeline/dataset.py", line 245, in __init__
+    self.seq_shape = self._get_seq_shape()
+  File "/jet/home/zihengc/src/cnn_pipeline/dataset.py", line 350, in _get_seq_shape
+    raise ValueError("Sources have inconsistent shapes, found {shape} and {source.seq_shape}")
+ValueError: Sources have inconsistent shapes, found {shape} and {source.seq_shape}
+wandb: Waiting for W&B process to finish... (failed 1). Press Control-C to abort syncing.
+wandb: - 0.001 MB of 0.001 MB uploaded (0.000 MB deduped)wandb: \ 0.001 MB of 0.001 MB uploaded (0.000 MB deduped)wandb: | 0.001 MB of 0.001 MB uploaded (0.000 MB deduped)wandb: / 0.001 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: - 0.001 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: \ 0.001 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: | 0.001 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: / 0.001 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: - 0.001 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: \ 0.001 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: | 0.003 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: / 0.003 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: - 0.003 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: \ 0.009 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: | 0.009 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: / 0.009 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: - 0.009 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: \ 0.017 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: | 0.017 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: / 0.017 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: - 0.017 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: \ 0.017 MB of 0.017 MB uploaded (0.000 MB deduped)wandb: | 0.017 MB of 0.017 MB uploaded (0.000 MB deduped)wandb:                                                                                
+wandb: Synced polar-haze-11: https://wandb.ai/da1111110/THP1_IFNB_2024728/runs/1u0pocyz
+wandb: Synced 6 W&B file(s), 0 media file(s), 0 artifact file(s) and 0 other file(s)
+wandb: Find logs at: /ocean/projects/bio210062p/zihengc/wandb/run-20251127_232745-1u0pocyz/logs

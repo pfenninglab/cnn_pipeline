@@ -2,8 +2,7 @@
 #SBATCH -t 48:00:00
 #SBATCH --gres=gpu:v100-32
 #SBATCH -n 1
-#SBATCH -o logs/out.txt
-#SBATCH -e logs/err.txt
+
 #SBATCH --mem 16000
 
 # If training env isn't already activated, then activate it

@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/jet/home/zihengc/src/cnn_pipeline/train.py", line 9, in <module>
+    import callbacks
+  File "/jet/home/zihengc/src/cnn_pipeline/callbacks.py", line 11, in <module>
+    import models
+  File "/jet/home/zihengc/src/cnn_pipeline/models.py", line 174
+    x_max = layers.GlobalMaxPooling1D(name="global_max_pool")(x)        # [B, d_model]
+TabError: inconsistent use of tabs and spaces in indentation

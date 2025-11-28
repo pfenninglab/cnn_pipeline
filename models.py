@@ -70,67 +70,140 @@ def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, confi
 	return model
 
 def get_model_architecture(input_shape, num_classes, config):
-	"""Get 1-dimensional CNN model architecture.
-	Properties:
-		- Inputs are 1-hot encoded sequences of shape [sequence_len, encoding_dim]
-			- encoding_dim = 4 for DNA sequences (A, C, G, T)
-		- Outputs are either:
-			- float tensor of shape [num_classes], non-negative and summing to 1, if num_classes >= 2 (classification)
-			- float tensor of shape [1], taking values in (-inf, inf), if num_classes is None (regression)
-	"""
-	# Get config dicts for kernel and bias initializers
-	kernel_initializer_cfg = _get_initializer_cfg(config, 'kernel_initializer')
-	bias_initializer_cfg = _get_initializer_cfg(config, 'bias_initializer')
+    """Get 1D CNN (optionally with Transformer) model architecture."""
+    # initializer configs
+    kernel_initializer_cfg = _get_initializer_cfg(config, 'kernel_initializer')
+    bias_initializer_cfg = _get_initializer_cfg(config, 'bias_initializer')
 
-	# Inputs
-	inputs = keras.Input(shape=input_shape)
-	x = inputs
+    # 是否启用 Transformer 分支
+    use_transformer = bool(config.get('use_transformer', False))
 
-	# Convolutional stack
-	for layer_num in range(config['num_conv_layers']):
-		layer_config = _get_layer_config(config, layer_num, LAYERWISE_PARAMS_CONV)
-		x = layers.Conv1D(
-				filters=layer_config['conv_filters'],
-				kernel_size=layer_config['conv_width'],
-				activation='relu',
-				strides=layer_config['conv_stride'],
-				kernel_regularizer=l2(l=layer_config['l2_reg_conv']),
-				kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
-				bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
-		x = layers.Dropout(rate=layer_config['dropout_rate_conv'])(x)
+    # Inputs
+    inputs = keras.Input(shape=input_shape)
+    x = inputs
 
-	# Max-pooling layer
-	x = layers.MaxPooling1D(
-			pool_size=config['max_pool_size'],
-			strides=config['max_pool_stride'],
-			# NOTE we use padding='same' so that no input data gets discarded
-			padding='same')(x)
-	x = layers.Flatten()(x)
+    # 如果要用 transformer，则先从 one-hot 算一个原始 mask
+    if use_transformer:
+        mask = layers.Lambda(make_mask_from_onehot, name="input_mask")(inputs)
+    else:
+        mask = None
 
-	# Dense stack
-	for layer_num in range(config['num_dense_layers']):
-		layer_config = _get_layer_config(config, layer_num, LAYERWISE_PARAMS_DENSE)
-		x = layers.Dense(
-				units=layer_config['dense_filters'],
-				activation='relu',
-				kernel_regularizer=l2(l=layer_config['l2_reg_dense']),
-				kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
-				bias_initializer=keras.initializers.get(bias_initializer_cfg))(x)
-		x = layers.Dropout(rate=layer_config['dropout_rate_dense'])(x)
+    # Convolutional stack
+    for layer_num in range(config['num_conv_layers']):
+        layer_config = _get_layer_config(config, layer_num, LAYERWISE_PARAMS_CONV)
+        conv_filters = layer_config['conv_filters']
+        conv_width = layer_config['conv_width']
+        conv_stride = layer_config['conv_stride']
 
-	# Final (output) layer
-	if num_classes is None:
-		num_output_units = 1
-		activation = None
-	elif isinstance(num_classes, int):
-		num_output_units = num_classes
-		activation = "softmax"
-	else:
-		raise ValueError(f"Invalid num_classes: {num_classes}")
-	outputs = layers.Dense(num_output_units, activation=activation,
-		kernel_regularizer=l2(l=config['l2_reg_final']))(x)
+        x = layers.Conv1D(
+            filters=conv_filters,
+            kernel_size=conv_width,
+            activation='relu',
+            strides=conv_stride,
+            kernel_regularizer=l2(l=layer_config['l2_reg_conv']),
+            kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
+            bias_initializer=keras.initializers.get(bias_initializer_cfg),
+        )(x)
+        x = layers.Dropout(rate=layer_config['dropout_rate_conv'])(x)
 
-	return keras.Model(inputs=inputs, outputs=outputs)
+        # 同步更新 mask 的长度（按 Conv1D 的 valid 卷积规则）
+        if use_transformer:
+            mask = layers.Lambda(
+                lambda m, k=conv_width, s=conv_stride: conv_mask_1d(
+                    m, kernel_size=k, stride=s, padding='VALID'
+                ),
+                name=f"mask_conv{layer_num}",
+            )(mask)
+
+    if not use_transformer:
+        # ===== 纯 CNN 路径：保持和原来完全一样 =====
+        x = layers.MaxPooling1D(
+            pool_size=config['max_pool_size'],
+            strides=config['max_pool_stride'],
+            padding='same',  # 你原来的注释：不丢数据
+        )(x)
+        x = layers.Flatten()(x)
+
+    else:
+        # ===== CNN + RoPE Transformer 路径 =====
+        pool_size = int(config['max_pool_size'])
+        pool_stride = int(config['max_pool_stride'])
+
+        # 1) MaxPooling1D（和原来一样的超参，但单独命名）
+        x = layers.MaxPooling1D(
+            pool_size=pool_size,
+            strides=pool_stride,
+            padding='same',
+            name="maxpool",
+        )(x)  # x: [B, T, C]
+
+        # 2) 对 mask 做同样的 pooling，确保长度 T 完全对齐
+        mask = layers.Lambda(
+            lambda m, p=pool_size, s=pool_stride: pool_mask_1d(
+                m, pool_size=p, stride=s, padding='SAME'
+            ),
+            name="mask_pooled",
+        )(mask)  # mask: [B, T]
+
+        # 3) 投影到 d_model，作为 Transformer 的 token embedding
+        d_model = int(config.get('transformer_d_model', 256))
+        x = layers.Dense(d_model, activation=None, name="proj_to_dmodel")(x)  # [B, T, d_model]
+
+        # 4) Transformer 堆叠
+        num_tr_layers = int(config.get('num_transformer_layers', 1))
+        num_heads = int(config.get('transformer_num_heads', 4))
+        key_dim = int(config.get('transformer_key_dim', d_model // num_heads))
+        ff_dim = int(config.get('transformer_ff_dim', 4 * d_model))
+        dropout_attn = float(config.get('transformer_dropout', 0.1))
+
+        for layer_idx in range(num_tr_layers):
+            x = transformer_block(
+                x,
+                mask=mask,
+                num_heads=num_heads,
+                key_dim=key_dim,
+                ff_dim=ff_dim,
+                dropout=dropout_attn,
+                name_prefix=f"tr{layer_idx}",
+            )
+
+        # 5) 把 padding 位置显式清零（尽管 mask 也已经在 attention 里用过）
+        x = layers.Multiply(name="apply_mask")([x, mask[..., tf.newaxis]])
+
+        # 6) 全局 pooling：max + avg 拼接
+        x_max = layers.GlobalMaxPooling1D(name="global_max_pool")(x)        # [B, d_model]
+        x_avg = layers.GlobalAveragePooling1D(name="global_avg_pool")(x)   # [B, d_model]
+        x = layers.Concatenate(name="pool_concat")([x_max, x_avg])         # [B, 2*d_model]
+
+    # Dense stack（原样保留）
+    for layer_num in range(config['num_dense_layers']):
+        layer_config = _get_layer_config(config, layer_num, LAYERWISE_PARAMS_DENSE)
+        x = layers.Dense(
+            units=layer_config['dense_filters'],
+            activation='relu',
+            kernel_regularizer=l2(l=layer_config['l2_reg_dense']),
+            kernel_initializer=keras.initializers.get(kernel_initializer_cfg),
+            bias_initializer=keras.initializers.get(bias_initializer_cfg),
+        )(x)
+        x = layers.Dropout(rate=layer_config['dropout_rate_dense'])(x)
+
+    # Final (output) layer
+    if num_classes is None:
+        num_output_units = 1
+        activation = None
+    elif isinstance(num_classes, int):
+        num_output_units = num_classes
+        activation = "softmax"
+    else:
+        raise ValueError(f"Invalid num_classes: {num_classes}")
+
+    outputs = layers.Dense(
+        num_output_units,
+        activation=activation,
+        kernel_regularizer=l2(l=config['l2_reg_final']),
+    )(x)
+
+    return keras.Model(inputs=inputs, outputs=outputs)
 
 def _get_layer_config(config, layer_num, keys):
 	"""Get the config values that apply at this layer.
@@ -408,12 +481,12 @@ class AdditionalValidation:
         for metric in self.metrics:
             num_values = len(self.val_datasets)
             try:
-	            values = [results[f'val_{idx + 1}_{metric}'] for idx in range(num_values)]
-	            # https://en.wikipedia.org/wiki/Geometric_mean
-	            results[f'val_*_{metric}_gm'] = np.power(np.product(values), 1 / num_values)
+                values = [results[f'val_{idx + 1}_{metric}'] for idx in range(num_values)]
+                # https://en.wikipedia.org/wiki/Geometric_mean
+                results[f'val_*_{metric}_gm'] = np.power(np.product(values), 1 / num_values)
             except KeyError as e:
-            	# this metric was not calculated, skip it
-	            pass
+                # this metric was not calculated, skip it
+                pass
         return results
 
 def get_additional_validation(config, model):
@@ -428,9 +501,9 @@ def get_additional_validation(config, model):
         for paths, targets in zip(config.additional_val_data_paths, config.additional_val_targets)
     ]
     if config.targets_are_classes:
-    	metrics = ['acc', 'auroc', 'auprc', 'precision', 'sensitivity', 'f1', 'npv', 'specificity', 'npvsc']
+        metrics = ['acc', 'auroc', 'auprc', 'precision', 'sensitivity', 'f1', 'npv', 'specificity', 'npvsc']
     else:
-    	metrics = ['mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error']
+        metrics = ['mean_squared_error', 'mean_absolute_error', 'mean_absolute_percentage_error']
     return AdditionalValidation(model, val_datasets, metrics=metrics, batch_size=config.batch_size)
 
 
@@ -483,3 +556,240 @@ def predict_with_uncertainty(model, inputs, batch_size=constants.DEFAULT_BATCH_S
 		# Swap axes so that dimensions are [num_examples, num_trials, num_classes]
 		res['trials'] = np.swapaxes(trials, 0, 1)
 	return res
+
+########################################
+# Mask helpers
+########################################
+
+def make_mask_from_onehot(x):
+    """
+    x: [B, L, C]，one-hot 序列，pad 部分全 0
+    返回: [B, L]，真实碱基=1，padding=0
+    """
+    mask = tf.reduce_sum(tf.abs(x), axis=-1) > 0  # bool
+    return tf.cast(mask, tf.float32)
+
+
+def conv_mask_1d(mask, kernel_size, stride=1, padding='VALID'):
+    """
+    按照 Conv1D 的 kernel_size / stride / padding 规则，下采样 mask。
+    思路：
+      - 对 mask 做一次 1D conv（kernel 全 1）
+      - 如果一个 output 位置看到的 window 里所有 mask==1，则该位置 mask_out=1，否则=0
+    mask: [B, L_in]
+    返回: [B, L_out]
+    """
+    mask = tf.cast(mask, tf.float32)
+    # [B, L, 1]
+    m = mask[..., tf.newaxis]
+    # 卷积核 [kernel_size, in_channels=1, out_channels=1]
+    kernel = tf.ones((kernel_size, 1, 1), dtype=tf.float32)
+    conv = tf.nn.conv1d(m, kernel, stride=stride, padding=padding)  # [B, L_out, 1]
+    conv = tf.squeeze(conv, axis=-1)  # [B, L_out]
+    # 只有当这个 window 全是 1 时，sum == kernel_size
+    full = tf.equal(conv, float(kernel_size))
+    return tf.cast(full, tf.float32)
+
+
+def pool_mask_1d(mask, pool_size, stride, padding='SAME'):
+    """
+    按照 MaxPooling1D 的 pool_size / stride / padding 规则，下采样 mask。
+    逻辑：window 里只要有一个有效位置，就认为 pooled 位置有效。
+    mask: [B, L_in]
+    返回: [B, L_out]
+    """
+    mask = tf.cast(mask, tf.float32)
+    m = mask[..., tf.newaxis]  # [B, L, 1]
+    pooled = tf.nn.max_pool1d(
+        m,
+        ksize=pool_size,
+        strides=stride,
+        padding=padding,
+        data_format="NWC",
+    )  # [B, L_out, 1]
+    pooled = tf.squeeze(pooled, axis=-1)  # [B, L_out]
+    return pooled
+
+
+########################################
+# RoPE Multi-Head Self-Attention
+########################################
+
+class RotaryMultiHeadSelfAttention(layers.Layer):
+    def __init__(self, num_heads, key_dim, rope_base=10000.0, dropout=0.0, **kwargs):
+        super().__init__(**kwargs)
+        self.num_heads = num_heads
+        self.key_dim = key_dim
+        self.rope_base = rope_base
+        self.dropout = dropout
+
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "num_heads": self.num_heads,
+            "key_dim": self.key_dim,
+            "rope_base": self.rope_base,
+            "dropout": self.dropout,
+        })
+        return config
+	
+    def build(self, input_shape):
+        d_model = input_shape[-1]
+        assert d_model == self.num_heads * self.key_dim, \
+            f"d_model ({d_model}) must = num_heads ({self.num_heads}) * key_dim ({self.key_dim})"
+
+        self.qkv_dense = layers.Dense(3 * d_model, use_bias=False)
+        self.out_dense = layers.Dense(d_model, use_bias=False)
+        self.attn_dropout = layers.Dropout(self.dropout)
+        super().build(input_shape)
+
+    @staticmethod
+    def _rotate_half(x):
+        x1, x2 = tf.split(x, 2, axis=-1)
+        return tf.concat([-x2, x1], axis=-1)
+
+    def _compute_rope_angles(self, seq_len, dim):
+        half_dim = dim // 2
+        inv_freq = 1.0 / (self.rope_base ** (tf.range(0, half_dim, 1.0) / half_dim))
+        positions = tf.cast(tf.range(seq_len), tf.float32)  # [L]
+        freqs = tf.einsum('i,j->ij', positions, inv_freq)   # [L, half_dim]
+        emb = tf.concat([freqs, freqs], axis=-1)            # [L, dim]
+        cos = tf.cos(emb)[tf.newaxis, tf.newaxis, ...]      # [1,1,L,dim]
+        sin = tf.sin(emb)[tf.newaxis, tf.newaxis, ...]
+        return cos, sin
+
+    def _apply_rope(self, x, cos, sin):
+        # x: [B, H, L, D]
+        return (x * cos) + (self._rotate_half(x) * sin)
+
+    def call(self, x, mask=None, training=None):
+        """
+        x: [B, L, d_model]
+        mask: [B, L]，1 = 有效，0 = padding
+        """
+        batch_size = tf.shape(x)[0]
+        seq_len = tf.shape(x)[1]
+        d_model = x.shape[-1]
+
+        # qkv projection
+        qkv = self.qkv_dense(x)  # [B, L, 3*d_model]
+        qkv = tf.reshape(qkv, [batch_size, seq_len, 3, self.num_heads, self.key_dim])
+        qkv = tf.transpose(qkv, [2, 0, 3, 1, 4])  # [3, B, H, L, D]
+        q, k, v = qkv[0], qkv[1], qkv[2]          # each [B, H, L, D]
+
+        # apply RoPE to q, k
+        cos, sin = self._compute_rope_angles(seq_len, self.key_dim)  # [1,1,L,D]
+        q = self._apply_rope(q, cos, sin)
+        k = self._apply_rope(k, cos, sin)
+
+        # scaled dot-product attention
+        scale = tf.math.rsqrt(tf.cast(self.key_dim, tf.float32))
+        attn_scores = tf.einsum('bhqd,bhkd->bhqk', q, k) * scale  # [B,H,L,L]
+
+        if mask is not None:
+            # mask 作用在 key 维度：不允许 attend 到 padding 位置
+            m = tf.cast(mask[:, tf.newaxis, tf.newaxis, :], tf.float32)  # [B,1,1,L]
+            attn_scores += (1.0 - m) * -1e9
+
+        attn_weights = tf.nn.softmax(attn_scores, axis=-1)
+        attn_weights = self.attn_dropout(attn_weights, training=training)
+
+        context = tf.einsum('bhqk,bhkd->bhqd', attn_weights, v)  # [B,H,L,D]
+        context = tf.transpose(context, [0, 2, 1, 3])            # [B,L,H,D]
+        context = tf.reshape(context, [batch_size, seq_len, d_model])  # [B,L,d_model]
+
+        out = self.out_dense(context)
+        return out
+
+
+def transformer_block(x, mask, num_heads=4, key_dim=64, ff_dim=256,
+                      dropout=0.1, name_prefix="tr"):
+    d_model = x.shape[-1]
+
+    # self-attention with RoPE
+    attn_out = RotaryMultiHeadSelfAttention(
+        num_heads=num_heads,
+        key_dim=key_dim,
+        dropout=dropout,
+        name=f"{name_prefix}_rope_mha"
+    )(x, mask=mask)
+    x = layers.Add(name=f"{name_prefix}_attn_add")([x, attn_out])
+    x = layers.LayerNormalization(epsilon=1e-6, name=f"{name_prefix}_attn_ln")(x)
+
+    # position-wise FFN
+    ffn = keras.Sequential([
+        layers.Dense(ff_dim, activation="relu"),
+        layers.Dense(d_model),
+    ], name=f"{name_prefix}_ffn")
+    ffn_out = ffn(x)
+    ffn_out = layers.Dropout(dropout, name=f"{name_prefix}_ffn_dropout")(ffn_out)
+    x = layers.Add(name=f"{name_prefix}_ffn_add")([x, ffn_out])
+    x = layers.LayerNormalization(epsilon=1e-6, name=f"{name_prefix}_ffn_ln")(x)
+    return x
+
+
+def build_cnn_rope_model(
+    seq_len=None,       # None = 支持变长；如果你现在还是 500 就填 500 也行
+    num_channels=4,
+    num_filters=500,    # 和你之前 CNN 一样
+    d_model=256,        # Transformer 的通道数
+    num_heads=4,
+    num_transformer_layers=1,
+    ff_dim=1024,
+    dense_units=300,
+    output_activation="linear",  # 回归可以用 "linear"
+):
+    # 1) 输入 + mask
+    inputs = keras.Input(shape=(seq_len, num_channels), name="seq")  # (L,4)
+    mask = layers.Lambda(make_mask_from_onehot, name="seq_mask")(inputs)  # [B,L]
+
+    # 2) CNN 前端（基本保留你原来的结构）
+    x = layers.Conv1D(num_filters, 11, padding="same", activation="relu", name="conv1")(inputs)
+    x = layers.Dropout(0.1, name="conv1_dropout")(x)
+
+    x = layers.Conv1D(num_filters, 11, padding="same", activation="relu", name="conv2")(x)
+    x = layers.Dropout(0.1, name="conv2_dropout")(x)
+
+    # 3) MaxPooling + mask pooling（适当减少 pool_size，比如 4）
+    pool_size = 4
+    stride = 4
+    x = layers.MaxPooling1D(pool_size=pool_size, strides=stride,
+                            padding="same", name="maxpool")(x)  # [B,T,500]
+
+    mask_pooled = layers.Lambda(
+        lambda m: pool_mask(m, pool_size, stride),
+        name="mask_pooled"
+    )(mask)  # [B,T]
+
+    # 4) 投影到 d_model，作为 Transformer 的 token 表示
+    x = layers.Dense(d_model, activation=None, name="proj_to_dmodel")(x)
+
+    # 5) RoPE Transformer 层（可以 1–2 层）
+    for i in range(num_transformer_layers):
+        x = transformer_block(
+            x,
+            mask=mask_pooled,
+            num_heads=num_heads,
+            key_dim=d_model // num_heads,
+            ff_dim=ff_dim,
+            dropout=0.1,
+            name_prefix=f"tr{i}"
+        )
+
+    # 选做：把 pad 位置显式置零（即使通常也很小）
+    x = layers.Multiply(name="apply_mask")([x, mask_pooled[..., tf.newaxis]])
+
+    # 6) Global pooling 替代 Flatten，length-agnostic
+    x = layers.GlobalMaxPooling1D(name="global_max_pool")(x)
+
+    # 7) Dense 头，尽量接近你原来的
+    x = layers.Dense(dense_units, activation="relu", name="dense1")(x)
+    x = layers.Dropout(0.5, name="dense1_dropout")(x)
+
+    x = layers.Dense(dense_units, activation="relu", name="dense2")(x)
+    x = layers.Dropout(0.5, name="dense2_dropout")(x)
+
+    outputs = layers.Dense(1, activation=output_activation, name="output")(x)
+
+    model = keras.Model(inputs=inputs, outputs=outputs, name="cnn_rope_transformer")
+    return model

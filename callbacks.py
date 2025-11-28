@@ -15,13 +15,14 @@ WANDB_RUN_DIR_DISABLED = '/tmp'
 
 def get_training_callbacks(config, model, steps_per_epoch, disable_momentum=False):
     callback_fns = get_early_stopping_callbacks(config) + [
-        WandbCallback(),
+        WandbCallback(save_model=False),  # 不让 WandbCallback 自己上传模型
         OptimizerLogger(model.optimizer),
         get_additional_validation_callback(config, model),
         get_model_checkpoint_callback()]
     if not disable_momentum:
         callback_fns.append(get_momentum_callback(steps_per_epoch, config))
-    return [cb for cb in callback_fns if cb is not None]    
+    return [cb for cb in callback_fns if cb is not None]
+    
 
 class OptimizerLogger(tf.keras.callbacks.Callback):
     """Log learning rate and optimizer values at the end of each epoch.
@@ -74,19 +75,23 @@ def get_additional_validation_callback(config, model):
     return AdditionalValidationLogger(additional_val)
 
 def get_model_checkpoint_callback():
-    
-    """Save latest model after each epoch."""
+    """Save best model (based on validation loss) during training."""
     run_dir = wandb.run.dir
     if run_dir == WANDB_RUN_DIR_DISABLED:
         return None
-    #filepath = os.path.join(run_dir, 'model-latest.h5')
-    timestamp = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-    filepath = os.path.join(run_dir, f'model_{timestamp}_epoch_{{epoch:02d}}.h5')
-    #return tf.keras.callbacks.ModelCheckpoint(filepath)
-    return tf.keras.callbacks.ModelCheckpoint(filepath,
-                                            save_freq='epoch',  # Save the model at the end of every epoch
-		                                    save_weights_only=False,  # Set to True to save only weights, False to save the whole model
-		                                    verbose=1)
+
+    # 固定文件名，只保留一份最优模型
+    filepath = os.path.join(run_dir, "model-best.h5")
+    return tf.keras.callbacks.ModelCheckpoint(
+        filepath=filepath,
+        monitor="val_loss",    # 如果你想按别的指标选 best，这里改名字
+        mode="min",            # val_loss 越小越好
+        save_best_only=True,   # 只在变好时覆盖
+        save_weights_only=False,
+        verbose=1,
+    )
+
+
 
 def get_momentum_callback(steps_per_epoch, config):
     if config.momentum_schedule == 'cyclic':
