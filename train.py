@@ -84,6 +84,9 @@ def train(args):
 
 	# Train
 	callback_fns = callbacks.get_training_callbacks(wandb.config, model, steps_per_epoch_train)
+	if args.debugtrain:
+		# limit training to 1 step per epoch for debugging
+		steps_per_epoch_train=1
 	model.fit(
 		train_data.dataset,
 		epochs=wandb.config.num_epochs,
@@ -127,6 +130,7 @@ def get_args():
 	parser = argparse.ArgumentParser()
 	parser.add_argument('-config', type=str, required=True)
 	parser.add_argument('-wandb-mode', type=str)
+	parser.add_argument('-debugtrain', action='store_true')
 	# parse_known_args() allows hyperparameters to be passed in during sweeps
 	args, _ = parser.parse_known_args()
 	return args
