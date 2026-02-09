@@ -9,7 +9,7 @@ if [ "$CONDA_DEFAULT_ENV" != "keras2-tf27" ]; then
 fi
 
 # clear wandb cache to prevent overfilling disk
-wandb artifact cache cleanup 1G
+wandb artifact cache cleanup 1GB
 
 sweep_id=$1
 
