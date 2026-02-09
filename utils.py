@@ -24,7 +24,7 @@ CONFIG_EXPECTED_KEYS = {
 	'l2_reg_dense': [float, list],
 	'l2_reg_final': float,
 	'lr_exp_decay_per_epoch': float,
-	'lr_cyc_num_cycles': float,
+	'lr_cyc_num_cycles': [float, int],
 	'dropout_rate_conv': [float, list],
 	'dropout_rate_dense': [float, list],
 	'num_conv_layers': int,
