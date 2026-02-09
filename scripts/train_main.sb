@@ -8,4 +8,7 @@ if [ "$CONDA_DEFAULT_ENV" != "keras2-tf27" ]; then
 	source activate keras2-tf27
 fi
 
+# clear wandb cache to prevent overfilling disk
+wandb artifact cache cleanup 1GB
+
 python train.py -config $1
