@@ -4,11 +4,13 @@ import scipy.stats
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+from tensorflow.keras.layers import Lambda
 from tensorflow.keras.regularizers import l2
 from tensorflow.keras.optimizers import SGD, Adam
 from tensorflow.keras.metrics import SparseCategoricalAccuracy
 from tensorflow.keras.metrics import MeanSquaredError, MeanAbsoluteError, MeanAbsolutePercentageError
 from tqdm import tqdm
+
 
 import constants
 import dataset
@@ -68,6 +70,20 @@ def get_model(input_shape, num_classes, class_to_idx_mapping, lr_schedule, confi
 		metrics=metrics)
 
 	return model
+
+def masked_mean_pool(x, mask):
+    # x: (B,T,C), mask: (B,T)
+    mask_f = tf.cast(mask, tf.float32)
+    mask_f = mask_f[..., tf.newaxis]          # (B,T,1)
+    x = x * mask_f
+    denom = tf.reduce_sum(mask_f, axis=1) + 1e-8   # (B,1)
+    return tf.reduce_sum(x, axis=1) / denom        # (B,C)
+
+def masked_global_max_pool(x, mask):
+    mask_f = tf.cast(mask, x.dtype)[..., tf.newaxis]  # (B,T,1)
+    neg = tf.constant(-1e9, dtype=x.dtype)
+    x = x + (1.0 - mask_f) * neg
+    return tf.reduce_max(x, axis=1)
 
 def get_model_architecture(input_shape, num_classes, config):
     """Get 1D CNN (optionally with Transformer) model architecture."""
@@ -171,8 +187,12 @@ def get_model_architecture(input_shape, num_classes, config):
         x = layers.Multiply(name="apply_mask")([x, mask[..., tf.newaxis]])
 
         # 6) 全局 pooling：max + avg 拼接
-        x_max = layers.GlobalMaxPooling1D(name="global_max_pool")(x)        # [B, d_model]
-        x_avg = layers.GlobalAveragePooling1D(name="global_avg_pool")(x)   # [B, d_model]
+        x_max = Lambda(lambda z: masked_global_max_pool(z[0], z[1]),
+               name="masked_global_max_pool")([x, mask])
+
+        x_avg = Lambda(lambda z: masked_mean_pool(z[0], z[1]),
+               name="masked_global_avg_pool")([x, mask])   # [B, d_model]
+		
         x = layers.Concatenate(name="pool_concat")([x_max, x_avg])         # [B, 2*d_model]
 
     # Dense stack（原样保留）
@@ -637,7 +657,6 @@ class RotaryMultiHeadSelfAttention(layers.Layer):
         d_model = input_shape[-1]
         assert d_model == self.num_heads * self.key_dim, \
             f"d_model ({d_model}) must = num_heads ({self.num_heads}) * key_dim ({self.key_dim})"
-
         self.qkv_dense = layers.Dense(3 * d_model, use_bias=False)
         self.out_dense = layers.Dense(d_model, use_bias=False)
         self.attn_dropout = layers.Dropout(self.dropout)
@@ -649,14 +668,25 @@ class RotaryMultiHeadSelfAttention(layers.Layer):
         return tf.concat([-x2, x1], axis=-1)
 
     def _compute_rope_angles(self, seq_len, dim):
+        # dim 应该等于 key_dim，且必须为偶数（RoPE 需要一分为二旋转）
+        dim = tf.cast(dim, tf.int32)
+        tf.debugging.assert_equal(dim % 2, 0, message="RoPE requires dim (key_dim) to be even")
+
         half_dim = dim // 2
-        inv_freq = 1.0 / (self.rope_base ** (tf.range(0, half_dim, 1.0) / half_dim))
-        positions = tf.cast(tf.range(seq_len), tf.float32)  # [L]
-        freqs = tf.einsum('i,j->ij', positions, inv_freq)   # [L, half_dim]
-        emb = tf.concat([freqs, freqs], axis=-1)            # [L, dim]
-        cos = tf.cos(emb)[tf.newaxis, tf.newaxis, ...]      # [1,1,L,dim]
+        half_dim_f = tf.cast(half_dim, tf.float32)
+
+        inv_freq = 1.0 / (
+            self.rope_base ** (tf.range(0, half_dim, dtype=tf.float32) / half_dim_f)
+        )  # [half_dim]
+
+        positions = tf.range(seq_len, dtype=tf.float32)  # [L]
+        freqs = tf.einsum('i,j->ij', positions, inv_freq)  # [L, half_dim]
+
+        emb = tf.concat([freqs, freqs], axis=-1)  # [L, dim]
+        cos = tf.cos(emb)[tf.newaxis, tf.newaxis, ...]  # [1,1,L,dim]
         sin = tf.sin(emb)[tf.newaxis, tf.newaxis, ...]
         return cos, sin
+
 
     def _apply_rope(self, x, cos, sin):
         # x: [B, H, L, D]
@@ -757,9 +787,10 @@ def build_cnn_rope_model(
                             padding="same", name="maxpool")(x)  # [B,T,500]
 
     mask_pooled = layers.Lambda(
-        lambda m: pool_mask(m, pool_size, stride),
+        lambda m, p=pool_size, s=stride: pool_mask_1d(m, pool_size=p, stride=s, padding="SAME"),
         name="mask_pooled"
-    )(mask)  # [B,T]
+    )(mask)
+
 
     # 4) 投影到 d_model，作为 Transformer 的 token 表示
     x = layers.Dense(d_model, activation=None, name="proj_to_dmodel")(x)

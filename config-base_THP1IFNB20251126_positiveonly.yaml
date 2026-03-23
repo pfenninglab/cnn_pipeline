@@ -23,15 +23,8 @@ train_data_paths:
   #       intervals: positives.enhancer.bed
   value:
     - genome: /ocean/projects/bio210062p/zihengc/genome/hg38/hg38.fa
-      intervals: /jet/home/zihengc/ocean_zihengc/ad_ml/peak_files/IFNB_4hrs/THP1_IFNB_4hrs.idr.optimal_peak.narrowPeak.gz
-    - genome: /ocean/projects/bio210062p/zihengc/genome/hg38/hg38.fa
-      intervals: /ocean/projects/bio210062p/zihengc/ad_ml/expand_peaks_500bp_hg38_enhancer_10kbfromTSS/THP1_IFNB_4hrs.idr.optimal_peak.narrowPeak.train.Neg_Part1.enhancer.bed   
-    - genome: /ocean/projects/bio210062p/zihengc/genome/hg38/hg38.fa
-      intervals: /ocean/projects/bio210062p/zihengc/ad_ml/expand_peaks_500bp_hg38_enhancer_10kbfromTSS/THP1_IFNB_4hrs.idr.optimal_peak.narrowPeak.train.Neg_Part2.enhancer.bed      
-    - genome: /ocean/projects/bio210062p/zihengc/genome/hg38/hg38.fa
-      intervals: /ocean/projects/bio210062p/zihengc/ad_ml/expand_peaks_500bp_hg38_enhancer_10kbfromTSS/THP1_IFNB_4hrs.idr.optimal_peak.narrowPeak.train.Neg_Part3.enhancer.bed   
-    - genome: /ocean/projects/bio210062p/zihengc/genome/hg38/hg38.fa
-      intervals: /ocean/projects/bio210062p/zihengc/ad_ml/expand_peaks_500bp_hg38_enhancer_10kbfromTSS/THP1_IFNB_4hrs.idr.optimal_peak.narrowPeak.train.Neg_Part4.enhancer.bed   
+      intervals: /jet/home/zihengc/ocean_zihengc/ad_ml/peak_files/IFNB_4hrs/THP1_IFNB_4hrs.idr.optimal_peak.narrowPeak.gz 
+
 train_targets:
   desc: Targets corresponding to each training data path.
   # To use a constant value per file, e.g. 0 or "neg", just put the value here.
@@ -39,16 +32,12 @@ train_targets:
   #     column: <column number>
   value:
     - column: 6
-    - column: 6
-    - column: 6
-    - column: 6
-    - column: 6
         
 val_data_paths:
   desc: Paths to FASTA, BED, or NarrowPeak files for validation data.
   value:
     - genome: /ocean/projects/bio210062p/zihengc/genome/hg38/hg38.fa
-      intervals: /ocean/projects/bio210062p/zihengc/ad_ml/expand_peaks_500bp_hg38_enhancer_10kbfromTSS/THP1_IFNB_4hrs.idr.optimal_peak.narrowPeak.validation.withNeg.enhancer.bed
+      intervals: /ocean/projects/bio210062p/zihengc/ad_ml/expand_peaks_500bp_hg38_enhancer_10kbfromTSS/THP1_IFNB_4hrs.idr.optimal_peak.narrowPeak.validation.enhancer.bed
 
 val_targets:
   desc: Targets corresponding to each validation data path.

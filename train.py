@@ -31,6 +31,15 @@ def train(args):
                dir='/ocean/projects/bio210062p/zihengc')
     utils.validate_config(wandb.config)
 
+    fixed_max_len = config.get("model_max_seq_len", None)
+    if fixed_max_len is not None:
+        # 有可能是带 desc/value 的结构，就兼容两种
+        if isinstance(fixed_max_len, dict):
+            fixed_max_len = fixed_max_len.get("value", None)
+        if fixed_max_len:
+            os.environ["CNN_PIPELINE_MODEL_MAX_SEQ_LEN"] = str(int(fixed_max_len))
+
+
     # Get datasets
     train_data = dataset.SequenceTfDataset(
         wandb.config.train_data_paths, wandb.config.train_targets,

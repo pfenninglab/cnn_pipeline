@@ -14,6 +14,8 @@ NUM_BASES = 4
 SEED = 0
 rng = np.random.default_rng(SEED)
 
+# 全局的 model 输入长度（bp），在一个进程内共享，使 train/val/test 用同一个长度
+GLOBAL_SEQ_LEN = None
 
 class BedSource:
     """Iterator of sequences from a .bed or .narrowPeaks file and corresponding reference genome .fa file.
@@ -139,12 +141,32 @@ class BedSource:
 
             self.gen = zip(seq_gen, column_gen)
 
+#    def _onehot(self, seq):
+#        res = np.zeros(self.seq_shape, dtype='int8')
+#        for idx, base in enumerate(seq):
+#            if base in self.base_mapping:
+#                res[idx, self.base_mapping[base]] = 1
+#        return res
+
     def _onehot(self, seq):
-        res = np.zeros(self.seq_shape, dtype='int8')
+        base_mapping = {
+            "A": (1, 0, 0, 0),
+            "C": (0, 1, 0, 0),
+            "G": (0, 0, 1, 0),
+            "T": (0, 0, 0, 1),
+            "N": (0, 0, 0, 0),
+        }
+        seq = seq.strip().upper()
+        L = self.seq_shape[0]
+        res = np.zeros((L, 4), dtype=np.int8)
         for idx, base in enumerate(seq):
-            if base in self.base_mapping:
-                res[idx, self.base_mapping[base]] = 1
+            if idx >= L:
+                # 序列比模型最大长度还长：直接从左到右截断
+                break
+            onehot = base_mapping.get(base, (0, 0, 0, 0))
+            res[idx, :] = onehot
         return res
+
 
     @staticmethod
     def get_intervals(bed_file, genome_file=None):
@@ -359,35 +381,67 @@ class SequenceCollection:
 
     def _get_seq_shape(self):
         """
-        Determine a common sequence shape across all sources.
+        推断本 SequenceCollection 的序列 shape，并且在进程内统一
+        train / val / test 的序列长度。
 
-        We allow each source (BedSource/FastaSource) to have its own max_len,
-        then take the global max over all sources and pad shorter ones to this length.
+        逻辑：
+          1) 先看本 collection 里的所有 source，算一个 local_max_len
+          2) 用全局 GLOBAL_SEQ_LEN 去融合，GLOBAL_SEQ_LEN = max(GLOBAL_SEQ_LEN, local_max_len)
+          3) 如果设置了环境变量 CNN_PIPELINE_MODEL_MAX_SEQ_LEN，则再和它取 max
+          4) 最终得到 final_len，强制本 collection 里的 BedSource / FastaSource
+             都用这个长度（pad / truncate 在 one-hot 的时候处理）
         """
-        # 1) 找出所有 source 中最大的长度
-        max_len = 0
-        num_bases = None
-        for source in self.sources:
-            seq_shape = source.seq_shape  # e.g. (len, 4)
-            if num_bases is None:
-                num_bases = seq_shape[1]
-            if seq_shape[0] > max_len:
-                max_len = seq_shape[0]
+        import os
+        global GLOBAL_SEQ_LEN
 
-        if max_len <= 0:
-            raise ValueError("Could not determine a valid sequence length from sources")
+        sources = self.sources
 
-        # 统一的全局 shape
-        shape = (max_len, num_bases)
+        # 1) 先算本 collection 内部的最大长度
+        local_max_len = 0
+        for src in sources:
+            # FastaCollection / FastaSource 有 seq_shape
+            if hasattr(src, "seq_shape") and src.seq_shape is not None:
+                length = src.seq_shape[0]
+            # BedSource 有 seq_len
+            elif hasattr(src, "seq_len") and src.seq_len is not None:
+                length = src.seq_len
+            else:
+                continue
+            if length > local_max_len:
+                local_max_len = length
 
-        # 2) 把所有 source 的 seq_shape/seq_len 都改成这个统一长度
-        for source in self.sources:
-            if source.seq_shape != shape:
-                # 更新 BedSource/FastaSource 的长度信息
-                source.seq_len = max_len
-                source.seq_shape = shape
+        if local_max_len == 0:
+            raise ValueError("Could not infer sequence length for SequenceCollection")
 
-        return shape
+        # 2) 更新全局长度（第一次调用时就是 train 的 max_len）
+        if GLOBAL_SEQ_LEN is None:
+            GLOBAL_SEQ_LEN = local_max_len
+        else:
+            if local_max_len > GLOBAL_SEQ_LEN:
+                GLOBAL_SEQ_LEN = local_max_len
+
+        # 3) 可选：环境变量里指定一个更大的最大长度
+        env_len = os.getenv("CNN_PIPELINE_MODEL_MAX_SEQ_LEN")
+        if env_len is not None:
+            try:
+                env_len_int = int(env_len)
+                if env_len_int > GLOBAL_SEQ_LEN:
+                    GLOBAL_SEQ_LEN = env_len_int
+            except ValueError:
+                pass  # 给了奇怪的字符串就忽略
+
+        # 4) 最终长度 & shape
+        final_len = GLOBAL_SEQ_LEN
+        final_shape = (final_len, 4)
+
+        # 强制本 collection 里的 BedSource / FastaSource 用统一长度
+        for src in sources:
+            # 这里用 isinstance，如果你的 FastaSource / BedSource 名字略有差别，按实际类名改一下即可
+            if isinstance(src, (BedSource, FastaSource)):
+                src.seq_len = final_len
+                src.seq_shape = final_shape
+
+        return final_shape
 
 
     def _get_example(self, data, target_spec):
