@@ -1,6 +1,8 @@
 # CNN Pipeline: Training, Evaluation, Inference, Interpretation
 [Pfenning Lab](https://www.pfenninglab.org)
 
+bingbong
+
 ![CNN model illustration](https://github.com/pfenninglab/cnn_pipeline/blob/main/cnn%20model%20illustration.svg)
 
 ## About
